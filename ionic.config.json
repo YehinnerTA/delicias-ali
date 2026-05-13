@@ -1,0 +1,7 @@
+{
+  "name": "delicias_ali",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}
