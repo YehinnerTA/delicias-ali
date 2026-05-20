@@ -1,8 +1,12 @@
-import { IonApp, IonRouterOutlet, IonSplitPane, setupIonicReact } from '@ionic/react';
+import { IonApp, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
-import { Redirect, Route } from 'react-router-dom';
-import Menu from './components/Menu';
-import Page from './pages/Page';
+import { Route } from 'react-router-dom';
+import { Login } from './pages/security/Login';
+import Home from './pages/section/Home';
+
+/* Theme variables */
+import './theme/base/variables.css';
+import './theme/base/global.css';
 
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/react/css/core.css';
@@ -29,10 +33,7 @@ import '@ionic/react/css/display.css';
 
 /* import '@ionic/react/css/palettes/dark.always.css'; */
 /* import '@ionic/react/css/palettes/dark.class.css'; */
-import '@ionic/react/css/palettes/dark.system.css';
-
-/* Theme variables */
-import './theme/variables.css';
+/* import '@ionic/react/css/palettes/dark.system.css'; */
 
 setupIonicReact();
 
@@ -40,17 +41,9 @@ const App: React.FC = () => {
   return (
     <IonApp>
       <IonReactRouter>
-        <IonSplitPane contentId="main">
-          <Menu />
-          <IonRouterOutlet id="main">
-            <Route path="/" exact={true}>
-              <Redirect to="/folder/Inbox" />
-            </Route>
-            <Route path="/folder/:name" exact={true}>
-              <Page />
-            </Route>
-          </IonRouterOutlet>
-        </IonSplitPane>
+        <Route path="/login" exact={true} component={Login} />
+        <Route path="/" exact={true} component={Home} />
+        <Route path="/home" exact={true} component={Home} />
       </IonReactRouter>
     </IonApp>
   );

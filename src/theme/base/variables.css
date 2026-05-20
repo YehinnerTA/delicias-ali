@@ -1,0 +1,30 @@
+:root,
+:root:root,
+html:root,
+body:root,
+.ion-page,
+ion-app {
+    /* ===== COLORES BASE ===== */
+    --color-black: #000000;
+    --color-white: #ffffff;
+    --color-gray: #333333;
+
+    /* ===== COLORES INSTITUCIONALES ===== */
+    --color-principal: #1a0a0e;
+    --color-secundario: #d90a46;
+    --color-tercero: #ffcfd9;
+
+    /* ===== COLORES INSTITUCIONALES (DERIVADOS DIRECTOS) ===== */
+    --color-primary-dark: #3c171c;
+    --color-bg-dark: #2c1115;
+    --color-tercero-light: #ffcfd9;
+
+    /* Overlay y fondos */
+    --color-bg-overlay: rgba(0, 0, 0, 0.6);
+    --color-bg-overlay-light: rgba(0, 0, 0, 0.4);
+
+    /* ===== COLORES DE ESTADO ===== */
+    --color-exito: #00811e;
+    --color-advertencia: #ffc107;
+    --color-peligro: #ff0019;
+}
