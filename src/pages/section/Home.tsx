@@ -5,7 +5,6 @@ const Home: React.FC = () => {
     return (
         <MainLayout>
             <div style={{
-                padding: '2rem',
                 maxWidth: '1400px',
                 margin: '0 auto',
                 minHeight: '100vh'
