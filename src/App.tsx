@@ -2,6 +2,7 @@ import { IonApp, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import { Route } from 'react-router-dom';
 import { Login } from './pages/security/Login';
+import { RUCSelectorMenu } from './pages/selection/RUCSelectorMenu';
 import Home from './pages/section/Home';
 
 /* Theme variables */
@@ -41,8 +42,8 @@ const App: React.FC = () => {
   return (
     <IonApp>
       <IonReactRouter>
-        <Route path="/login" exact={true} component={Login} />
-        <Route path="/" exact={true} component={Home} />
+        <Route path="/" exact={true} component={Login} />
+        <Route path="/ruc-selector" exact={true} component={RUCSelectorMenu} />
         <Route path="/home" exact={true} component={Home} />
       </IonReactRouter>
     </IonApp>

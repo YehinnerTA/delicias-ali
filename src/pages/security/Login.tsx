@@ -305,8 +305,8 @@ export const Login: React.FC = () => {
                                         onBlur={handleEmailBlur}
                                     />
                                     <span className={`login-validation-icon ${emailStatus === 'success' ? 'login-validation-success' :
-                                            emailStatus === 'error' ? 'login-validation-error' :
-                                                emailStatus === 'warning' ? 'login-validation-warning' : ''
+                                        emailStatus === 'error' ? 'login-validation-error' :
+                                            emailStatus === 'warning' ? 'login-validation-warning' : ''
                                         }`}>
                                         {renderValidationIcon(emailStatus)}
                                     </span>
@@ -340,8 +340,8 @@ export const Login: React.FC = () => {
                                         onBlur={handlePasswordBlur}
                                     />
                                     <span className={`login-validation-icon ${passwordStatus === 'success' ? 'login-validation-success' :
-                                            passwordStatus === 'error' ? 'login-validation-error' :
-                                                passwordStatus === 'warning' ? 'login-validation-warning' : ''
+                                        passwordStatus === 'error' ? 'login-validation-error' :
+                                            passwordStatus === 'warning' ? 'login-validation-warning' : ''
                                         }`}>
                                         {renderValidationIcon(passwordStatus)}
                                     </span>
@@ -367,7 +367,7 @@ export const Login: React.FC = () => {
                             </div>
 
                             {/* Botón de ingreso */}
-                            <button type="submit" className="login-submit btn-reset">
+                            <button type="submit" className="login-submit">
                                 <span className="login-submit-text">Iniciar Sesión</span>
                                 <i className="fa-solid fa-arrow-right"></i>
                             </button>
