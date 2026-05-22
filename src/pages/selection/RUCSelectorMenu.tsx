@@ -15,13 +15,6 @@ export const RUCSelectorMenu: React.FC<RUCSelectorMenuProps> = ({ onRUCSelect })
         }
     };
 
-    const resetToInitial = () => {
-        setCurrentSelection(null);
-        if (onRUCSelect) {
-            onRUCSelect(null);
-        }
-    };
-
     return (
         <div className="ruc-selector-page">
             <div className="ruc-selector-card">
@@ -67,10 +60,6 @@ export const RUCSelectorMenu: React.FC<RUCSelectorMenuProps> = ({ onRUCSelect })
                             <><i className="fas fa-compass"></i> Inicial</>
                         )}
                     </span>
-
-                    <button className="ruc-selector-reset" onClick={resetToInitial}>
-                        <i className="fas fa-undo-alt"></i>
-                    </button>
                 </div>
             </div>
         </div>

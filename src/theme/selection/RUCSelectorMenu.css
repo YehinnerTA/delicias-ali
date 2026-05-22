@@ -166,26 +166,6 @@
     color: var(--color-white);
 }
 
-.ruc-selector-reset {
-    background: var(--color-white);
-    border: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    color: var(--color-gray);
-}
-
-.ruc-selector-reset:hover {
-    background: var(--color-tercero);
-    color: var(--color-secundario);
-    transform: rotate(-15deg);
-}
-
 @media (max-width: 560px) {
     .ruc-selector-page {
         padding: 16px;
@@ -258,10 +238,5 @@
     .ruc-selector-status {
         flex-direction: column;
         align-items: stretch;
-    }
-
-    .ruc-selector-reset {
-        width: 100%;
-        height: 36px;
     }
 }
