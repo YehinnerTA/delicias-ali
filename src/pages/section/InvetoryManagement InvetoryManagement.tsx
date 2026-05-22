@@ -2,8 +2,8 @@ import React from 'react';
 import { InventoryProvider } from '../../context/InventoryContext';
 import MainLayout from '../partials/MainLayout';
 import { InventoryBase } from '../../components/ui/InventoryBase';
-import { CateringSection } from '../../components/ui/gestion/inventario/CateringSection';
-import { PasteleriaSection } from '../../components/ui/gestion/inventario/TiendaSection';
+import { CateringSection } from '../../components/ui/gestion/inventory/CateringSection';
+import { PasteleriaSection } from '../../components/ui/gestion/inventory/TiendaSection';
 import { TabConfig } from '../../features/types/person';
 import '../../theme/section/catering.css';
 
