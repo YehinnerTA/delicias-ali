@@ -5,7 +5,7 @@ import { InventoryBase } from '../../components/ui/InventoryBase';
 import { CateringSection } from '../../components/ui/gestion/inventory/CateringSection';
 import { PasteleriaSection } from '../../components/ui/gestion/inventory/TiendaSection';
 import { TabConfig } from '../../features/types/person';
-import '../../theme/section/catering.css';
+import '../../theme/section/inventory.css';
 
 const tabs: TabConfig[] = [
     { id: 'catering', label: 'Catering · Insumos', icon: 'fa-boxes' },

@@ -5,7 +5,7 @@ import { Login } from './pages/security/Login';
 import { RUCSelectorMenu } from './pages/selection/RUCSelectorMenu';
 import Home from './pages/section/Home';
 import PersonManagement from './pages/section/PersonManagement';
-import InventoryManagement from './pages/section/InvetoryManagement InvetoryManagement';
+import InventoryManagement from './pages/section/InventoryManagement';
 
 /* Theme variables */
 import './theme/base/variables.css';
