@@ -5,6 +5,7 @@ import { EmpresasSection } from '../../components/ui/gestion/person/EmpresasSect
 import { PersonasSection } from '../../components/ui/gestion/person/PersonasSection';
 import { UsuariosSection } from '../../components/ui/gestion/person/UsuariosSection';
 import { TabConfig } from '../../features/types/person';
+import '../../theme/section/management.css';
 
 const tabs: TabConfig[] = [
     { id: 'empresas', label: 'Empresas', icon: 'fa-building' },
