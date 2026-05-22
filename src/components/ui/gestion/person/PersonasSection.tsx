@@ -8,7 +8,6 @@ import { FilterSection, FilterField } from '../../../common/FilterSection';
 import { FormCard, FormField } from '../../../common/FormCard';
 import { ActivityLog } from '../../../common/ActivityLog';
 import { Persona, TIPOS_PERSONA, ROLES } from '../../../../features/types/person';
-import '../../../../theme/section/catering.css';
 
 const personaFilters: FilterField[] = [
     { id: 'search', label: 'Nombre/Documento', type: 'text', placeholder: 'Nombre, email o documento' },
