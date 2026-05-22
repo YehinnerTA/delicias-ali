@@ -7,6 +7,7 @@ ion-app {
     /* ===== COLORES BASE ===== */
     --color-black: #000000;
     --color-white: #ffffff;
+    --color-white-light: #f1f1f1;
     --color-gray: #333333;
 
     /* ===== COLORES INSTITUCIONALES ===== */

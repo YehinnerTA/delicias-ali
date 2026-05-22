@@ -4,6 +4,8 @@ import { Route } from 'react-router-dom';
 import { Login } from './pages/security/Login';
 import { RUCSelectorMenu } from './pages/selection/RUCSelectorMenu';
 import Home from './pages/section/Home';
+import PersonManagement from './pages/section/PersonManagement';
+import InventoryManagement from './pages/section/InvetoryManagement InvetoryManagement';
 
 /* Theme variables */
 import './theme/base/variables.css';
@@ -45,6 +47,8 @@ const App: React.FC = () => {
         <Route path="/" exact={true} component={Login} />
         <Route path="/ruc-selector" exact={true} component={RUCSelectorMenu} />
         <Route path="/home" exact={true} component={Home} />
+        <Route path="/person-management" exact={true} component={PersonManagement} />
+        <Route path="/inventory-management" exact={true} component={InventoryManagement} />
       </IonReactRouter>
     </IonApp>
   );

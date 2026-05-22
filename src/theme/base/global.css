@@ -7,39 +7,76 @@
 html,
 body {
     height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden !important;
 }
 
 body {
     font-family: 'Acme', sans-serif;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
 }
 
 body::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
-    background: transparent;
+    display: none !important;
+}
+
+/* ========== IONIC SPECIFIC ========== */
+/* Ocultar scroll en ion-content */
+ion-content {
+    --overflow: hidden !important;
+    --scroll-bar: hidden !important;
+}
+
+ion-content .inner-scroll {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    overflow-y: auto !important;
+}
+
+ion-content .inner-scroll::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    background: transparent !important;
+}
+
+/* Ocultar scroll en ion-app */
+ion-app {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+
+ion-app::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Para cualquier elemento scrolleable de Ionic */
+[scrollY="true"],
+.scroll-y {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+
+[scrollY="true"]::-webkit-scrollbar,
+.scroll-y::-webkit-scrollbar {
+    display: none !important;
 }
 
 #root,
 ion-app,
 .ion-page {
-    display: block;
-    height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
+    display: block !important;
+    height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
 }
 
 #root::-webkit-scrollbar,
 ion-app::-webkit-scrollbar,
 .ion-page::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
-    background: transparent;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
 }
 
 .btn-reset {
