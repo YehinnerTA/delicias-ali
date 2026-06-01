@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useGlobal } from '../../../../context/GlobalContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { Toast } from '../../../common/Toast';
-import { Modal } from '../../../common/Modal';
+import { Modal } from '../../../common/modal/Modal';
 import { DataTable, Column } from '../../../common/DataTable';
 import { FilterSection, FilterField } from '../../../common/FilterSection';
 import { FormCard, FormField } from '../../../common/FormCard';
