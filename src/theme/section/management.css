@@ -1,4 +1,6 @@
-/* Contenedor principal del módulo */
+/* ============================================
+   1. CONTENEDORES PRINCIPALES
+   ============================================ */
 .dc-catering-container {
     max-width: 1400px;
     margin: 0 auto;
@@ -6,7 +8,6 @@
     background: var(--color-white-light);
 }
 
-/* Header específico del módulo de catering */
 .dc-catering-header-card {
     display: flex;
     justify-content: space-between;
@@ -36,7 +37,9 @@
     margin: 0;
 }
 
-/* Tabs */
+/* ============================================
+   2. TABS
+   ============================================ */
 .dc-tabs {
     display: flex;
     gap: 1rem;
@@ -86,7 +89,9 @@
     }
 }
 
-/* Formularios */
+/* ============================================
+   3. FORMULARIOS
+   ============================================ */
 .dc-form-card {
     background: var(--color-white);
     border-radius: 1.5rem;
@@ -108,7 +113,9 @@
     align-items: flex-end;
 }
 
-/* Filtros */
+/* ============================================
+   4. FILTROS
+   ============================================ */
 .dc-filters-section {
     background: var(--color-white);
     border-radius: 1.5rem;
@@ -175,7 +182,9 @@
     padding: 0.7rem 1.2rem;
 }
 
-/* Inputs */
+/* ============================================
+   5. INPUTS
+   ============================================ */
 .dc-input-group {
     flex: 1;
     min-width: 150px;
@@ -210,7 +219,9 @@
     box-shadow: 0 0 0 3px rgba(217, 10, 70, 0.15);
 }
 
-/* Botones */
+/* ============================================
+   6. BOTONES
+   ============================================ */
 .dc-btn {
     background: var(--color-secundario);
     border: none;
@@ -241,7 +252,6 @@
 
 .dc-btn.info {
     background: var(--color-info, #0d6efd);
-    /* Fallback si no tienes --color-info */
 }
 
 .dc-btn:hover {
@@ -250,7 +260,9 @@
     box-shadow: 0 6px 14px rgba(217, 10, 70, 0.3);
 }
 
-/* Tablas */
+/* ============================================
+   7. TABLAS
+   ============================================ */
 .dc-table-wrapper {
     overflow-x: auto;
     border-radius: 1.2rem;
@@ -287,7 +299,9 @@
     font-weight: 700;
 }
 
-/* Badges */
+/* ============================================
+   8. BADGES
+   ============================================ */
 .dc-badge {
     background: var(--color-tercero);
     color: var(--color-principal);
@@ -308,7 +322,19 @@
     color: #721c24;
 }
 
-/* Acciones */
+.badge-expired {
+    background: #ffe0e0;
+    color: var(--color-peligro);
+}
+
+.badge-near-expiry {
+    background: #fff0db;
+    color: #c2410c;
+}
+
+/* ============================================
+   9. ACCIONES
+   ============================================ */
 .dc-actions i {
     margin: 0 6px;
     cursor: pointer;
@@ -335,7 +361,13 @@
     font-weight: 500;
 }
 
-/* Toast */
+.dc-eliminar {
+    color: var(--color-peligro);
+}
+
+/* ============================================
+   10. TOAST
+   ============================================ */
 .dc-toast-container {
     position: fixed;
     top: 20px;
@@ -447,7 +479,9 @@
     }
 }
 
-/* Modal */
+/* ============================================
+   11. MODAL
+   ============================================ */
 .dc-modal {
     display: none;
     position: fixed;
@@ -538,7 +572,9 @@
     background: #fef6f8;
 }
 
-/* Info Cards */
+/* ============================================
+   12. INFO CARDS
+   ============================================ */
 .dc-info-card {
     background: #f8f9fa;
     border-radius: 1rem;
@@ -583,7 +619,9 @@
     word-break: break-word;
 }
 
-/* History */
+/* ============================================
+   13. HISTORY
+   ============================================ */
 .dc-history-card {
     background: #fffafc;
     border-radius: 1rem;
@@ -648,7 +686,9 @@
     font-size: 0.7rem;
 }
 
-/* Form Row */
+/* ============================================
+   14. FORM ROW / MODAL FIELD
+   ============================================ */
 .dc-form-row {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -692,7 +732,9 @@
     box-shadow: 0 0 0 3px rgba(217, 10, 70, 0.1);
 }
 
-/* Warning Box */
+/* ============================================
+   15. WARNING BOX
+   ============================================ */
 .dc-warning-box {
     background: #fff3cd;
     border-left: 4px solid var(--color-advertencia);
@@ -715,7 +757,9 @@
     font-weight: 500;
 }
 
-/* Activity Panel */
+/* ============================================
+   16. ACTIVITY PANEL
+   ============================================ */
 .dc-activity-panel {
     background: var(--color-white);
     border-radius: 1.5rem;
@@ -749,52 +793,9 @@
     height: 0 !important;
 }
 
-/* Responsive */
-@media (max-width: 640px) {
-
-    .dc-form-row,
-    .dc-info-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* Badges */
-.badge-expired {
-    background: #ffe0e0;
-    color: var(--color-peligro);
-}
-
-.badge-near-expiry {
-    background: #fff0db;
-    color: #c2410c;
-}
-
-.stock-info {
-    background: #feeef2;
-    padding: 0.8rem;
-    border-radius: 1rem;
-    margin-bottom: 1rem;
-    color: var(--color-principal);
-}
-
-.info-note {
-    padding: 0.5rem 1rem;
-    border-radius: 0.8rem;
-    font-size: 0.7rem;
-    color: #0056b3;
-    margin-top: 0.5rem;
-}
-
-.batch-group {
-    border: 1px solid #f0d6db;
-    border-radius: 1rem;
-    margin-bottom: 1rem;
-    padding: 1rem;
-    background: #fffbfc;
-}
-
-/* NEW MODAL */
-/* Layout split para Nueva Venta */
+/* ============================================
+   17. NEW MODAL (VENTAS)
+   ============================================ */
 .split-layout {
     display: flex;
     gap: 1.5rem;
@@ -963,29 +964,9 @@
     padding-top: 0.5rem;
 }
 
-/* Utilidades */
-.text-center {
-    text-align: center;
-}
-
-.cantidad-input {
-    width: auto;
-    max-width: 50px;
-    min-width: 20px;
-    padding: .2rem .5rem;
-    border: 1.5px solid #f0d6db;
-    border-radius: 1rem;
-    font-size: 0.9rem;
-    background: var(--color-white);
-    color: var(--color-black);
-}
-
-.dc-eliminar {
-    color: var(--color-peligro);
-}
-
-/* DETALLE VENTA */
-/* Detalle de Venta */
+/* ============================================
+   18. DETALLE VENTA
+   ============================================ */
 .detalle-producto-item {
     padding: 0.8rem;
     margin-bottom: 0.5rem;
@@ -1032,4 +1013,58 @@
 
 .devolucion-card strong {
     color: #856404;
+}
+
+/* ============================================
+   19. UTILIDADES
+   ============================================ */
+.text-center {
+    text-align: center;
+}
+
+.cantidad-input {
+    width: auto;
+    max-width: 50px;
+    min-width: 20px;
+    padding: .2rem .5rem;
+    border: 1.5px solid #f0d6db;
+    border-radius: 1rem;
+    font-size: 0.9rem;
+    background: var(--color-white);
+    color: var(--color-black);
+}
+
+.stock-info {
+    background: #feeef2;
+    padding: 0.8rem;
+    border-radius: 1rem;
+    margin-bottom: 1rem;
+    color: var(--color-principal);
+}
+
+.info-note {
+    padding: 0.5rem 1rem;
+    border-radius: 0.8rem;
+    font-size: 0.7rem;
+    color: #0056b3;
+    margin-top: 0.5rem;
+}
+
+.batch-group {
+    border: 1px solid #f0d6db;
+    border-radius: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: #fffbfc;
+}
+
+/* ============================================
+   20. RESPONSIVE
+   ============================================ */
+@media (max-width: 640px) {
+
+    .dc-form-row,
+    .dc-info-grid {
+        grid-template-columns: 1fr;
+    }
 }
