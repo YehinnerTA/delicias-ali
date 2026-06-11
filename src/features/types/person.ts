@@ -46,7 +46,7 @@ export interface ActivityLog {
     usuario: string;
 }
 
-export type TipoModulo = 'empresas' | 'personas' | 'usuarios' | 'catering' | 'tienda';
+export type TipoModulo = 'empresas' | 'personas' | 'usuarios' | 'catering' | 'tienda' | 'ventas';
 
 export interface TabConfig {
     id: TipoModulo;

@@ -1,0 +1,120 @@
+import React, { useState } from 'react';
+import { Modal } from '../Modal';
+import { Venta } from '../../../../features/types/sales';
+
+interface DetalleVentaModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    venta: Venta | null;
+}
+
+type TabType = 'detalle' | 'historial';
+
+export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, onClose, venta }) => {
+    const [activeTab, setActiveTab] = useState<TabType>('detalle');
+
+    if (!venta) return null;
+
+    const prodHtml = venta.productos.map((p, idx) => (
+        <div key={idx} className="detalle-producto-item">
+            <div><strong>{p.nombre}</strong> - S/ {p.precio.toFixed(2)}</div>
+            <div>Cant: {p.cantidad} | Subtotal: S/ {(p.cantidad * p.precio).toFixed(2)}</div>
+        </div>
+    ));
+
+    const devHtml = (venta.devoluciones || []).map((d, idx) => (
+        <div key={idx} className="devolucion-card">
+            <small>{d.fecha}</small><br />
+            <strong>NC: {d.notaCredito}</strong><br />
+            Monto: S/ {d.monto.toFixed(2)}<br />
+            Motivo: {d.motivo}<br />
+            Productos: {d.productos.map(p => `${p.nombre} x${p.cantidad}`).join(', ')}
+        </div>
+    ));
+
+    const histHtml = (venta.historial || []).map((h, idx) => (
+        <div key={idx} className="dc-info-card">
+            <div className="dc-info-item">
+                <span className="dc-info-label">{h.fecha}</span>
+                <span className="dc-info-value">{h.usuario}</span>
+                <div className="dc-info-value">{h.accion}</div>
+            </div>
+            <div className="dc-info-label">{h.descripcion}</div>
+        </div>
+    ));
+
+    const modalFooter = (
+        <button className="dc-btn secondary" onClick={onClose}>Cerrar</button>
+    );
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`Detalle de Venta - ${venta.numero}`} icon="fa-receipt" footer={modalFooter}>
+            {/* Tabs internos */}
+            <div className="dc-tabs">
+                <button
+                    className={`dc-tab-btn  ${activeTab === 'detalle' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('detalle')}
+                >
+                    <i className="fas fa-info-circle"></i> Detalle
+                </button>
+                <button
+                    className={`dc-tab-btn ${activeTab === 'historial' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('historial')}
+                >
+                    <i className="fas fa-history"></i> Historial
+                </button>
+            </div>
+
+            {activeTab === 'detalle' && (
+                <>
+                    <div className="detalle-venta-card">
+                        <div className="dc-info-card">
+                            <h4><i className="fa fa-info-circle"></i> Información de la Venta</h4>
+                            <div className="dc-info-grid">
+                                <div className="dc-info-item">
+                                    <div className="dc-info-label">Venta</div>
+                                    <div className="dc-info-value">{venta.numero}</div>
+                                </div>
+                                <div className="dc-info-item">
+                                    <div className="dc-info-label">Fecha</div>
+                                    <div className="dc-info-value">{venta.fecha}</div>
+                                </div>
+                                <div className="dc-info-item">
+                                    <div className="dc-info-label">Cliente</div>
+                                    <div className="dc-info-value">{venta.cliente}</div>
+                                </div>
+                                <div className="dc-info-item">
+                                    <div className="dc-info-label">Pago</div>
+                                    <div className="dc-info-value">{venta.metodoPago}</div>
+                                </div>
+                            </div>
+                            <h4 className="detalle-subtitulo">Productos</h4>
+                            {prodHtml}
+                        </div>
+                        <div className="detalle-totales">
+                            <div>Subtotal: S/ {venta.subtotal.toFixed(2)}</div>
+                            <div>Descuento: S/ {(venta.descuento || 0).toFixed(2)}</div>
+                            <div>IGV: S/ {venta.igv.toFixed(2)}</div>
+                            <div className="total-grande"><strong>TOTAL: S/ {venta.total.toFixed(2)}</strong></div>
+                        </div>
+                    </div>
+                    {devHtml.length > 0 && (
+                        <div className="detalle-venta-card notas-credito">
+                            <h4>Notas de Crédito</h4>
+                            {devHtml}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {activeTab === 'historial' && (
+                <div>
+                    <h4 style={{ marginBottom: '1rem' }}>{venta.numero} - {venta.cliente}</h4>
+                    <div className="detalle-venta-card">
+                        {histHtml.length > 0 ? histHtml : <p>Sin historial</p>}
+                    </div>
+                </div>
+            )}
+        </Modal>
+    );
+};

@@ -6,6 +6,7 @@ import { RUCSelectorMenu } from './pages/selection/RUCSelectorMenu';
 import Home from './pages/section/Home';
 import PersonManagement from './pages/section/PersonManagement';
 import InventoryManagement from './pages/section/InventoryManagement';
+import SalesManagement from './pages/section/SalesManagement';
 
 /* Theme variables */
 import './theme/base/variables.css';
@@ -49,6 +50,7 @@ const App: React.FC = () => {
         <Route path="/home" exact={true} component={Home} />
         <Route path="/person-management" exact={true} component={PersonManagement} />
         <Route path="/inventory-management" exact={true} component={InventoryManagement} />
+        <Route path="/sales-management" exact={true} component={SalesManagement} />
       </IonReactRouter>
     </IonApp>
   );
