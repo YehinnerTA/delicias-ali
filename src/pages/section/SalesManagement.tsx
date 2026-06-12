@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { VentasProvider, useVentas } from '../../context/SalesContext';
-import MainLayout from '../../pages/partials/MainLayout';
+import MainLayout from '../partials/MainLayout';
 import { NewSaleModal } from '../../components/common/modal/sales/NewSaleModal';
 import { DetalleVentaModal } from '../../components/common/modal/sales/DetailsSalesModal';
 import { ModifySalesModal } from '../../components/common/modal/sales/ModifySalesModal';
