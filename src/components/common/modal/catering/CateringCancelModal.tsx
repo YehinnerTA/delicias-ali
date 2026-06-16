@@ -1,18 +1,18 @@
 import React from 'react';
 import { Modal } from '../Modal';
-import { useVentas } from '../../../../context/SalesContext';
+import { useCateringSales } from '../../../../context/CateringContext';
 import { useToast } from '../../../../hooks/base/useToast';
-import { Venta } from '../../../../features/types/sales';
+import { VentaCatering } from '../../../../features/types/catering';
 
-interface AnularVentaModalProps {
+interface CateringCancelModalProps {
     isOpen: boolean;
     onClose: () => void;
-    venta: Venta | null;
+    venta: VentaCatering | null;
     onSuccess: () => void;
 }
 
-export const AnularVentaModal: React.FC<AnularVentaModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
-    const { ventas, setVentas, addActivity, addToHistory } = useVentas();
+export const CateringCancelModal: React.FC<CateringCancelModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
+    const { ventas, setVentas, addActivity, addToHistory } = useCateringSales();
     const { showToast } = useToast();
 
     if (!venta) return null;

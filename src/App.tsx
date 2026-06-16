@@ -7,6 +7,7 @@ import Home from './pages/section/Home';
 import PersonManagement from './pages/section/PersonManagement';
 import InventoryManagement from './pages/section/InventoryManagement';
 import SalesManagement from './pages/section/SalesManagement';
+import CateringManagement from './pages/section/CateringManagement';
 
 /* Theme variables */
 import './theme/base/variables.css';
@@ -51,6 +52,7 @@ const App: React.FC = () => {
         <Route path="/person-management" exact={true} component={PersonManagement} />
         <Route path="/inventory-management" exact={true} component={InventoryManagement} />
         <Route path="/sales-management" exact={true} component={SalesManagement} />
+        <Route path="/catering-management" exact={true} component={CateringManagement} />
       </IonReactRouter>
     </IonApp>
   );
