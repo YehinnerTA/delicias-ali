@@ -89,6 +89,11 @@ export const VentasProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 historial: []
             }];
             addActivity("INICIALIZAR", "ventas", "Datos de ejemplo cargados");
+        } else {
+            loadedVentas = loadedVentas.map((v: any) => ({
+                ...v,
+                fechaObj: new Date(v.fecha)
+            }));
         }
 
         setVentas(loadedVentas);
@@ -98,6 +103,10 @@ export const VentasProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     useEffect(() => {
         loadFromLocal();
     }, []);
+
+    useEffect(() => {
+        saveToLocal();
+    }, [ventas, activityLogs]);
 
     useEffect(() => {
         if (ventas.length) {

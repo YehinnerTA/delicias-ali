@@ -113,7 +113,8 @@ const VentasContent: React.FC = () => {
     const ventasActivityLogs = activityLogs.filter(log => log.modulo === 'ventas').slice(0, 8);
 
     const handleNuevaVentaSuccess = (nuevaVenta: Venta) => {
-        setVentas([nuevaVenta, ...ventas]);
+        const nuevasVentas = [nuevaVenta, ...ventas];
+        setVentas(nuevasVentas);
         setNuevaVentaOpen(false);
     };
 
