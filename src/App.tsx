@@ -1,6 +1,7 @@
 import { IonApp, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import { Route } from 'react-router-dom';
+import { SplashLoader } from './pages/security/SplashScreen';
 import { Login } from './pages/security/Login';
 import { RUCSelectorMenu } from './pages/selection/RUCSelectorMenu';
 import Home from './pages/section/Home';
@@ -46,6 +47,7 @@ const App: React.FC = () => {
   return (
     <IonApp>
       <IonReactRouter>
+        <Route path="/SplashScreen" exact={true} component={SplashLoader} />
         <Route path="/" exact={true} component={Login} />
         <Route path="/ruc-selector" exact={true} component={RUCSelectorMenu} />
         <Route path="/home" exact={true} component={Home} />
