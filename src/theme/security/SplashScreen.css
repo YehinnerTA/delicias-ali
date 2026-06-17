@@ -1,5 +1,3 @@
-/* src/theme/section/splash.css */
-
 /* ===== CONTENEDOR PRINCIPAL - CENTRADO ===== */
 .splash-wrapper {
     position: fixed;
@@ -518,23 +516,6 @@
     100% {
         content: '';
     }
-}
-
-/* ===== VARIABLES ===== */
-:root {
-    --color-black: #000000;
-    --color-white: #ffffff;
-    --color-white-light: #f1f1f1;
-    --color-gray: #333333;
-    --color-principal: #1a0a0e;
-    --color-secundario: #d90a46;
-    --color-tercero: #ffcfd9;
-    --color-primary-dark: #3c171c;
-    --color-bg-dark: #2c1115;
-    --color-tercero-light: #ffcfd9;
-    --color-exito: #00811e;
-    --color-advertencia: #ffc107;
-    --color-peligro: #ff0019;
 }
 
 .splash-wrapper,
