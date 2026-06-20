@@ -1,11 +1,16 @@
 import React, { useState, useRef, FormEvent, useEffect } from 'react';
+import { useHistory } from 'react-router-dom';
+import { loginApi } from '../../services/api/authApi';
 import '../../theme/security/login.css';
 
 export const Login: React.FC = () => {
+    const history = useHistory();
+
     // Estados para los campos
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [rememberMe, setRememberMe] = useState<boolean>(false);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
 
     // Estados de validación
     const [emailValid, setEmailValid] = useState<boolean>(false);
@@ -24,11 +29,18 @@ export const Login: React.FC = () => {
     const passwordInputRef = useRef<HTMLInputElement>(null);
     const alertRef = useRef<HTMLDivElement>(null);
 
+    // Verificar si ya hay sesión activa
+    useEffect(() => {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        if (token) {
+            history.push('/home');
+        }
+    }, [history]);
+
     // Validar Email
     const validateEmailField = (showError: boolean = false): boolean => {
         const emailTrimmed = email.trim();
 
-        // Reset estados visuales
         setEmailStatus('default');
         setEmailErrorMessage('');
 
@@ -43,7 +55,6 @@ export const Login: React.FC = () => {
             return false;
         }
 
-        // Validar formato de email
         const emailRegex: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(emailTrimmed)) {
             if (showError) {
@@ -56,17 +67,6 @@ export const Login: React.FC = () => {
             return false;
         }
 
-        // Validar dominios comunes
-        const domain: string = emailTrimmed.split('@')[1];
-        const validDomains: string[] = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'deliciasali.com', 'live.com', 'icloud.com'];
-        if (!validDomains.some(d => domain.toLowerCase().endsWith(d)) && showError) {
-            setEmailErrorMessage('Verifica que el dominio sea correcto');
-            setEmailStatus('warning');
-            setEmailValid(true);
-            return true;
-        }
-
-        // Email válido
         setEmailStatus('success');
         setEmailValid(true);
         return true;
@@ -74,7 +74,6 @@ export const Login: React.FC = () => {
 
     // Validar Contraseña
     const validatePasswordField = (showError: boolean = false): boolean => {
-        // Reset estados visuales
         setPasswordStatus('default');
         setPasswordErrorMessage('');
 
@@ -100,7 +99,6 @@ export const Login: React.FC = () => {
             return false;
         }
 
-        // Contraseña válida
         setPasswordStatus('success');
         setPasswordValid(true);
         return true;
@@ -129,15 +127,12 @@ export const Login: React.FC = () => {
         setRememberMe(e.target.checked);
     };
 
-    // Mostrar error/success general
     const showGeneralMessage = (message: string, type: 'error' | 'success'): void => {
         setGeneralMessage(message);
         setGeneralType(type);
 
-        // Scroll al mensaje
         alertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-        // Ocultar después de 5 segundos
         setTimeout(() => {
             setGeneralMessage('');
         }, 5000);
@@ -147,20 +142,16 @@ export const Login: React.FC = () => {
         setGeneralMessage('');
     };
 
-    // Envío del formulario
-    const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
+    // Envío del formulario - CON REDIRECCIÓN
+    const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
         e.preventDefault();
         hideGeneralError();
 
-        // Validar todos los campos antes de enviar
         const isEmailValid = validateEmailField(true);
         const isPasswordValid = validatePasswordField(true);
 
-        // Verificar si hay errores
         if (!isEmailValid || !isPasswordValid) {
             showGeneralMessage('Por favor, corrige los errores antes de continuar', 'error');
-
-            // Enfocar el primer campo con error
             if (!isEmailValid) {
                 emailInputRef.current?.focus();
             } else if (!isPasswordValid) {
@@ -169,17 +160,32 @@ export const Login: React.FC = () => {
             return;
         }
 
-        // Aquí iría la lógica de autenticación
-        console.log('Formulario válido - Enviando datos...', { email, password, rememberMe });
+        setIsLoading(true);
 
-        // Simulación de envío exitoso
-        showGeneralMessage('Iniciando sesión...', 'success');
+        try {
+            const response = await loginApi({
+                email: email.trim(),
+                password: password,
+                rememberMe
+            });
 
-        // Aquí puedes agregar tu llamada a API
-        // loginApi({ email, password, rememberMe });
+            if (response.success) {
+                showGeneralMessage('✅ ' + response.message, 'success');
+                // ✅ REDIRECCIÓN A /home
+                setTimeout(() => {
+                    history.push('/home');
+                }, 500);
+            } else {
+                showGeneralMessage('❌ ' + response.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error en login:', error);
+            showGeneralMessage('❌ Error de conexión con el servidor', 'error');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    // Prevenir envío con Enter si hay errores
     const handleKeyPress = (e: React.KeyboardEvent<HTMLFormElement>): void => {
         if (e.key === 'Enter') {
             if (!emailValid || !passwordValid) {
@@ -190,7 +196,6 @@ export const Login: React.FC = () => {
         }
     };
 
-    // Renderizar ícono de validación
     const renderValidationIcon = (status: 'default' | 'success' | 'error' | 'warning'): React.ReactNode => {
         switch (status) {
             case 'success':
@@ -204,7 +209,6 @@ export const Login: React.FC = () => {
         }
     };
 
-    // Clases para el input según el estado
     const getInputClass = (status: 'default' | 'success' | 'error' | 'warning'): string => {
         let classes = 'login-input';
         if (status === 'error') classes += ' login-input-error';
@@ -212,7 +216,6 @@ export const Login: React.FC = () => {
         return classes;
     };
 
-    // Clase para el mensaje de error
     const getErrorClass = (status: 'default' | 'success' | 'error' | 'warning'): string => {
         let classes = 'login-error-message';
         if (status === 'error') classes += ' login-error-visible';
@@ -367,9 +370,9 @@ export const Login: React.FC = () => {
                             </div>
 
                             {/* Botón de ingreso */}
-                            <button type="submit" className="login-submit">
-                                <span className="login-submit-text">Iniciar Sesión</span>
-                                <i className="fa-solid fa-arrow-right"></i>
+                            <button type="submit" className="login-submit" disabled={isLoading}>
+                                <span className="login-submit-text">{isLoading ? 'Iniciando...' : 'Iniciar Sesión'}</span>
+                                <i className={`fa-solid ${isLoading ? 'fa-spinner fa-spin' : 'fa-arrow-right'}`}></i>
                             </button>
                         </form>
 

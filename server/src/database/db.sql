@@ -8,7 +8,7 @@ CREATE DATABASE sistema_eventos_catering;
 USE sistema_eventos_catering;
 
 -- Clave de encriptación (usada para hash de contraseñas y otros cifrados)
-SET @encryption_key = SHA2('ClaveSeguraParaEventosPeru2024!', 256);
+-- SET @encryption_key = SHA2('ClaveSeguraParaEventosPeru2024!', 256);
 
 -- =====================================================
 -- 1. EMPRESAS
@@ -31,7 +31,7 @@ CREATE TABLE usuarios (
     id INT AUTO_INCREMENT PRIMARY KEY,
     usuario VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(100) NOT NULL UNIQUE,
-    password_hash CHAR(64) NOT NULL COMMENT 'Hash SHA-256 con la clave de encriptación',
+    password_hash CHAR(64) NOT NULL,
     nombre_completo VARCHAR(100),
     estado TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -67,7 +67,7 @@ INSERT INTO empresas (ruc, nombre, creado_por) VALUES
 -- Insertar un usuario de prueba (contraseña: 123456)
 -- La contraseña se guarda como SHA2(CONCAT('123456', @encryption_key))
 INSERT INTO usuarios (usuario, email, password_hash, nombre_completo) VALUES
-                     ('admin', 'admin@deliciasali.com', SHA2(CONCAT('123456', @encryption_key), 256), 'Administrador del Sistema');
+                     ('admin', 'admin@deliciasali.com', SHA2(CONCAT('123456', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'Administrador del Sistema');
 
 -- Asignar el usuario a ambas empresas, marcando la primera como predeterminada
 INSERT INTO usuario_empresa (usuario_id, empresa_id, es_predeterminada)
@@ -85,21 +85,22 @@ WHERE ruc IN ('10412743879', '20613823027');
 SELECT 
     u.usuario,
     u.email,
-    e.ruc,
-    e.nombre AS empresa_nombre,
-    ue.es_predeterminada
+    u.password_hash,
+    CASE 
+        WHEN u.password_hash = SHA2(CONCAT('123456', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256)
+        THEN 'Contraseña correcta'
+        ELSE 'Contraseña incorrecta'
+    END as verificacion
 FROM usuarios u
-JOIN usuario_empresa ue ON u.id = ue.usuario_id
-JOIN empresas e ON ue.empresa_id = e.id
 WHERE u.usuario = 'admin';
 
 -- =====================================================
 -- 6. MOSTRAR RESUMEN DE INSTALACIÓN
 -- =====================================================
 SELECT '========================================' AS '';
-SELECT '✅ BASE DE DATOS INSTALADA CORRECTAMENTE' AS mensaje;
+SELECT 'BASE DE DATOS INSTALADA CORRECTAMENTE' AS mensaje;
 SELECT '========================================' AS '';
-SELECT CONCAT('📊 Empresas: ', (SELECT COUNT(*) FROM empresas)) AS info;
-SELECT CONCAT('👤 Usuarios: ', (SELECT COUNT(*) FROM usuarios)) AS info;
-SELECT CONCAT('🔗 Usuario-Empresa: ', (SELECT COUNT(*) FROM usuario_empresa)) AS info;
+SELECT CONCAT('Empresas: ', (SELECT COUNT(*) FROM empresas)) AS info;
+SELECT CONCAT('Usuarios: ', (SELECT COUNT(*) FROM usuarios)) AS info;
+SELECT CONCAT('Usuario-Empresa: ', (SELECT COUNT(*) FROM usuario_empresa)) AS info;
 SELECT '========================================' AS '';
