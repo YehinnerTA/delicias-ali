@@ -1,4 +1,3 @@
-// features/header/hooks/useHeader.ts
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useHistory } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
