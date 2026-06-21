@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useHistory } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { Notificacion } from '../types/index.header';
+import { useCompany } from '../../company/context/CompanyContext';
 
 // Notificaciones de ejemplo
 const NOTIFICACIONES_EJEMPLO: Notificacion[] = [
@@ -35,7 +36,7 @@ export const useHeader = () => {
     // Estados de UI
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [scrollPosition, setScrollPosition] = useState(0);
-    const [selectedCompany, setSelectedCompany] = useState('10xxxxxxxxx');
+    const { selectedCompany, setSelectedCompany, empresas } = useCompany();
     const [notificaciones, setNotificaciones] = useState<Notificacion[]>(NOTIFICACIONES_EJEMPLO);
 
     // Refs
@@ -44,7 +45,6 @@ export const useHeader = () => {
     const closeMenuBtnRef = useRef<HTMLButtonElement>(null);
 
     // Datos del usuario
-    const empresas = user?.empresas || [];
     const nombreUsuario = user?.nombre_completo || user?.usuario || 'Usuario';
 
     // Contador de notificaciones no leídas
@@ -66,10 +66,8 @@ export const useHeader = () => {
 
     // Cambio de empresa
     const handleCompanyChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-        const newCompany = e.target.value;
-        setSelectedCompany(newCompany);
-        localStorage.setItem('selectedCompany', newCompany);
-    }, []);
+        setSelectedCompany(e.target.value);
+    }, [setSelectedCompany]);
 
     // Notificaciones
     const openNotificationModal = useCallback(() => {

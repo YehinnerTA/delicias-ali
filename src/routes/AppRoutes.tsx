@@ -3,7 +3,7 @@ import { Switch, Route, useHistory } from 'react-router-dom';
 import { useAuth } from '../features/auth/context/AuthContext';
 import { SplashLoader } from '../pages/security/SplashScreen';
 import { Login } from '../features/auth/components/Login';
-import { RUCSelectorMenu } from '../pages/selection/RUCSelectorMenu';
+import { RUCSelectorMenu } from '../features/company/components/RUCSelectorMenu';
 import Home from '../pages/section/Home';
 import PersonManagement from '../pages/section/PersonManagement';
 import InventoryManagement from '../pages/section/InventoryManagement';

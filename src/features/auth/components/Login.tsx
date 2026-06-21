@@ -20,7 +20,7 @@ export const Login: React.FC = () => {
     useEffect(() => {
         if (isAuthenticated) {
             sessionStorage.setItem('showSplashOnLogin', 'true');
-            history.push('/home');
+            history.push('/ruc-selector');
         }
     }, [isAuthenticated, history]);
 

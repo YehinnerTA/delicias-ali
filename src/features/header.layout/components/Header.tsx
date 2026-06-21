@@ -80,7 +80,7 @@ const Header: React.FC = () => {
                                 <i className="fas fa-building"></i>
                                 <span>Empresa</span>
                             </label>
-                            <select id="companySelect" className="company-select" value={selectedCompany}
+                            <select id="companySelect" className="company-select" value={selectedCompany ?? ''}
                                 onChange={handleCompanyChange} aria-label="Seleccionar empresa"
                             >
                                 {companyOptions.map(option => (
@@ -146,7 +146,7 @@ const Header: React.FC = () => {
                         <select
                             id="companySelect"
                             className="company-select"
-                            value={selectedCompany}
+                            value={selectedCompany ?? ''}
                             onChange={handleCompanyChange}
                             aria-label="Seleccionar empresa"
                         >

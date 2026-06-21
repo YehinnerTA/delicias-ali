@@ -3,6 +3,7 @@ import { BrowserRouter as Router } from 'react-router-dom';
 import { setupIonicReact } from '@ionic/react';
 import { AuthProvider } from './features/auth/context/AuthContext';
 import { AppRoutes } from './routes/AppRoutes';
+import { CompanyProvider } from './features/company/context/CompanyContext';
 
 /* Theme variables */
 import './theme/base/variables.css';
@@ -13,9 +14,11 @@ setupIonicReact();
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
+      <CompanyProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </CompanyProvider>
     </AuthProvider>
   );
 };
