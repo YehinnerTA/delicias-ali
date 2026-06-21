@@ -1,5 +1,5 @@
 import React from 'react';
-import Header from '../../layout/Header';
+import Header from '../../features/header.layout/components/Header';
 
 interface MainLayoutProps {
     children: React.ReactNode;
