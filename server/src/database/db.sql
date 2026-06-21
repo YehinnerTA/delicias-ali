@@ -65,7 +65,6 @@ INSERT INTO empresas (ruc, nombre, creado_por) VALUES
                      ('20613823027', 'DELICIAS ALI S.A.C.', NULL);
 
 -- Insertar un usuario de prueba (contraseña: 123456)
--- La contraseña se guarda como SHA2(CONCAT('123456', @encryption_key))
 INSERT INTO usuarios (usuario, email, password_hash, nombre_completo) VALUES
                      ('admin', 'admin@deliciasali.com', SHA2(CONCAT('123456', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'Administrador del Sistema');
 
