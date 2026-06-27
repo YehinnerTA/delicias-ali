@@ -52,11 +52,11 @@ export const useHeader = () => {
 
     // Inicializar empresa predeterminada
     useEffect(() => {
-        if (empresas.length > 0) {
+        if (empresas.length > 0 && !selectedCompany) {
             const defaultEmpresa = empresas.find(e => e.es_predeterminada);
             setSelectedCompany(defaultEmpresa?.ruc || empresas[0]?.ruc || '');
         }
-    }, [empresas]);
+    }, [empresas, selectedCompany]);
 
     // Navegación
     const navigateTo = useCallback((path: string) => {

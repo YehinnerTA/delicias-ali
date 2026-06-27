@@ -14,8 +14,7 @@ export const login = async (req: Request, res: Response) => {
     try {
         const { email, password, rememberMe } = req.body;
 
-        console.log('Intento de login:', { email, password: '***' });
-
+        // Validar campos
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -23,13 +22,23 @@ export const login = async (req: Request, res: Response) => {
             });
         }
 
-        // Buscar usuario por email
+        // Buscar usuario por email (JOIN con personas)
         const user = await executeQuerySingle<any>(
-            'SELECT * FROM usuarios WHERE email = ? AND estado = 1',
+            `SELECT 
+                u.id,
+                u.usuario,
+                u.password_hash,
+                u.firma,
+                u.estado,
+                p.email,
+                p.nombre,
+                p.apellido,
+                CONCAT(COALESCE(p.nombre, ''), ' ', COALESCE(p.apellido, '')) AS nombre_completo
+            FROM usuarios u
+            INNER JOIN personas p ON u.id_persona = p.id
+            WHERE p.email = ? AND u.estado = 1`,
             [email]
         );
-
-        console.log('Usuario encontrado:', user ? 'Sí' : 'No');
 
         if (!user) {
             return res.status(401).json({
@@ -38,15 +47,11 @@ export const login = async (req: Request, res: Response) => {
             });
         }
 
-        // Usar la clave directamente en la consulta SIN depender de @encryption_key
+        // Verificar contraseña
         const passwordHash = await executeQuerySingle<{ hash: string }>(
             `SELECT SHA2(CONCAT(?, SHA2(?, 256)), 256) as hash`,
             [password, ENCRYPTION_KEY]
         );
-
-        console.log('Hash generado:', passwordHash?.hash);
-        console.log('Hash almacenado:', user.password_hash);
-        console.log('Coinciden:', passwordHash?.hash === user.password_hash ? 'Sí' : 'No');
 
         if (!passwordHash || passwordHash.hash !== user.password_hash) {
             return res.status(401).json({
@@ -68,8 +73,6 @@ export const login = async (req: Request, res: Response) => {
             [user.id]
         );
 
-        console.log('Empresas encontradas:', empresas.length);
-
         if (empresas.length === 0) {
             return res.status(403).json({
                 success: false,
@@ -79,7 +82,6 @@ export const login = async (req: Request, res: Response) => {
 
         // Crear token JWT
         const expiresIn = rememberMe ? '30d' : JWT_EXPIRES_IN;
-
         const token = jwt.sign(
             {
                 id: user.id,
@@ -90,8 +92,7 @@ export const login = async (req: Request, res: Response) => {
             { expiresIn: expiresIn as jwt.SignOptions['expiresIn'] }
         );
 
-        console.log('Login exitoso para:', user.email);
-
+        // Respuesta exitosa
         res.json({
             success: true,
             message: 'Inicio de sesión exitoso',
@@ -100,7 +101,8 @@ export const login = async (req: Request, res: Response) => {
                 id: user.id,
                 usuario: user.usuario,
                 email: user.email,
-                nombre_completo: user.nombre_completo || user.usuario,
+                nombre_completo: user.nombre_completo,
+                firma: user.firma || null,
                 empresas: empresas.map((e: any) => ({
                     id: e.id,
                     ruc: e.ruc,
@@ -137,7 +139,17 @@ export const verifyToken = async (req: Request, res: Response) => {
         };
 
         const user = await executeQuerySingle<any>(
-            'SELECT * FROM usuarios WHERE id = ? AND estado = 1',
+            `SELECT 
+                u.id,
+                u.usuario,
+                u.firma,
+                p.email,
+                p.nombre,
+                p.apellido,
+                CONCAT(COALESCE(p.nombre, ''), ' ', COALESCE(p.apellido, '')) AS nombre_completo
+            FROM usuarios u
+            INNER JOIN personas p ON u.id_persona = p.id
+            WHERE u.id = ? AND u.estado = 1`,
             [decoded.id]
         );
 
@@ -166,7 +178,8 @@ export const verifyToken = async (req: Request, res: Response) => {
                 id: user.id,
                 usuario: user.usuario,
                 email: user.email,
-                nombre_completo: user.nombre_completo || user.usuario,
+                nombre_completo: user.nombre_completo,
+                firma: user.firma || null,
                 empresas: empresas.map((e: any) => ({
                     id: e.id,
                     ruc: e.ruc,

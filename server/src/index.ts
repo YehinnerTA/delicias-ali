@@ -11,7 +11,7 @@ import authRoutes from './routes/authRoutes';
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
-const PORT = process.env.PORT || '5000';
+const PORT = Number(process.env.PORT);
 
 // Middleware
 app.use(helmet());
@@ -31,15 +31,14 @@ app.get('/api/health', async (req, res) => {
     const dbConnected = await testConnection();
     res.json({
         status: 'OK',
-        message: 'Servidor funcionando correctamente',
         database: dbConnected ? 'conectado' : 'error'
     });
 });
 
 // Iniciar servidor
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
-    console.log(`API Health: http://localhost:${PORT}/api/health`);
-    console.log(`Login: POST http://localhost:${PORT}/api/auth/login`);
-    await testConnection();
+}).on('error', (err) => {
+    console.error('Error al iniciar el servidor:', err);
+    process.exit(1);
 });

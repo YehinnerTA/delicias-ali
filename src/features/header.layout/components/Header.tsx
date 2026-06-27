@@ -270,7 +270,7 @@ const Header: React.FC = () => {
                                 }}>
                                     <span>{e.nombre}</span>
                                     <span className="dc-badge" style={{ fontSize: '0.7rem' }}>
-                                        {e.ruc} {e.es_predeterminada && '⭐'}
+                                        {e.ruc} {selectedCompany === e.ruc && '⭐'}
                                     </span>
                                 </li>
                             ))}

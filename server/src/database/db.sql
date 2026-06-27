@@ -1,14 +1,17 @@
 -- =====================================================
--- SISTEMA DE EVENTOS Y CATERING
--- INSTALACIÓN DE BASE DE DATOS
+-- SISTEMA DE EVENTOS Y CATERING - ESTRUCTURA DE TABLAS
 -- =====================================================
+-- Este script solo crea las tablas. Los datos iniciales
+-- se insertan desde migrate.ts (o manualmente).
+-- =====================================================
+
 -- Eliminar base de datos si existe y crearla nuevamente
 DROP DATABASE IF EXISTS sistema_eventos_catering;
 CREATE DATABASE sistema_eventos_catering;
 USE sistema_eventos_catering;
 
--- Clave de encriptación (usada para hash de contraseñas y otros cifrados)
--- SET @encryption_key = SHA2('ClaveSeguraParaEventosPeru2024!', 256);
+-- Clave de encriptación (usada para hash de contraseñas)
+SET @encryption_key = SHA2('ClaveSeguraParaEventosPeru2024!', 256);
 
 -- =====================================================
 -- 1. EMPRESAS
@@ -25,23 +28,45 @@ CREATE TABLE empresas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 2. USUARIOS
+-- 2. PERSONAS
 -- =====================================================
-CREATE TABLE usuarios (
+CREATE TABLE personas (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    usuario VARCHAR(50) NOT NULL UNIQUE,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    password_hash CHAR(64) NOT NULL,
-    nombre_completo VARCHAR(100),
+    id_empresa INT NOT NULL,
+    tipo_persona ENUM('proveedor','cliente_natural','cliente_juridico','empleado') NOT NULL,
+    tipo_documento ENUM('DNI','RUC') NOT NULL,
+    numero_documento VARCHAR(20) NOT NULL,
+    razon_social VARCHAR(255) NULL,
+    nombre VARCHAR(100) NULL,
+    apellido VARCHAR(100) NULL,
+    email VARCHAR(100) NULL,
+    celular VARCHAR(20) NOT NULL,
     estado TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_usuario (usuario),
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    INDEX idx_numero_documento (numero_documento),
     INDEX idx_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 3. RELACIÓN USUARIO - EMPRESA
+-- 3. USUARIOS
+-- =====================================================
+CREATE TABLE usuarios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_persona INT NOT NULL COMMENT 'ID de la persona asociada',
+    usuario VARCHAR(50) NOT NULL UNIQUE,
+    password_hash CHAR(64) NOT NULL COMMENT 'Hash SHA-256 con la clave de encriptación',
+    firma VARCHAR(255) NULL COMMENT 'Ruta de la imagen de la firma digital',
+    estado TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_persona) REFERENCES personas(id) ON DELETE CASCADE,
+    INDEX idx_usuario (usuario)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- 4. RELACIÓN USUARIO - EMPRESA
 -- =====================================================
 CREATE TABLE usuario_empresa (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -57,49 +82,32 @@ CREATE TABLE usuario_empresa (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 4. DATOS INICIALES
+-- 5. HISTORIAL DE CAMBIOS (Auditoría)
 -- =====================================================
--- Insertar tus dos empresas existentes
-INSERT INTO empresas (ruc, nombre, creado_por) VALUES
-                     ('10412743879', 'DeliciaAli', NULL),
-                     ('20613823027', 'DELICIAS ALI S.A.C.', NULL);
-
--- Insertar un usuario de prueba (contraseña: 123456)
-INSERT INTO usuarios (usuario, email, password_hash, nombre_completo) VALUES
-                     ('admin', 'admin@deliciasali.com', SHA2(CONCAT('123456', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'Administrador del Sistema');
-
--- Asignar el usuario a ambas empresas, marcando la primera como predeterminada
-INSERT INTO usuario_empresa (usuario_id, empresa_id, es_predeterminada)
-SELECT 
-    (SELECT id FROM usuarios WHERE usuario = 'admin'),
-    id,
-    IF(ruc = '10412743879', 1, 0)
-FROM empresas
-WHERE ruc IN ('10412743879', '20613823027');
+CREATE TABLE historial (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    entidad VARCHAR(50) NOT NULL,
+    id_entidad INT NOT NULL,
+    accion VARCHAR(50) NOT NULL,
+    descripcion TEXT NOT NULL,
+    usuario VARCHAR(100) NOT NULL,
+    fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_entidad (entidad, id_entidad),
+    INDEX idx_usuario (usuario)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 5. CONSULTA DE PRUEBA (opcional)
+-- 6. ACTIVIDAD DEL SISTEMA (Logs)
 -- =====================================================
--- Verificar que el usuario tenga acceso a las empresas
-SELECT 
-    u.usuario,
-    u.email,
-    u.password_hash,
-    CASE 
-        WHEN u.password_hash = SHA2(CONCAT('123456', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256)
-        THEN 'Contraseña correcta'
-        ELSE 'Contraseña incorrecta'
-    END as verificacion
-FROM usuarios u
-WHERE u.usuario = 'admin';
-
--- =====================================================
--- 6. MOSTRAR RESUMEN DE INSTALACIÓN
--- =====================================================
-SELECT '========================================' AS '';
-SELECT 'BASE DE DATOS INSTALADA CORRECTAMENTE' AS mensaje;
-SELECT '========================================' AS '';
-SELECT CONCAT('Empresas: ', (SELECT COUNT(*) FROM empresas)) AS info;
-SELECT CONCAT('Usuarios: ', (SELECT COUNT(*) FROM usuarios)) AS info;
-SELECT CONCAT('Usuario-Empresa: ', (SELECT COUNT(*) FROM usuario_empresa)) AS info;
-SELECT '========================================' AS '';
+CREATE TABLE actividad (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    modulo VARCHAR(50) NOT NULL,
+    accion VARCHAR(50) NOT NULL,
+    detalle TEXT NOT NULL,
+    usuario VARCHAR(100) NOT NULL,
+    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_modulo (modulo),
+    INDEX idx_usuario (usuario)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

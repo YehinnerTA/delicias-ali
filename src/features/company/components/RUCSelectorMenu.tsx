@@ -14,9 +14,11 @@ export const RUCSelectorMenu: React.FC<RUCSelectorMenuProps> = ({
     const handleSelect = (ruc: string) => {
         setSelectedCompany(ruc);
         if (onSelect) onSelect(ruc);
-        if (redirectTo) {
-            history.push(redirectTo);
-        }
+        setTimeout(() => {
+            if (redirectTo) {
+                history.push(redirectTo);
+            }
+        }, 50);
     };
 
     if (isLoading) {
