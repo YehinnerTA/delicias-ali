@@ -46,10 +46,6 @@ export const RUCSelectorMenu: React.FC<RUCSelectorMenuProps> = ({
     return (
         <div className="ruc-selector-page">
             <div className="ruc-selector-card">
-                <h2 style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                    <i className="fas fa-building" style={{ marginRight: '0.5rem', color: 'var(--color-secundario)' }}></i>
-                    Selecciona tu empresa
-                </h2>
                 <p style={{ textAlign: 'center', color: 'var(--color-gray)', marginBottom: '1.5rem' }}>
                     Elige la empresa con la que deseas trabajar
                 </p>

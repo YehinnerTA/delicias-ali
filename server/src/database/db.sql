@@ -14,7 +14,23 @@ USE sistema_eventos_catering;
 SET @encryption_key = SHA2('ClaveSeguraParaEventosPeru2024!', 256);
 
 -- =====================================================
--- 1. EMPRESAS
+-- 1. ROLES
+-- =====================================================
+CREATE TABLE roles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL UNIQUE,
+    descripcion TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO roles (nombre, descripcion) VALUES
+                  ('Administrador', 'Acceso total al sistema'),
+                  ('Chef', 'Gestion de cocina y recetas'),
+                  ('Cajero', 'Gestion de ventas y pagos'),
+                  ('Logistica', 'Gestion de inventario y proveedores');
+
+-- =====================================================
+-- 2. EMPRESAS
 -- =====================================================
 CREATE TABLE empresas (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -28,7 +44,7 @@ CREATE TABLE empresas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 2. PERSONAS
+-- 3. PERSONAS
 -- =====================================================
 CREATE TABLE personas (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -50,7 +66,7 @@ CREATE TABLE personas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 3. USUARIOS
+-- 4. USUARIOS
 -- =====================================================
 CREATE TABLE usuarios (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -58,15 +74,17 @@ CREATE TABLE usuarios (
     usuario VARCHAR(50) NOT NULL UNIQUE,
     password_hash CHAR(64) NOT NULL COMMENT 'Hash SHA-256 con la clave de encriptación',
     firma VARCHAR(255) NULL COMMENT 'Ruta de la imagen de la firma digital',
+    id_rol INT NOT NULL DEFAULT 1,
     estado TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (id_persona) REFERENCES personas(id) ON DELETE CASCADE,
+    FOREIGN KEY (id_rol) REFERENCES roles(id),
     INDEX idx_usuario (usuario)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 4. RELACIÓN USUARIO - EMPRESA
+-- 5. RELACIÓN USUARIO - EMPRESA
 -- =====================================================
 CREATE TABLE usuario_empresa (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -82,7 +100,7 @@ CREATE TABLE usuario_empresa (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 5. HISTORIAL DE CAMBIOS (Auditoría)
+-- 6. HISTORIAL DE CAMBIOS (Auditoría)
 -- =====================================================
 CREATE TABLE historial (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -98,7 +116,7 @@ CREATE TABLE historial (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 6. ACTIVIDAD DEL SISTEMA (Logs)
+-- 7. ACTIVIDAD DEL SISTEMA (Logs)
 -- =====================================================
 CREATE TABLE actividad (
     id INT AUTO_INCREMENT PRIMARY KEY,

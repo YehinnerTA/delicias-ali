@@ -8,6 +8,9 @@ import { FilterSection, FilterField } from '../../../common/FilterSection';
 import { FormCard, FormField } from '../../../common/FormCard';
 import { ActivityLog } from '../../../common/ActivityLog';
 import { Empresa } from '../../../../features/types/person';
+import { empresaApi } from '../../../../services/api/empresaApi';
+import { historialApi } from '../../../../services/api/historialApi';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 
 const empresaFilters: FilterField[] = [
     { id: 'search', label: 'RUC o Nombre', type: 'text', placeholder: 'Buscar...' },
@@ -26,7 +29,8 @@ const empresaFormFields: FormField[] = [
 ];
 
 export const EmpresasSection: React.FC = () => {
-    const { empresas, setEmpresas, addActivity, addToHistory, getNombreEmpresa, activityLogs } = useGlobal();
+    const { empresas, setEmpresas, addActivity, addToHistory, activityLogs } = useGlobal();
+    const { user } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
     const [filterValues, setFilterValues] = useState({ search: '', estado: '' });
@@ -34,6 +38,7 @@ export const EmpresasSection: React.FC = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
     const [filteredData, setFilteredData] = useState<Empresa[]>(empresas);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         let filtered = empresas.filter(e => {
@@ -60,7 +65,8 @@ export const EmpresasSection: React.FC = () => {
         }
     ];
 
-    const handleAddEmpresa = () => {
+    // --- CREAR ---
+    const handleAddEmpresa = async () => {
         if (!formValues.ruc || !formValues.nombre) {
             showToast('RUC y nombre son requeridos', 'warning', 'Campos incompletos');
             return;
@@ -70,92 +76,130 @@ export const EmpresasSection: React.FC = () => {
             return;
         }
 
-        const nueva: Empresa = {
-            id_empresa: Date.now(),
-            ruc: formValues.ruc,
-            empresa: formValues.nombre,
-            estado: true,
-            historial: []
-        };
-        nueva.historial = [{
-            fecha: new Date().toLocaleString(),
-            usuario: "Admin (admin@delicias.com)",
-            accion: "CREACIÓN",
-            descripcion: `Empresa creada: ${formValues.nombre}`
-        }];
+        setIsSubmitting(true);
+        try {
+            const nueva = await empresaApi.create({
+                ruc: formValues.ruc,
+                empresa: formValues.nombre,
+                estado: true,
+                creado_por: user?.id || null
+            });
 
-        setEmpresas([...empresas, nueva]);
-        addActivity("INSERT", "empresas", `Nueva empresa: ${formValues.nombre} (RUC:${formValues.ruc})`);
-        showToast(`Empresa "${formValues.nombre}" creada exitosamente`, "success", "Empresa registrada");
-        setFormValues({ ruc: '', nombre: '' });
+            setEmpresas([nueva, ...empresas]);
+            await addActivity("INSERT", "empresas", `Nueva empresa: ${formValues.nombre} (RUC:${formValues.ruc})`);
+            await addToHistory(nueva, formValues.nombre, "CREACIÓN", `Empresa creada por ${user?.nombre_completo || 'Admin'}`);
+
+            showToast(`Empresa "${formValues.nombre}" creada exitosamente`, "success", "Empresa registrada");
+            setFormValues({ ruc: '', nombre: '' });
+        } catch (error) {
+            console.error('[EmpresasSection] Error al crear empresa:', error);
+            showToast('Error al crear la empresa', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const handleView = (empresa: Empresa) => {
-        const campos = [
-            { label: 'RUC', value: empresa.ruc },
-            { label: 'EMPRESA', value: empresa.empresa },
-            { label: 'ESTADO', value: empresa.estado ? 'ACTIVO' : 'INACTIVO' }
-        ];
+    // --- VER ---
+    const handleView = async (empresa: Empresa) => {
+        try {
+            // Cargar historial desde la API
+            const historial = await historialApi.getByEntity('empresas', empresa.id_empresa);
+            const empresaConHistorial = { ...empresa, historial };
 
-        setModalContent({
-            title: `Detalle de ${empresa.empresa}`,
-            icon: 'fa-eye',
-            children: (
-                <>
-                    <div className="dc-info-card">
-                        <h4><i className="fas fa-info-circle"></i> Información General</h4>
-                        <div className="dc-info-grid">
-                            {campos.map(campo => (
-                                <div key={campo.label} className="dc-info-item">
-                                    <span className="dc-info-label">{campo.label}</span>
-                                    <span className="dc-info-value">{campo.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="dc-history-card">
-                        <h4><i className="fas fa-history"></i> Historial de Cambios</h4>
-                        <div className="dc-history-log">
-                            {(empresa.historial || []).map((h, idx) => (
-                                <div key={idx} className="dc-history-entry">
-                                    <div>
-                                        <span className="dc-history-date">{h.fecha}</span>
-                                        <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
+            const campos = [
+                { label: 'RUC', value: empresaConHistorial.ruc },
+                { label: 'EMPRESA', value: empresaConHistorial.empresa },
+                { label: 'ESTADO', value: empresaConHistorial.estado ? 'ACTIVO' : 'INACTIVO' }
+            ];
+
+            setModalContent({
+                title: `Detalle de ${empresaConHistorial.empresa}`,
+                icon: 'fa-eye',
+                children: (
+                    <>
+                        <div className="dc-info-card">
+                            <h4><i className="fas fa-info-circle"></i> Información General</h4>
+                            <div className="dc-info-grid">
+                                {campos.map(campo => (
+                                    <div key={campo.label} className="dc-info-item">
+                                        <span className="dc-info-label">{campo.label}</span>
+                                        <span className="dc-info-value">{campo.value}</span>
                                     </div>
-                                    <div className="dc-history-action">{h.accion}</div>
-                                    <div className="dc-history-desc">{h.descripcion}</div>
-                                </div>
-                            ))}
-                            {(!empresa.historial || empresa.historial.length === 0) && (
-                                <div className="dc-history-entry">Sin historial registrado</div>
-                            )}
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </>
-            ),
-            footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
-        });
-        setModalOpen(true);
+                        <div className="dc-history-card">
+                            <h4><i className="fas fa-history"></i> Historial de Cambios</h4>
+                            <div className="dc-history-log">
+                                {(empresaConHistorial.historial || []).length > 0 ? (
+                                    empresaConHistorial.historial.map((h, idx) => (
+                                        <div key={idx} className="dc-history-entry">
+                                            <div>
+                                                <span className="dc-history-date">{h.fecha}</span>
+                                                <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
+                                            </div>
+                                            <div className="dc-history-action">{h.accion}</div>
+                                            <div className="dc-history-desc">{h.descripcion}</div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="dc-history-entry">Sin historial registrado</div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                ),
+                footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
+            });
+            setModalOpen(true);
+        } catch (error) {
+            console.error('[EmpresasSection] Error cargando historial:', error);
+            showToast('Error al cargar el historial', 'error', 'Error');
+        }
     };
 
+    // --- EDITAR ---
     const handleEdit = (empresa: Empresa) => {
-        const handleSave = () => {
+        const handleSave = async () => {
             const newNombre = (document.getElementById('edit_nombre') as HTMLInputElement)?.value;
             const newEstado = (document.getElementById('edit_estado') as HTMLSelectElement)?.value === 'true';
 
-            if (newNombre && newNombre !== empresa.empresa) {
-                addToHistory(empresa, empresa.empresa, "MODIFICACIÓN", `Empresa: "${empresa.empresa}" → "${newNombre}"`);
-                empresa.empresa = newNombre;
-            }
-            if (newEstado !== empresa.estado) {
-                addToHistory(empresa, empresa.empresa, "MODIFICACIÓN", `Estado: "${empresa.estado}" → "${newEstado}"`);
-                empresa.estado = newEstado;
+            if (!newNombre) {
+                showToast('El nombre es requerido', 'warning', 'Campos incompletos');
+                return;
             }
 
-            setEmpresas([...empresas]);
-            addActivity("MODIFICAR", "empresas", `Registro actualizado`);
-            showToast("Registro actualizado correctamente", "success", "Actualizado");
-            setModalOpen(false);
+            setIsSubmitting(true);
+            try {
+                const payload: Partial<Empresa> = {
+                    ruc: empresa.ruc,
+                    empresa: newNombre,
+                    estado: newEstado
+                };
+
+                const actualizada = await empresaApi.update(empresa.id_empresa, payload);
+
+                setEmpresas(prev => prev.map(e =>
+                    e.id_empresa === actualizada.id_empresa ? actualizada : e
+                ));
+
+                await addActivity("MODIFICAR", "empresas", `Empresa actualizada: ${newNombre}`);
+
+                const cambios = [];
+                if (newNombre !== empresa.empresa) cambios.push(`Nombre: "${empresa.empresa}" → "${newNombre}"`);
+                if (newEstado !== empresa.estado) cambios.push(`Estado: "${empresa.estado}" → "${newEstado}"`);
+                if (cambios.length > 0) {
+                    await addToHistory(actualizada, newNombre, "MODIFICACIÓN", cambios.join(', '));
+                }
+
+                showToast("Empresa actualizada correctamente", "success", "Actualizado");
+                setModalOpen(false);
+            } catch (error) {
+                console.error('[EmpresasSection] Error al actualizar empresa:', error);
+                showToast('Error al actualizar la empresa', 'error', 'Error');
+            } finally {
+                setIsSubmitting(false);
+            }
         };
 
         setModalContent({
@@ -186,12 +230,27 @@ export const EmpresasSection: React.FC = () => {
         setModalOpen(true);
     };
 
+    // --- ELIMINAR ---
     const handleDelete = (empresa: Empresa) => {
-        const handleConfirm = () => {
-            setEmpresas(empresas.filter(e => e.id_empresa !== empresa.id_empresa));
-            addActivity("ELIMINAR", "empresas", `Eliminado "${empresa.empresa}"`);
-            showToast(`"${empresa.empresa}" ha sido eliminado correctamente`, "success", "Eliminado");
-            setModalOpen(false);
+        const handleConfirm = async () => {
+            setIsSubmitting(true);
+            try {
+                await empresaApi.delete(empresa.id_empresa);
+
+                // Actualizar estado global
+                setEmpresas(prev => prev.filter(e => e.id_empresa !== empresa.id_empresa));
+
+                // Registrar actividad
+                await addActivity("ELIMINAR", "empresas", `Eliminado "${empresa.empresa}"`);
+
+                showToast(`"${empresa.empresa}" ha sido eliminado correctamente`, "success", "Eliminado");
+                setModalOpen(false);
+            } catch (error) {
+                console.error('[EmpresasSection] Error al eliminar empresa:', error);
+                showToast('Error al eliminar la empresa', 'error', 'Error');
+            } finally {
+                setIsSubmitting(false);
+            }
         };
 
         setModalContent({
@@ -228,6 +287,7 @@ export const EmpresasSection: React.FC = () => {
                     values={formValues}
                     onChange={(id, value) => setFormValues(prev => ({ ...prev, [id]: value }))}
                     onSubmit={handleAddEmpresa}
+                    submitText={isSubmitting ? 'Registrando...' : 'Registrar'}
                 />
 
                 <FilterSection

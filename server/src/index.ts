@@ -6,7 +6,7 @@ import path from 'path';
 import { testConnection } from './config/database';
 
 // Importar rutas
-import authRoutes from './routes/authRoutes';
+import routes from './routes/index.Routes';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
@@ -24,7 +24,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Rutas
-app.use('/api/auth', authRoutes);
+app.use('/api', routes);
 
 // Health check
 app.get('/api/health', async (req, res) => {

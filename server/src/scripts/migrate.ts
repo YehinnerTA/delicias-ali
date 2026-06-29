@@ -10,7 +10,6 @@ const ENCRYPTION_KEY = 'ClaveSeguraParaEventosPeru2024!';
 const runMigration = async () => {
     let connection: mysql.Connection | null = null;
     try {
-        // Conectar sin seleccionar base de datos aún (para poder ejecutar DROP/CREATE DATABASE)
         connection = await mysql.createConnection({
             host: process.env.DB_HOST,
             port: Number(process.env.DB_PORT),
@@ -19,46 +18,38 @@ const runMigration = async () => {
             multipleStatements: true
         });
 
-        console.log('📦 Conectado a MySQL. Ejecutando script de estructura...');
+        console.log('[DB] Conectado a MySQL. Ejecutando estructura...');
 
-        // 1. Leer y ejecutar db.sql (crea la BD y las tablas)
         const sqlPath = path.resolve(__dirname, '../../database/db.sql');
         const sqlContent = fs.readFileSync(sqlPath, 'utf8');
         await connection.query(sqlContent);
-        console.log('Estructura de tablas creada/actualizada.');
+        console.log('[DB] Estructura de tablas creada/actualizada.');
 
-        // 2. Seleccionar la base de datos recién creada
         const dbName = process.env.DB_NAME || 'sistema_eventos_catering';
         await connection.query(`USE ${dbName}`);
-        console.log(`Base de datos seleccionada: ${dbName}`);
+        console.log(`[DB] Base de datos seleccionada: ${dbName}`);
 
         // ============================================================
-        // INSERTS DE DATOS INICIALES (idempotentes)
+        // DATOS INICIALES (idempotentes)
         // ============================================================
 
-        console.log('Insertando datos iniciales...');
-
-        // ------------------------------------------------------------
-        // 1. EMPRESAS (solo si no existen)
-        // ------------------------------------------------------------
+        // 1. Roles (ya se insertaron en db.sql, pero lo dejamos por si acaso)
+        // 2. Empresas
         const empresas = [
             { ruc: '10412743879', nombre: 'DeliciaAli' },
             { ruc: '20613823027', nombre: 'DELICIAS ALI S.A.C.' }
         ];
-
         for (const emp of empresas) {
             await connection.query(
                 `INSERT IGNORE INTO empresas (ruc, nombre, creado_por) VALUES (?, ?, 'SISTEMA')`,
                 [emp.ruc, emp.nombre]
             );
         }
-        console.log('Empresas insertadas (o ya existían).');
+        console.log('[DB] Empresas insertadas (o ya existian).');
 
-        // ------------------------------------------------------------
-        // 2. PERSONA ADMIN (si no existe)
-        // ------------------------------------------------------------
+        // 3. Persona Admin
         const adminPersona = {
-            id_empresa: 1, // DeliciaAli
+            id_empresa: 1,
             tipo_persona: 'empleado',
             tipo_documento: 'DNI',
             numero_documento: '12345678',
@@ -91,19 +82,18 @@ const runMigration = async () => {
                 ]
             );
             idPersona = (result as any).insertId;
-            console.log('Persona administrador creada.');
+            console.log('[DB] Persona administrador creada.');
         } else {
             idPersona = existingPersona[0].id;
-            console.log('Persona administrador ya existía.');
+            console.log('[DB] Persona administrador ya existia.');
         }
 
-        // ------------------------------------------------------------
-        // 3. USUARIO ADMIN (si no existe)
-        // ------------------------------------------------------------
+        // 4. Usuario Admin (con id_rol = 1)
         const adminUser = {
             usuario: 'admin',
             password: '123456',
             id_persona: idPersona,
+            id_rol: 1,
             firma: null
         };
 
@@ -120,23 +110,18 @@ const runMigration = async () => {
             const passwordHash = hashResult[0].hash;
 
             await connection.query(
-                `INSERT INTO usuarios (id_persona, usuario, password_hash, firma) VALUES (?, ?, ?, ?)`,
-                [adminUser.id_persona, adminUser.usuario, passwordHash, adminUser.firma]
+                `INSERT INTO usuarios (id_persona, usuario, password_hash, firma, id_rol) VALUES (?, ?, ?, ?, ?)`,
+                [adminUser.id_persona, adminUser.usuario, passwordHash, adminUser.firma, adminUser.id_rol]
             );
-            console.log('Usuario admin creado.');
+            console.log('[DB] Usuario admin creado.');
         } else {
-            console.log('Usuario admin ya existía.');
+            console.log('[DB] Usuario admin ya existia.');
         }
 
-        // ------------------------------------------------------------
-        // 4. RELACIÓN USUARIO - EMPRESA
-        // ------------------------------------------------------------
+        // 5. Relaciones usuario-empresa
         const [userRow] = await connection.query<any[]>(
             `SELECT id FROM usuarios WHERE usuario = 'admin'`
         );
-        if (userRow.length === 0) {
-            throw new Error('Usuario admin no encontrado');
-        }
         const usuarioId = userRow[0].id;
 
         const [empresasRows] = await connection.query<any[]>(
@@ -150,46 +135,31 @@ const runMigration = async () => {
                 [usuarioId, emp.id, esPredeterminada]
             );
         }
-        console.log('Relaciones usuario-empresa insertadas.');
+        console.log('[DB] Relaciones usuario-empresa insertadas.');
 
-        // ------------------------------------------------------------
-        // 5. HISTORIAL INICIAL (solo si no existen registros)
-        // ------------------------------------------------------------
+        // 6. Historial inicial
         const [historialCount] = await connection.query<any[]>(
             `SELECT COUNT(*) as total FROM historial`
         );
         if (historialCount[0].total === 0) {
-            for (const emp of empresasRows) {
-                await connection.query(
-                    `INSERT INTO historial (entidad, id_entidad, accion, descripcion, usuario) 
-                     VALUES ('empresas', ?, 'CREACIÓN', ?, 'sistema')`,
-                    [emp.id, `Empresa creada: ${emp.ruc}`]
-                );
-            }
-            const [personaRow] = await connection.query<any[]>(
-                `SELECT id, nombre, apellido FROM personas WHERE id = ?`,
-                [idPersona]
-            );
-            if (personaRow.length > 0) {
-                await connection.query(
-                    `INSERT INTO historial (entidad, id_entidad, accion, descripcion, usuario) 
-                     VALUES ('personas', ?, 'CREACIÓN', ?, 'sistema')`,
-                    [idPersona, `Persona creada: ${personaRow[0].nombre} ${personaRow[0].apellido}`]
-                );
-            }
             await connection.query(
                 `INSERT INTO historial (entidad, id_entidad, accion, descripcion, usuario) 
-                 VALUES ('usuarios', ?, 'CREACIÓN', ?, 'sistema')`,
-                [usuarioId, `Usuario creado: admin`]
+                 VALUES ('empresas', 1, 'CREACION', 'Empresa creada: DeliciaAli', 'sistema')`
             );
-            console.log('Historial inicial insertado.');
-        } else {
-            console.log('Historial ya contenía registros, omitido.');
+            await connection.query(
+                `INSERT INTO historial (entidad, id_entidad, accion, descripcion, usuario) 
+                 VALUES ('personas', ?, 'CREACION', 'Persona creada: Administrador Del Sistema', 'sistema')`,
+                [idPersona]
+            );
+            await connection.query(
+                `INSERT INTO historial (entidad, id_entidad, accion, descripcion, usuario) 
+                 VALUES ('usuarios', ?, 'CREACION', 'Usuario creado: admin', 'sistema')`,
+                [usuarioId]
+            );
+            console.log('[DB] Historial inicial insertado.');
         }
 
-        // ------------------------------------------------------------
-        // 6. ACTIVIDAD INICIAL (solo si está vacía)
-        // ------------------------------------------------------------
+        // 7. Actividad inicial
         const [actividadCount] = await connection.query<any[]>(
             `SELECT COUNT(*) as total FROM actividad`
         );
@@ -198,20 +168,18 @@ const runMigration = async () => {
                 `INSERT INTO actividad (modulo, accion, detalle, usuario) 
                  VALUES ('sistema', 'INICIALIZAR', 'Base de datos instalada correctamente', 'sistema')`
             );
-            console.log('Actividad inicial insertada.');
-        } else {
-            console.log('Actividad ya contenía registros, omitido.');
+            console.log('[DB] Actividad inicial insertada.');
         }
 
-        console.log('Migración completada exitosamente.');
+        console.log('[DB] Migracion completada exitosamente.');
 
     } catch (error) {
-        console.error('Error en migración:', error);
+        console.error('[DB] Error en migracion:', error);
         process.exit(1);
     } finally {
         if (connection) {
             await connection.end();
-            console.log('Conexión cerrada.');
+            console.log('[DB] Conexion cerrada.');
         }
     }
 };

@@ -1,139 +1,193 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Empresa, Persona, Usuario, ActivityLog, TipoModulo } from '../features/types/person';
+import { Empresa, Persona, Usuario, ActivityLog, TipoModulo, HistorialEntry } from '../features/types/person';
+import { empresaApi } from '../services/api/empresaApi';
+import { personaApi } from '../services/api/personaApi';
+import { usuarioApi } from '../services/api/usuarioApi';
+import { actividadApi } from '../services/api/actividadApi';
+import { historialApi } from '../services/api/historialApi';
+import { useAuth } from '../features/auth/context/AuthContext';
 
 interface GlobalContextType {
     empresas: Empresa[];
     personas: Persona[];
     usuarios: Usuario[];
     activityLogs: ActivityLog[];
-    setEmpresas: (empresas: Empresa[]) => void;
-    setPersonas: (personas: Persona[]) => void;
-    setUsuarios: (usuarios: Usuario[]) => void;
-    addActivity: (accion: string, modulo: TipoModulo, detalle: string) => void;
-    addToHistory: <T extends { historial: any[] }>(item: T, nombreItem: string, accion: string, descripcion: string) => void;
-    saveToLocal: () => void;
-    loadFromLocal: () => void;
+    isLoading: boolean;
+    setEmpresas: React.Dispatch<React.SetStateAction<Empresa[]>>;
+    setPersonas: React.Dispatch<React.SetStateAction<Persona[]>>;
+    setUsuarios: React.Dispatch<React.SetStateAction<Usuario[]>>;
+    addActivity: (accion: string, modulo: TipoModulo, detalle: string) => Promise<void>;
+    addToHistory: <T extends { historial: HistorialEntry[] }>(
+        item: T,
+        nombreItem: string,
+        accion: string,
+        descripcion: string
+    ) => Promise<void>;
+    refreshData: () => Promise<void>;
     getNombrePersona: (persona: Persona) => string;
     getNombreEmpresa: (id: number) => string;
 }
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
 
-const USUARIO_ACTUAL = "Admin (admin@delicias.com)";
-
-export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [empresas, setEmpresas] = useState<Empresa[]>([]);
-    const [personas, setPersonas] = useState<Persona[]>([]);
-    const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-    const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
-
-    const addActivity = (accion: string, modulo: TipoModulo, detalle: string) => {
-        const newLog: ActivityLog = {
-            timestamp: new Date().toLocaleString(),
-            accion,
-            modulo,
-            detalle,
-            usuario: USUARIO_ACTUAL
-        };
-        setActivityLogs(prev => [newLog, ...prev].slice(0, 30));
-    };
-
-    const addToHistory = <T extends { historial: any[] }>(
-        item: T,
-        nombreItem: string,
-        accion: string,
-        descripcion: string
-    ) => {
-        if (item.historial) {
-            item.historial.unshift({
-                fecha: new Date().toLocaleString(),
-                usuario: USUARIO_ACTUAL,
-                accion,
-                descripcion: `${nombreItem} - ${descripcion}`
-            });
-            if (item.historial.length > 40) item.historial.pop();
-        }
-        saveToLocal();
-    };
-
-    const saveToLocal = () => {
-        localStorage.setItem("dc_gestion_empresas", JSON.stringify(empresas));
-        localStorage.setItem("dc_gestion_personas", JSON.stringify(personas));
-        localStorage.setItem("dc_gestion_usuarios", JSON.stringify(usuarios));
-        localStorage.setItem("dc_gestion_actividad", JSON.stringify(activityLogs));
-    };
-
-    const loadFromLocal = () => {
+// Función auxiliar para cargar desde localStorage
+const loadFromLocalStorage = () => {
+    try {
         const storedEmpresas = localStorage.getItem("dc_gestion_empresas");
         const storedPersonas = localStorage.getItem("dc_gestion_personas");
         const storedUsuarios = localStorage.getItem("dc_gestion_usuarios");
         const storedActivity = localStorage.getItem("dc_gestion_actividad");
 
-        let loadedEmpresas = storedEmpresas ? JSON.parse(storedEmpresas) : [];
-        let loadedPersonas = storedPersonas ? JSON.parse(storedPersonas) : [];
-        let loadedUsuarios = storedUsuarios ? JSON.parse(storedUsuarios) : [];
-        let loadedActivity = storedActivity ? JSON.parse(storedActivity) : [];
+        return {
+            empresas: storedEmpresas ? JSON.parse(storedEmpresas) : [],
+            personas: storedPersonas ? JSON.parse(storedPersonas) : [],
+            usuarios: storedUsuarios ? JSON.parse(storedUsuarios) : [],
+            activityLogs: storedActivity ? JSON.parse(storedActivity) : []
+        };
+    } catch (e) {
+        console.warn('[GlobalContext] Error al leer localStorage:', e);
+        return { empresas: [], personas: [], usuarios: [], activityLogs: [] };
+    }
+};
 
-        if (loadedEmpresas.length === 0) {
-            loadedEmpresas = [
-                { id_empresa: 1, ruc: "20123456789", empresa: "Delicias Catering S.A.C.", estado: true, historial: [] },
-                { id_empresa: 2, ruc: "20567890123", empresa: "Distribuciones Gourmet EIRL", estado: true, historial: [] }
-            ];
-            addActivity("INICIALIZAR", "empresas", "Datos de ejemplo cargados");
+export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const { user } = useAuth();
+    const [empresas, setEmpresas] = useState<Empresa[]>([]);
+    const [personas, setPersonas] = useState<Persona[]>([]);
+    const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+    const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const loadData = async () => {
+        setIsLoading(true);
+        try {
+            // Intentar cargar desde API
+            const [empData, perData, usrData, actData] = await Promise.all([
+                empresaApi.getAll(),
+                personaApi.getAll(),
+                usuarioApi.getAll(),
+                actividadApi.getAll()
+            ]);
+
+            // Si la API devuelve datos, los usamos
+            if (empData.length > 0 || perData.length > 0 || usrData.length > 0) {
+                setEmpresas(empData);
+                setPersonas(perData);
+                setUsuarios(usrData);
+                setActivityLogs(actData);
+                // Guardar en localStorage para futuras cargas rápidas
+                localStorage.setItem("dc_gestion_empresas", JSON.stringify(empData));
+                localStorage.setItem("dc_gestion_personas", JSON.stringify(perData));
+                localStorage.setItem("dc_gestion_usuarios", JSON.stringify(usrData));
+                localStorage.setItem("dc_gestion_actividad", JSON.stringify(actData));
+            } else {
+                // Si la API devuelve vacío, usar localStorage como fallback
+                console.warn('[GlobalContext] API devolvió datos vacíos. Usando localStorage.');
+                const localData = loadFromLocalStorage();
+                setEmpresas(localData.empresas);
+                setPersonas(localData.personas);
+                setUsuarios(localData.usuarios);
+                setActivityLogs(localData.activityLogs);
+            }
+        } catch (error) {
+            console.error('[GlobalContext] Error cargando desde API, usando localStorage:', error);
+            const localData = loadFromLocalStorage();
+            setEmpresas(localData.empresas);
+            setPersonas(localData.personas);
+            setUsuarios(localData.usuarios);
+            setActivityLogs(localData.activityLogs);
+        } finally {
+            setIsLoading(false);
         }
-
-        if (loadedPersonas.length === 0) {
-            loadedPersonas = [
-                { id_persona: 1, id_empresa: 1, tipo_persona: "empleado", tipo_documento: "DNI", numero_documento: "12345678", razon_social: null, nombre: "Ana", apellido: "Martínez", email: "ana@delicias.com", celular: "+51911111111", estado: true, historial: [] },
-                { id_persona: 2, id_empresa: 2, tipo_persona: "proveedor", tipo_documento: "RUC", numero_documento: "20612345678", razon_social: "Distribuciones del Valle", nombre: null, apellido: null, email: "ventas@distvalle.com", celular: "+51922222222", estado: true, historial: [] },
-                { id_persona: 3, id_empresa: 1, tipo_persona: "cliente_natural", tipo_documento: "DNI", numero_documento: "87654321", razon_social: null, nombre: "Carlos", apellido: "López", email: "carlos@mail.com", celular: "+51933333333", estado: true, historial: [] }
-            ];
-            addActivity("INICIALIZAR", "personas", "Datos de ejemplo cargados");
-        }
-
-        if (loadedUsuarios.length === 0) {
-            loadedUsuarios = [
-                { id_usuario: 1, id_persona: 1, id_rol: 1, username: "admin", password_hash: "hashed123", estado: true, historial: [] }
-            ];
-            addActivity("INICIALIZAR", "usuarios", "Datos de ejemplo cargados");
-        }
-
-        setEmpresas(loadedEmpresas);
-        setPersonas(loadedPersonas);
-        setUsuarios(loadedUsuarios);
-        setActivityLogs(loadedActivity);
     };
 
-    const getNombrePersona = (persona: Persona): string => {
-        if (persona.nombre) {
-            return `${persona.nombre} ${persona.apellido || ''}`;
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const getUsuarioActual = () => {
+        if (user) {
+            return user.nombre_completo || user.usuario || 'Usuario';
         }
+        return 'Sistema';
+    };
+
+    const getNombrePersona = (persona: Persona) => {
+        if (persona.nombre) return `${persona.nombre} ${persona.apellido || ''}`;
         return persona.razon_social || "Sin nombre";
     };
 
-    const getNombreEmpresa = (id: number): string => {
-        const empresa = empresas.find(e => e.id_empresa === id);
-        return empresa ? empresa.empresa : "N/A";
+    const getNombreEmpresa = (id: number) => {
+        const e = empresas.find(emp => emp.id_empresa === id);
+        return e ? e.empresa : "N/A";
     };
 
-    useEffect(() => {
-        loadFromLocal();
-    }, []);
-
-    useEffect(() => {
-        if (empresas.length || personas.length || usuarios.length) {
-            saveToLocal();
+    const addActivity = async (accion: string, modulo: TipoModulo, detalle: string) => {
+        try {
+            const usuarioActual = getUsuarioActual();
+            await actividadApi.create({ modulo, accion, detalle, usuario: usuarioActual });
+            const updated = await actividadApi.getAll();
+            setActivityLogs(updated);
+        } catch (error) {
+            console.error('[GlobalContext] Error al agregar actividad:', error);
         }
-    }, [empresas, personas, usuarios, activityLogs]);
+    };
+
+    const addToHistory = async <T extends { historial: HistorialEntry[] }>(
+        item: T,
+        nombreItem: string,
+        accion: string,
+        descripcion: string
+    ) => {
+        try {
+            let entidad = '';
+            let idEntidad = 0;
+            if ('id_empresa' in item) { entidad = 'empresas'; idEntidad = (item as any).id_empresa; }
+            else if ('id_persona' in item) { entidad = 'personas'; idEntidad = (item as any).id_persona; }
+            else if ('id_usuario' in item) { entidad = 'usuarios'; idEntidad = (item as any).id_usuario; }
+
+            if (entidad && idEntidad) {
+                const usuarioActual = getUsuarioActual();
+                await historialApi.create({
+                    entidad,
+                    id_entidad: idEntidad,
+                    accion,
+                    descripcion: `${nombreItem} - ${descripcion}`,
+                    usuario: usuarioActual
+                });
+                if (item.historial) {
+                    item.historial.unshift({
+                        fecha: new Date().toLocaleString(),
+                        usuario: usuarioActual,
+                        accion,
+                        descripcion: `${nombreItem} - ${descripcion}`
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('[GlobalContext] Error al agregar historial:', error);
+        }
+    };
+
+    const refreshData = async () => {
+        await loadData();
+    };
 
     return (
         <GlobalContext.Provider value={{
-            empresas, setEmpresas,
-            personas, setPersonas,
-            usuarios, setUsuarios,
+            empresas,
+            personas,
+            usuarios,
             activityLogs,
-            addActivity, addToHistory, saveToLocal, loadFromLocal,
-            getNombrePersona, getNombreEmpresa
+            isLoading,
+            setEmpresas,
+            setPersonas,
+            setUsuarios,
+            addActivity,
+            addToHistory,
+            refreshData,
+            getNombrePersona,
+            getNombreEmpresa
         }}>
             {children}
         </GlobalContext.Provider>
