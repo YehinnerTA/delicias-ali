@@ -7,7 +7,10 @@ import { DataTable, Column } from '../../../common/DataTable';
 import { FilterSection, FilterField } from '../../../common/FilterSection';
 import { FormCard, FormField } from '../../../common/FormCard';
 import { ActivityLog } from '../../../common/ActivityLog';
-import { Persona, TIPOS_PERSONA, ROLES } from '../../../../features/types/person';
+import { Persona, TIPOS_PERSONA } from '../../../../features/types/person';
+import { personaApi } from '../../../../services/api/personaApi';
+import { historialApi } from '../../../../services/api/historialApi';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 
 const personaFilters: FilterField[] = [
     { id: 'search', label: 'Nombre/Documento', type: 'text', placeholder: 'Nombre, email o documento' },
@@ -39,6 +42,7 @@ const personaFormFields: FormField[] = [
 
 export const PersonasSection: React.FC = () => {
     const { empresas, personas, setPersonas, addActivity, addToHistory, getNombrePersona, getNombreEmpresa, activityLogs } = useGlobal();
+    const { user } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
     const [filterValues, setFilterValues] = useState({ search: '', tipo: '', empresa: '' });
@@ -57,11 +61,11 @@ export const PersonasSection: React.FC = () => {
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
     const [filteredData, setFilteredData] = useState<Persona[]>(personas);
     const [empresaOptions, setEmpresaOptions] = useState<{ value: string; label: string }[]>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         const options = empresas.filter(e => e.estado).map(e => ({ value: String(e.id_empresa), label: e.empresa }));
         setEmpresaOptions(options);
-        // Actualizar opciones en el formulario
         const formFieldsCopy = [...personaFormFields];
         const empresaField = formFieldsCopy.find(f => f.id === 'id_empresa');
         if (empresaField) empresaField.options = [{ value: '', label: 'Seleccione empresa' }, ...options];
@@ -107,134 +111,183 @@ export const PersonasSection: React.FC = () => {
         }
     ];
 
-    const handleAddPersona = () => {
+    // --- CREAR ---
+    const handleAddPersona = async () => {
         if (!formValues.numDoc || !formValues.celular || !formValues.id_empresa) {
             showToast("Documento, celular y empresa son obligatorios", "warning", "Campos incompletos");
             return;
         }
 
-        const nueva: Persona = {
-            id_persona: Date.now(),
-            id_empresa: parseInt(formValues.id_empresa),
-            tipo_persona: formValues.tipo as any,
-            tipo_documento: formValues.tipoDoc as any,
-            numero_documento: formValues.numDoc,
-            razon_social: formValues.razonSocial || null,
-            nombre: formValues.nombre || null,
-            apellido: formValues.apellido || null,
-            email: formValues.email || null,
-            celular: formValues.celular,
-            estado: true,
-            historial: []
-        };
-        nueva.historial = [{
-            fecha: new Date().toLocaleString(),
-            usuario: "Admin (admin@delicias.com)",
-            accion: "CREACIÓN",
-            descripcion: `Persona creada: ${getNombrePersona(nueva)}`
-        }];
+        setIsSubmitting(true);
+        try {
+            const payload = {
+                id_empresa: parseInt(formValues.id_empresa),
+                tipo_persona: formValues.tipo as any,
+                tipo_documento: formValues.tipoDoc as any,
+                numero_documento: formValues.numDoc,
+                razon_social: formValues.razonSocial || null,
+                nombre: formValues.nombre || null,
+                apellido: formValues.apellido || null,
+                email: formValues.email || null,
+                celular: formValues.celular,
+                estado: true
+            };
 
-        setPersonas([...personas, nueva]);
-        addActivity("INSERT", "personas", `Nuevo ${formValues.tipo}: ${getNombrePersona(nueva)}`);
-        showToast(`${formValues.tipo.replace('_', ' ')} "${getNombrePersona(nueva)}" creado exitosamente`, "success", "Persona registrada");
+            const nueva = await personaApi.create(payload);
 
-        setFormValues({
-            tipo: 'proveedor',
-            tipoDoc: 'DNI',
-            numDoc: '',
-            nombre: '',
-            apellido: '',
-            razonSocial: '',
-            email: '',
-            celular: '',
-            id_empresa: ''
-        });
+            setPersonas([nueva, ...personas]);
+
+            const nombreCompleto = getNombrePersona(nueva);
+            await addActivity("INSERT", "personas", `Nueva ${formValues.tipo}: ${nombreCompleto}`);
+            await addToHistory(nueva, nombreCompleto, "CREACIÓN", `Persona creada: ${nombreCompleto}`);
+
+            showToast(`${formValues.tipo.replace('_', ' ')} "${nombreCompleto}" creado exitosamente`, "success", "Persona registrada");
+            setFormValues({
+                tipo: 'proveedor',
+                tipoDoc: 'DNI',
+                numDoc: '',
+                nombre: '',
+                apellido: '',
+                razonSocial: '',
+                email: '',
+                celular: '',
+                id_empresa: ''
+            });
+        } catch (error) {
+            console.error('[PersonasSection] Error al crear persona:', error);
+            showToast('Error al crear la persona', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const handleView = (persona: Persona) => {
-        const campos = [
-            { label: 'TIPO', value: persona.tipo_persona.replace('_', ' ') },
-            { label: 'DOCUMENTO', value: `${persona.tipo_documento}: ${persona.numero_documento}` },
-            { label: 'NOMBRE COMPLETO', value: getNombrePersona(persona) },
-            { label: 'EMAIL', value: persona.email || '-' },
-            { label: 'CELULAR', value: persona.celular },
-            { label: 'EMPRESA', value: getNombreEmpresa(persona.id_empresa) },
-            { label: 'ESTADO', value: persona.estado ? 'ACTIVO' : 'INACTIVO' }
-        ];
+    // --- VER ---
+    const handleView = async (persona: Persona) => {
+        try {
+            const historial = await historialApi.getByEntity('personas', persona.id_persona);
+            const personaConHistorial = { ...persona, historial };
 
-        setModalContent({
-            title: `Detalle de ${getNombrePersona(persona)}`,
-            icon: 'fa-eye',
-            children: (
-                <>
-                    <div className="dc-info-card">
-                        <h4><i className="fas fa-info-circle"></i> Información General</h4>
-                        <div className="dc-info-grid">
-                            {campos.map(campo => (
-                                <div key={campo.label} className="dc-info-item">
-                                    <span className="dc-info-label">{campo.label}</span>
-                                    <span className="dc-info-value">{campo.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="dc-history-card">
-                        <h4><i className="fas fa-history"></i> Historial de Cambios</h4>
-                        <div className="dc-history-log">
-                            {(persona.historial || []).map((h, idx) => (
-                                <div key={idx} className="dc-history-entry">
-                                    <div>
-                                        <span className="dc-history-date">{h.fecha}</span>
-                                        <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
+            const campos = [
+                { label: 'TIPO', value: personaConHistorial.tipo_persona.replace('_', ' ') },
+                { label: 'DOCUMENTO', value: `${personaConHistorial.tipo_documento}: ${personaConHistorial.numero_documento}` },
+                { label: 'NOMBRE COMPLETO', value: getNombrePersona(personaConHistorial) },
+                { label: 'EMAIL', value: personaConHistorial.email || '-' },
+                { label: 'CELULAR', value: personaConHistorial.celular },
+                { label: 'EMPRESA', value: getNombreEmpresa(personaConHistorial.id_empresa) },
+                { label: 'ESTADO', value: personaConHistorial.estado ? 'ACTIVO' : 'INACTIVO' }
+            ];
+
+            setModalContent({
+                title: `Detalle de ${getNombrePersona(personaConHistorial)}`,
+                icon: 'fa-eye',
+                children: (
+                    <>
+                        <div className="dc-info-card">
+                            <h4><i className="fas fa-info-circle"></i> Información General</h4>
+                            <div className="dc-info-grid">
+                                {campos.map(campo => (
+                                    <div key={campo.label} className="dc-info-item">
+                                        <span className="dc-info-label">{campo.label}</span>
+                                        <span className="dc-info-value">{campo.value}</span>
                                     </div>
-                                    <div className="dc-history-action">{h.accion}</div>
-                                    <div className="dc-history-desc">{h.descripcion}</div>
-                                </div>
-                            ))}
-                            {(!persona.historial || persona.historial.length === 0) && (
-                                <div className="dc-history-entry">Sin historial registrado</div>
-                            )}
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </>
-            ),
-            footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
-        });
-        setModalOpen(true);
+                        <div className="dc-history-card">
+                            <h4><i className="fas fa-history"></i> Historial de Cambios</h4>
+                            <div className="dc-history-log">
+                                {(personaConHistorial.historial || []).length > 0 ? (
+                                    personaConHistorial.historial.map((h, idx) => (
+                                        <div key={idx} className="dc-history-entry">
+                                            <div>
+                                                <span className="dc-history-date">{h.fecha}</span>
+                                                <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
+                                            </div>
+                                            <div className="dc-history-action">{h.accion}</div>
+                                            <div className="dc-history-desc">{h.descripcion}</div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="dc-history-entry">Sin historial registrado</div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                ),
+                footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
+            });
+            setModalOpen(true);
+        } catch (error) {
+            console.error('[PersonasSection] Error cargando historial:', error);
+            showToast('Error al cargar el historial', 'error', 'Error');
+        }
     };
 
+    // --- EDITAR ---
     const handleEdit = (persona: Persona) => {
-        const handleSave = () => {
-            const newNombre = (document.getElementById('edit_nombre') as HTMLInputElement)?.value;
-            const newApellido = (document.getElementById('edit_apellido') as HTMLInputElement)?.value;
-            const newEmail = (document.getElementById('edit_email') as HTMLInputElement)?.value;
-            const newCelular = (document.getElementById('edit_celular') as HTMLInputElement)?.value;
+        const handleSave = async () => {
+            // Obtener valores de los inputs
+            const newNombre = (document.getElementById('edit_nombre') as HTMLInputElement)?.value || persona.nombre || '';
+            const newApellido = (document.getElementById('edit_apellido') as HTMLInputElement)?.value || persona.apellido || '';
+            const newEmail = (document.getElementById('edit_email') as HTMLInputElement)?.value || persona.email || '';
+            const newCelular = (document.getElementById('edit_celular') as HTMLInputElement)?.value || persona.celular;
             const newEstado = (document.getElementById('edit_estado') as HTMLSelectElement)?.value === 'true';
-            const newEmpresa = parseInt((document.getElementById('edit_id_empresa') as HTMLSelectElement)?.value);
+            const newEmpresa = parseInt((document.getElementById('edit_id_empresa') as HTMLSelectElement)?.value) || persona.id_empresa;
 
-            let cambios = [];
-            if (newNombre !== persona.nombre) cambios.push(`Nombre: "${persona.nombre}" → "${newNombre}"`);
-            if (newApellido !== persona.apellido) cambios.push(`Apellido: "${persona.apellido}" → "${newApellido}"`);
-            if (newEmail !== persona.email) cambios.push(`Email: "${persona.email}" → "${newEmail}"`);
-            if (newCelular !== persona.celular) cambios.push(`Celular: "${persona.celular}" → "${newCelular}"`);
-            if (newEstado !== persona.estado) cambios.push(`Estado: "${persona.estado}" → "${newEstado}"`);
-            if (newEmpresa !== persona.id_empresa) cambios.push(`Empresa: "${getNombreEmpresa(persona.id_empresa)}" → "${getNombreEmpresa(newEmpresa)}"`);
-
-            if (cambios.length > 0) {
-                addToHistory(persona, getNombrePersona(persona), "MODIFICACIÓN", cambios.join(', '));
-                persona.nombre = newNombre;
-                persona.apellido = newApellido;
-                persona.email = newEmail;
-                persona.celular = newCelular;
-                persona.estado = newEstado;
-                persona.id_empresa = newEmpresa;
-                setPersonas([...personas]);
-                addActivity("MODIFICAR", "personas", `Registro actualizado: ${cambios.join(', ')}`);
-                showToast("Registro actualizado correctamente", "success", "Actualizado");
-            } else {
-                showToast("No se realizaron cambios", "info", "Sin cambios");
+            // Validaciones básicas
+            if (!newNombre && !newApellido && !newEmail && !newCelular) {
+                showToast('Al menos un campo debe ser modificado', 'warning', 'Sin cambios');
+                return;
             }
-            setModalOpen(false);
+
+            setIsSubmitting(true);
+            try {
+                // Construir el payload completo con los valores actuales o los nuevos
+                const payload: any = {
+                    id_empresa: newEmpresa || persona.id_empresa,
+                    tipo_persona: persona.tipo_persona,
+                    tipo_documento: persona.tipo_documento,
+                    numero_documento: persona.numero_documento,
+                    razon_social: persona.razon_social,
+                    nombre: newNombre || persona.nombre,
+                    apellido: newApellido || persona.apellido,
+                    email: newEmail || persona.email,
+                    celular: newCelular || persona.celular,
+                    estado: newEstado !== undefined ? newEstado : persona.estado
+                };
+
+                // Si la empresa cambió, usar el nuevo valor
+                if (newEmpresa && newEmpresa !== persona.id_empresa) {
+                    payload.id_empresa = newEmpresa;
+                }
+
+                const actualizada = await personaApi.update(persona.id_persona, payload);
+
+                setPersonas(prev => prev.map(p =>
+                    p.id_persona === actualizada.id_persona ? actualizada : p
+                ));
+
+                const cambios = [];
+                if (newNombre !== persona.nombre) cambios.push(`Nombre: "${persona.nombre}" → "${newNombre}"`);
+                if (newApellido !== persona.apellido) cambios.push(`Apellido: "${persona.apellido}" → "${newApellido}"`);
+                if (newEmail !== persona.email) cambios.push(`Email: "${persona.email}" → "${newEmail}"`);
+                if (newCelular !== persona.celular) cambios.push(`Celular: "${persona.celular}" → "${newCelular}"`);
+                if (newEstado !== persona.estado) cambios.push(`Estado: "${persona.estado}" → "${newEstado}"`);
+                if (newEmpresa !== persona.id_empresa) cambios.push(`Empresa: "${getNombreEmpresa(persona.id_empresa)}" → "${getNombreEmpresa(newEmpresa)}"`);
+
+                if (cambios.length > 0) {
+                    await addActivity("MODIFICAR", "personas", `Persona actualizada: ${getNombrePersona(actualizada)}`);
+                    await addToHistory(actualizada, getNombrePersona(actualizada), "MODIFICACIÓN", cambios.join(', '));
+                }
+
+                showToast("Persona actualizada correctamente", "success", "Actualizado");
+                setModalOpen(false);
+            } catch (error) {
+                console.error('[PersonasSection] Error al actualizar persona:', error);
+                showToast('Error al actualizar la persona', 'error', 'Error');
+            } finally {
+                setIsSubmitting(false);
+            }
         };
 
         setModalContent({
@@ -277,21 +330,38 @@ export const PersonasSection: React.FC = () => {
             ),
             footer: (
                 <>
-                    <button className="dc-btn success" onClick={handleSave}><i className="fas fa-save"></i> Guardar Cambios</button>
-                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cancelar</button>
+                    <button className="dc-btn success" onClick={handleSave} disabled={isSubmitting}>
+                        {isSubmitting ? 'Guardando...' : <><i className="fas fa-save"></i> Guardar Cambios</>}
+                    </button>
+                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}>
+                        <i className="fas fa-times"></i> Cancelar
+                    </button>
                 </>
             )
         });
         setModalOpen(true);
     };
 
+    // --- ELIMINAR ---
     const handleDelete = (persona: Persona) => {
         const nombre = getNombrePersona(persona);
-        const handleConfirm = () => {
-            setPersonas(personas.filter(p => p.id_persona !== persona.id_persona));
-            addActivity("ELIMINAR", "personas", `Eliminado "${nombre}"`);
-            showToast(`"${nombre}" ha sido eliminado correctamente`, "success", "Eliminado");
-            setModalOpen(false);
+        const handleConfirm = async () => {
+            setIsSubmitting(true);
+            try {
+                await personaApi.delete(persona.id_persona);
+
+                setPersonas(prev => prev.filter(p => p.id_persona !== persona.id_persona));
+
+                await addActivity("ELIMINAR", "personas", `Eliminado "${nombre}"`);
+
+                showToast(`"${nombre}" ha sido eliminado correctamente`, "success", "Eliminado");
+                setModalOpen(false);
+            } catch (error) {
+                console.error('[PersonasSection] Error al eliminar persona:', error);
+                showToast('Error al eliminar la persona', 'error', 'Error');
+            } finally {
+                setIsSubmitting(false);
+            }
         };
 
         setModalContent({
@@ -309,8 +379,12 @@ export const PersonasSection: React.FC = () => {
             ),
             footer: (
                 <>
-                    <button className="dc-btn danger" onClick={handleConfirm}><i className="fas fa-trash"></i> Sí, Eliminar</button>
-                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-ban"></i> Cancelar</button>
+                    <button className="dc-btn danger" onClick={handleConfirm} disabled={isSubmitting}>
+                        {isSubmitting ? 'Eliminando...' : <><i className="fas fa-trash"></i> Sí, Eliminar</>}
+                    </button>
+                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}>
+                        <i className="fas fa-ban"></i> Cancelar
+                    </button>
                 </>
             )
         });
@@ -319,7 +393,6 @@ export const PersonasSection: React.FC = () => {
 
     const personaActivityLogs = activityLogs.filter(log => log.modulo === 'personas').slice(0, 5);
 
-    // Actualizar opciones del filtro de empresas
     useEffect(() => {
         const filterEmpresaField = personaFilters.find(f => f.id === 'empresa');
         if (filterEmpresaField) {
@@ -336,6 +409,7 @@ export const PersonasSection: React.FC = () => {
                     values={formValues}
                     onChange={(id, value) => setFormValues(prev => ({ ...prev, [id]: value }))}
                     onSubmit={handleAddPersona}
+                    submitText={isSubmitting ? 'Registrando...' : 'Registrar'}
                 />
 
                 <FilterSection
