@@ -14,7 +14,8 @@ export const getUsuarios = async (req: Request, res: Response) => {
         `);
         res.json(rows);
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener usuarios', error });
+        console.error('[getUsuarios] Error:', error);
+        res.status(500).json({ message: 'Error al obtener usuarios', error: error instanceof Error ? error.message : String(error) });
     }
 };
 
@@ -30,7 +31,8 @@ export const getUsuarioById = async (req: Request, res: Response) => {
         `, [id]);
         res.json(row);
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener usuario', error });
+        console.error('[getUsuarioById] Error:', error);
+        res.status(500).json({ message: 'Error al obtener usuario', error: error instanceof Error ? error.message : String(error) });
     }
 };
 
@@ -38,21 +40,36 @@ export const createUsuario = async (req: Request, res: Response) => {
     try {
         const { id_persona, usuario, password, id_rol, firma } = req.body;
 
-        // Hashear contraseña
-        const [hashResult] = await executeQuery<any[]>(
+        if (!id_persona || !usuario || !password) {
+            return res.status(400).json({
+                message: 'Faltan campos obligatorios: id_persona, usuario, password'
+            });
+        }
+
+        const hashResult = await executeQuery<{ hash: string }>(
             `SELECT SHA2(CONCAT(?, SHA2(?, 256)), 256) as hash`,
             [password, ENCRYPTION_KEY]
         );
-        const password_hash = hashResult[0].hash;
+
+        const password_hash = Array.isArray(hashResult) && hashResult.length > 0 ? hashResult[0].hash : null;
+
+        if (!password_hash) {
+            throw new Error('No se pudo generar el hash de la contraseña');
+        }
 
         const result = await executeMutation(
             `INSERT INTO usuarios (id_persona, usuario, password_hash, id_rol, firma) VALUES (?, ?, ?, ?, ?)`,
             [id_persona, usuario, password_hash, id_rol || 1, firma || null]
         );
+
         const newRow = await executeQuerySingle('SELECT * FROM usuarios WHERE id = ?', [result.insertId]);
         res.status(201).json(newRow);
     } catch (error) {
-        res.status(500).json({ message: 'Error al crear usuario', error });
+        console.error('[createUsuario] Error completo:', error);
+        res.status(500).json({
+            message: 'Error al crear usuario',
+            error: error instanceof Error ? error.message : String(error)
+        });
     }
 };
 
@@ -67,7 +84,8 @@ export const updateUsuario = async (req: Request, res: Response) => {
         const updated = await executeQuerySingle('SELECT * FROM usuarios WHERE id = ?', [id]);
         res.json(updated);
     } catch (error) {
-        res.status(500).json({ message: 'Error al actualizar usuario', error });
+        console.error('[updateUsuario] Error:', error);
+        res.status(500).json({ message: 'Error al actualizar usuario', error: error instanceof Error ? error.message : String(error) });
     }
 };
 
@@ -77,6 +95,7 @@ export const deleteUsuario = async (req: Request, res: Response) => {
         await executeMutation('DELETE FROM usuarios WHERE id = ?', [id]);
         res.status(204).send();
     } catch (error) {
-        res.status(500).json({ message: 'Error al eliminar usuario', error });
+        console.error('[deleteUsuario] Error:', error);
+        res.status(500).json({ message: 'Error al eliminar usuario', error: error instanceof Error ? error.message : String(error) });
     }
 };

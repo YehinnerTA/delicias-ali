@@ -5,9 +5,11 @@ import { Toast } from '../../../common/Toast';
 import { Modal } from '../../../common/modal/Modal';
 import { DataTable, Column } from '../../../common/DataTable';
 import { FilterSection, FilterField } from '../../../common/FilterSection';
-import { FormCard, FormField } from '../../../common/FormCard';
 import { ActivityLog } from '../../../common/ActivityLog';
 import { Usuario, ROLES } from '../../../../features/types/person';
+import { usuarioApi } from '../../../../services/api/usuarioApi';
+import { historialApi } from '../../../../services/api/historialApi';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 
 const usuarioFilters: FilterField[] = [
     { id: 'search', label: 'Username / Persona', type: 'text', placeholder: 'Buscar...' },
@@ -22,7 +24,7 @@ const usuarioFilters: FilterField[] = [
     }
 ];
 
-const usuarioFormFields: FormField[] = [
+const usuarioFormFields = [
     { id: 'id_persona', label: 'Persona', type: 'select', options: [], required: true },
     { id: 'username', label: 'Username', type: 'text', placeholder: 'Nombre de usuario', required: true },
     {
@@ -38,6 +40,7 @@ const usuarioFormFields: FormField[] = [
 
 export const UsuariosSection: React.FC = () => {
     const { usuarios, setUsuarios, personas, addActivity, addToHistory, getNombrePersona, activityLogs } = useGlobal();
+    const { user } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
     const [filterValues, setFilterValues] = useState({ search: '', rol: '' });
@@ -51,13 +54,15 @@ export const UsuariosSection: React.FC = () => {
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
     const [filteredData, setFilteredData] = useState<Usuario[]>(usuarios);
     const [personaOptions, setPersonaOptions] = useState<{ value: string; label: string }[]>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     useEffect(() => {
-        const options = personas.filter(p => p.estado).map(p => ({ value: String(p.id_persona), label: `${getNombrePersona(p)} - ${p.email || p.celular}` }));
+        const options = personas.filter(p => p.estado).map(p => ({
+            value: String(p.id_persona),
+            label: `${getNombrePersona(p)} - ${p.email || p.celular}`
+        }));
         setPersonaOptions(options);
-        const formFieldsCopy = [...usuarioFormFields];
-        const personaField = formFieldsCopy.find(f => f.id === 'id_persona');
-        if (personaField) personaField.options = [{ value: '', label: 'Seleccione persona' }, ...options];
     }, [personas, getNombrePersona]);
 
     useEffect(() => {
@@ -99,7 +104,18 @@ export const UsuariosSection: React.FC = () => {
         }
     ];
 
-    const handleAddUsuario = () => {
+    const openCreateModal = () => {
+        setFormValues({
+            id_persona: '',
+            username: '',
+            id_rol: '1',
+            password: ''
+        });
+        setIsCreateModalOpen(true);
+    };
+
+    // --- CREAR ---
+    const handleAddUsuario = async () => {
         if (!formValues.id_persona || !formValues.username || !formValues.password) {
             showToast("Complete todos los campos", "warning", "Campos incompletos");
             return;
@@ -109,116 +125,160 @@ export const UsuariosSection: React.FC = () => {
             return;
         }
 
-        const persona = personas.find(p => p.id_persona === parseInt(formValues.id_persona));
-        const nuevo: Usuario = {
-            id_usuario: Date.now(),
-            id_persona: parseInt(formValues.id_persona),
-            id_rol: parseInt(formValues.id_rol) as any,
-            username: formValues.username,
-            password_hash: btoa(formValues.password),
-            estado: true,
-            historial: []
-        };
-        nuevo.historial = [{
-            fecha: new Date().toLocaleString(),
-            usuario: "Admin (admin@delicias.com)",
-            accion: "CREACIÓN",
-            descripcion: `Usuario creado: ${formValues.username} (${ROLES[parseInt(formValues.id_rol)]})`
-        }];
+        setIsSubmitting(true);
+        try {
+            const persona = personas.find(p => p.id_persona === parseInt(formValues.id_persona));
+            const payload = {
+                id_persona: parseInt(formValues.id_persona),
+                username: formValues.username,
+                password: formValues.password,
+                id_rol: parseInt(formValues.id_rol) as 1 | 2 | 3 | 4,
+                estado: true
+            };
 
-        setUsuarios([...usuarios, nuevo]);
-        addActivity("INSERT", "usuarios", `Nuevo usuario: ${formValues.username}`);
-        showToast(`Usuario "${formValues.username}" creado para ${getNombrePersona(persona!)}`, "success", "Usuario registrado");
+            const nuevo = await usuarioApi.create(payload);
 
-        setFormValues({
-            id_persona: '',
-            username: '',
-            id_rol: '1',
-            password: ''
-        });
+            setUsuarios([nuevo, ...usuarios]);
+
+            const nombrePersona = persona ? getNombrePersona(persona) : 'N/A';
+            await addActivity("INSERT", "usuarios", `Nuevo usuario: ${formValues.username}`);
+            await addToHistory(nuevo, formValues.username, "CREACIÓN", `Usuario creado para ${nombrePersona}`);
+
+            showToast(`Usuario "${formValues.username}" creado exitosamente`, "success", "Usuario registrado");
+
+            setIsCreateModalOpen(false);
+            setFormValues({
+                id_persona: '',
+                username: '',
+                id_rol: '1',
+                password: ''
+            });
+        } catch (error) {
+            console.error('[UsuariosSection] Error al crear usuario:', error);
+            showToast('Error al crear el usuario', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const handleView = (usuario: Usuario) => {
-        const persona = personas.find(p => p.id_persona === usuario.id_persona);
-        const campos = [
-            { label: 'USERNAME', value: usuario.username },
-            { label: 'PERSONA', value: persona ? getNombrePersona(persona) : 'N/A' },
-            { label: 'EMAIL', value: persona?.email || '-' },
-            { label: 'ROL', value: ROLES[usuario.id_rol] },
-            { label: 'ESTADO', value: usuario.estado ? 'ACTIVO' : 'INACTIVO' }
-        ];
+    // --- VER (con historial) ---
+    const handleView = async (usuario: Usuario) => {
+        try {
+            const historial = await historialApi.getByEntity('usuarios', usuario.id_usuario);
+            const usuarioConHistorial = { ...usuario, historial };
 
-        setModalContent({
-            title: `Detalle de ${usuario.username}`,
-            icon: 'fa-eye',
-            children: (
-                <>
-                    <div className="dc-info-card">
-                        <h4><i className="fas fa-info-circle"></i> Información General</h4>
-                        <div className="dc-info-grid">
-                            {campos.map(campo => (
-                                <div key={campo.label} className="dc-info-item">
-                                    <span className="dc-info-label">{campo.label}</span>
-                                    <span className="dc-info-value">{campo.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="dc-history-card">
-                        <h4><i className="fas fa-history"></i> Historial de Cambios</h4>
-                        <div className="dc-history-log">
-                            {(usuario.historial || []).map((h, idx) => (
-                                <div key={idx} className="dc-history-entry">
-                                    <div>
-                                        <span className="dc-history-date">{h.fecha}</span>
-                                        <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
+            const persona = personas.find(p => p.id_persona === usuario.id_persona);
+            const campos = [
+                { label: 'USERNAME', value: usuarioConHistorial.username },
+                { label: 'PERSONA', value: persona ? getNombrePersona(persona) : 'N/A' },
+                { label: 'EMAIL', value: persona?.email || '-' },
+                { label: 'ROL', value: ROLES[usuarioConHistorial.id_rol] },
+                { label: 'ESTADO', value: usuarioConHistorial.estado ? 'ACTIVO' : 'INACTIVO' }
+            ];
+
+            setModalContent({
+                title: `Detalle de ${usuarioConHistorial.username}`,
+                icon: 'fa-eye',
+                children: (
+                    <>
+                        <div className="dc-info-card">
+                            <h4><i className="fas fa-info-circle"></i> Información General</h4>
+                            <div className="dc-info-grid">
+                                {campos.map(campo => (
+                                    <div key={campo.label} className="dc-info-item">
+                                        <span className="dc-info-label">{campo.label}</span>
+                                        <span className="dc-info-value">{campo.value}</span>
                                     </div>
-                                    <div className="dc-history-action">{h.accion}</div>
-                                    <div className="dc-history-desc">{h.descripcion}</div>
-                                </div>
-                            ))}
-                            {(!usuario.historial || usuario.historial.length === 0) && (
-                                <div className="dc-history-entry">Sin historial registrado</div>
-                            )}
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </>
-            ),
-            footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
-        });
-        setModalOpen(true);
+                        <div className="dc-history-card">
+                            <h4><i className="fas fa-history"></i> Historial de Cambios</h4>
+                            <div className="dc-history-log">
+                                {(usuarioConHistorial.historial || []).length > 0 ? (
+                                    usuarioConHistorial.historial.map((h, idx) => (
+                                        <div key={idx} className="dc-history-entry">
+                                            <div>
+                                                <span className="dc-history-date">{h.fecha}</span>
+                                                <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
+                                            </div>
+                                            <div className="dc-history-action">{h.accion}</div>
+                                            <div className="dc-history-desc">{h.descripcion}</div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="dc-history-entry">Sin historial registrado</div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                ),
+                footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
+            });
+            setModalOpen(true);
+        } catch (error) {
+            console.error('[UsuariosSection] Error cargando historial:', error);
+            showToast('Error al cargar el historial', 'error', 'Error');
+        }
     };
 
+    // --- EDITAR ---
     const handleEdit = (usuario: Usuario) => {
-        const handleSave = () => {
+        const handleSave = async () => {
             const newUsername = (document.getElementById('edit_username') as HTMLInputElement)?.value;
             const newRol = parseInt((document.getElementById('edit_id_rol') as HTMLSelectElement)?.value);
             const newEstado = (document.getElementById('edit_estado') as HTMLSelectElement)?.value === 'true';
             const newPersona = parseInt((document.getElementById('edit_id_persona') as HTMLSelectElement)?.value);
 
-            let cambios = [];
-            if (newUsername !== usuario.username) cambios.push(`Username: "${usuario.username}" → "${newUsername}"`);
-            if (newRol !== usuario.id_rol) cambios.push(`Rol: "${ROLES[usuario.id_rol]}" → "${ROLES[newRol]}"`);
-            if (newEstado !== usuario.estado) cambios.push(`Estado: "${usuario.estado}" → "${newEstado}"`);
-            if (newPersona !== usuario.id_persona) {
-                const oldPersona = personas.find(p => p.id_persona === usuario.id_persona);
-                const newPersonaObj = personas.find(p => p.id_persona === newPersona);
-                cambios.push(`Persona: "${oldPersona ? getNombrePersona(oldPersona) : 'N/A'}" → "${newPersonaObj ? getNombrePersona(newPersonaObj) : 'N/A'}"`);
+            if (
+                newUsername === usuario.username &&
+                newRol === usuario.id_rol &&
+                newEstado === usuario.estado &&
+                newPersona === usuario.id_persona
+            ) {
+                showToast('No se realizaron cambios', 'info', 'Sin cambios');
+                setModalOpen(false);
+                return;
             }
 
-            if (cambios.length > 0) {
-                addToHistory(usuario, usuario.username, "MODIFICACIÓN", cambios.join(', '));
-                usuario.username = newUsername;
-                usuario.id_rol = newRol as any;
-                usuario.estado = newEstado;
-                usuario.id_persona = newPersona;
-                setUsuarios([...usuarios]);
-                addActivity("MODIFICAR", "usuarios", `Registro actualizado: ${cambios.join(', ')}`);
-                showToast("Registro actualizado correctamente", "success", "Actualizado");
-            } else {
-                showToast("No se realizaron cambios", "info", "Sin cambios");
+            setIsSubmitting(true);
+            try {
+                const payload: any = {
+                    id_persona: newPersona,
+                    username: newUsername,
+                    id_rol: newRol,
+                    estado: newEstado
+                };
+
+                const actualizado = await usuarioApi.update(usuario.id_usuario, payload);
+
+                setUsuarios(prev => prev.map(u =>
+                    u.id_usuario === actualizado.id_usuario ? actualizado : u
+                ));
+
+                const cambios = [];
+                if (newUsername !== usuario.username) cambios.push(`Username: "${usuario.username}" → "${newUsername}"`);
+                if (newRol !== usuario.id_rol) cambios.push(`Rol: "${ROLES[usuario.id_rol]}" → "${ROLES[newRol]}"`);
+                if (newEstado !== usuario.estado) cambios.push(`Estado: "${usuario.estado}" → "${newEstado}"`);
+                if (newPersona !== usuario.id_persona) {
+                    const oldPersona = personas.find(p => p.id_persona === usuario.id_persona);
+                    const newPersonaObj = personas.find(p => p.id_persona === newPersona);
+                    cambios.push(`Persona: "${oldPersona ? getNombrePersona(oldPersona) : 'N/A'}" → "${newPersonaObj ? getNombrePersona(newPersonaObj) : 'N/A'}"`);
+                }
+
+                if (cambios.length > 0) {
+                    await addActivity("MODIFICAR", "usuarios", `Usuario actualizado: ${newUsername}`);
+                    await addToHistory(actualizado, newUsername, "MODIFICACIÓN", cambios.join(', '));
+                }
+
+                showToast("Usuario actualizado correctamente", "success", "Actualizado");
+                setModalOpen(false);
+            } catch (error) {
+                console.error('[UsuariosSection] Error al actualizar usuario:', error);
+                showToast('Error al actualizar el usuario', 'error', 'Error');
+            } finally {
+                setIsSubmitting(false);
             }
-            setModalOpen(false);
         };
 
         setModalContent({
@@ -257,20 +317,37 @@ export const UsuariosSection: React.FC = () => {
             ),
             footer: (
                 <>
-                    <button className="dc-btn success" onClick={handleSave}><i className="fas fa-save"></i> Guardar Cambios</button>
-                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cancelar</button>
+                    <button className="dc-btn success" onClick={handleSave} disabled={isSubmitting}>
+                        {isSubmitting ? 'Guardando...' : <><i className="fas fa-save"></i> Guardar Cambios</>}
+                    </button>
+                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}>
+                        <i className="fas fa-times"></i> Cancelar
+                    </button>
                 </>
             )
         });
         setModalOpen(true);
     };
 
+    // --- ELIMINAR ---
     const handleDelete = (usuario: Usuario) => {
-        const handleConfirm = () => {
-            setUsuarios(usuarios.filter(u => u.id_usuario !== usuario.id_usuario));
-            addActivity("ELIMINAR", "usuarios", `Eliminado "${usuario.username}"`);
-            showToast(`"${usuario.username}" ha sido eliminado correctamente`, "success", "Eliminado");
-            setModalOpen(false);
+        const handleConfirm = async () => {
+            setIsSubmitting(true);
+            try {
+                await usuarioApi.delete(usuario.id_usuario);
+
+                setUsuarios(prev => prev.filter(u => u.id_usuario !== usuario.id_usuario));
+
+                await addActivity("ELIMINAR", "usuarios", `Eliminado "${usuario.username}"`);
+
+                showToast(`"${usuario.username}" ha sido eliminado correctamente`, "success", "Eliminado");
+                setModalOpen(false);
+            } catch (error) {
+                console.error('[UsuariosSection] Error al eliminar usuario:', error);
+                showToast('Error al eliminar el usuario', 'error', 'Error');
+            } finally {
+                setIsSubmitting(false);
+            }
         };
 
         setModalContent({
@@ -288,8 +365,12 @@ export const UsuariosSection: React.FC = () => {
             ),
             footer: (
                 <>
-                    <button className="dc-btn danger" onClick={handleConfirm}><i className="fas fa-trash"></i> Sí, Eliminar</button>
-                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-ban"></i> Cancelar</button>
+                    <button className="dc-btn danger" onClick={handleConfirm} disabled={isSubmitting}>
+                        {isSubmitting ? 'Eliminando...' : <><i className="fas fa-trash"></i> Sí, Eliminar</>}
+                    </button>
+                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}>
+                        <i className="fas fa-ban"></i> Cancelar
+                    </button>
                 </>
             )
         });
@@ -301,14 +382,11 @@ export const UsuariosSection: React.FC = () => {
     return (
         <div data-tab="usuarios">
             <div>
-                <FormCard
-                    title="Nuevo Usuario"
-                    fields={usuarioFormFields.map(f => f.id === 'id_persona' ? { ...f, options: [{ value: '', label: 'Seleccione persona' }, ...personaOptions] } : f)}
-                    values={formValues}
-                    onChange={(id, value) => setFormValues(prev => ({ ...prev, [id]: value }))}
-                    onSubmit={handleAddUsuario}
-                    submitText="Registrar usuario"
-                />
+                <div style={{ marginBottom: '1.5rem' }}>
+                    <button className="dc-btn" onClick={openCreateModal}>
+                        <i className="fas fa-plus-circle"></i> Nuevo Usuario
+                    </button>
+                </div>
 
                 <FilterSection
                     title="Filtrar usuarios"
@@ -345,6 +423,57 @@ export const UsuariosSection: React.FC = () => {
                     footer={modalContent?.footer}
                 >
                     {modalContent?.children}
+                </Modal>
+
+                <Modal
+                    isOpen={isCreateModalOpen}
+                    onClose={() => setIsCreateModalOpen(false)}
+                    title="Nuevo Usuario"
+                    icon="fa-user-plus"
+                    footer={
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
+                            <button className="dc-btn secondary" onClick={() => setIsCreateModalOpen(false)}>
+                                <i className="fas fa-times"></i> Cancelar
+                            </button>
+                            <button className="dc-btn success" onClick={handleAddUsuario} disabled={isSubmitting}>
+                                {isSubmitting ? 'Registrando...' : <><i className="fas fa-save"></i> Registrar</>}
+                            </button>
+                        </div>
+                    }
+                >
+                    <div className="dc-form-grid">
+                        {usuarioFormFields.map((field) => {
+                            const fieldOptions = field.id === 'id_persona'
+                                ? [{ value: '', label: 'Seleccione persona' }, ...personaOptions]
+                                : field.options;
+                            return (
+                                <div key={field.id} className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                    <label>{field.label}</label>
+                                    {field.type === 'select' ? (
+                                        <select
+                                            id={field.id}
+                                            value={(formValues as any)[field.id] || ''}
+                                            onChange={(e) => setFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                            required={field.required}
+                                        >
+                                            {fieldOptions?.map(opt => (
+                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type={field.type}
+                                            id={field.id}
+                                            placeholder={field.placeholder}
+                                            value={(formValues as any)[field.id] || ''}
+                                            onChange={(e) => setFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                            required={field.required}
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </Modal>
             </div>
             <div className="dc-toast-container">

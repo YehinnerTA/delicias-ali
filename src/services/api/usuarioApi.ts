@@ -19,11 +19,14 @@ export const usuarioApi = {
         const data = await res.json();
         return data.map(mapToFrontend);
     },
-    create: async (usuario: Omit<Usuario, 'id_usuario' | 'historial'> & { password: string }): Promise<Usuario> => {
+
+    create: async (
+        usuario: Omit<Usuario, 'id_usuario' | 'historial' | 'password_hash'> & { password: string }
+    ): Promise<Usuario> => {
         const payload = {
             id_persona: usuario.id_persona,
             usuario: usuario.username,
-            password: usuario.password,
+            password: usuario.password,   // ← backend lo hashea
             id_rol: usuario.id_rol
         };
         const res = await fetch(`${API_URL}/usuarios`, {
@@ -35,6 +38,7 @@ export const usuarioApi = {
         const data = await res.json();
         return mapToFrontend(data);
     },
+
     update: async (id: number, usuario: Partial<Usuario>): Promise<Usuario> => {
         const payload = {
             id_persona: usuario.id_persona,
@@ -51,6 +55,7 @@ export const usuarioApi = {
         const data = await res.json();
         return mapToFrontend(data);
     },
+
     delete: async (id: number): Promise<void> => {
         const res = await fetch(`${API_URL}/usuarios/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Error al eliminar usuario');
