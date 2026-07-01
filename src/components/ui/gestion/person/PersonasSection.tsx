@@ -63,6 +63,9 @@ export const PersonasSection: React.FC = () => {
     const [empresaOptions, setEmpresaOptions] = useState<{ value: string; label: string }[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Estado para controlar el modal de creación
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
     useEffect(() => {
         const options = empresas.filter(e => e.estado).map(e => ({ value: String(e.id_empresa), label: e.empresa }));
         setEmpresaOptions(options);
@@ -111,6 +114,23 @@ export const PersonasSection: React.FC = () => {
         }
     ];
 
+    // --- ABRIR MODAL DE CREACIÓN ---
+    const openCreateModal = () => {
+        // Reiniciar el formulario a valores por defecto
+        setFormValues({
+            tipo: 'proveedor',
+            tipoDoc: 'DNI',
+            numDoc: '',
+            nombre: '',
+            apellido: '',
+            razonSocial: '',
+            email: '',
+            celular: '',
+            id_empresa: ''
+        });
+        setIsCreateModalOpen(true);
+    };
+
     // --- CREAR ---
     const handleAddPersona = async () => {
         if (!formValues.numDoc || !formValues.celular || !formValues.id_empresa) {
@@ -142,6 +162,9 @@ export const PersonasSection: React.FC = () => {
             await addToHistory(nueva, nombreCompleto, "CREACIÓN", `Persona creada: ${nombreCompleto}`);
 
             showToast(`${formValues.tipo.replace('_', ' ')} "${nombreCompleto}" creado exitosamente`, "success", "Persona registrada");
+
+            // Cerrar modal y resetear formulario
+            setIsCreateModalOpen(false);
             setFormValues({
                 tipo: 'proveedor',
                 tipoDoc: 'DNI',
@@ -234,32 +257,34 @@ export const PersonasSection: React.FC = () => {
             const newEstado = (document.getElementById('edit_estado') as HTMLSelectElement)?.value === 'true';
             const newEmpresa = parseInt((document.getElementById('edit_id_empresa') as HTMLSelectElement)?.value) || persona.id_empresa;
 
-            // Validaciones básicas
-            if (!newNombre && !newApellido && !newEmail && !newCelular) {
-                showToast('Al menos un campo debe ser modificado', 'warning', 'Sin cambios');
+            // Validar que haya cambios reales
+            if (
+                newNombre === persona.nombre &&
+                newApellido === persona.apellido &&
+                newEmail === persona.email &&
+                newCelular === persona.celular &&
+                newEstado === persona.estado &&
+                newEmpresa === persona.id_empresa
+            ) {
+                showToast('No se realizaron cambios', 'info', 'Sin cambios');
+                setModalOpen(false);
                 return;
             }
 
             setIsSubmitting(true);
             try {
-                // Construir el payload completo con los valores actuales o los nuevos
                 const payload: any = {
-                    id_empresa: newEmpresa || persona.id_empresa,
+                    id_empresa: newEmpresa,
                     tipo_persona: persona.tipo_persona,
                     tipo_documento: persona.tipo_documento,
                     numero_documento: persona.numero_documento,
                     razon_social: persona.razon_social,
-                    nombre: newNombre || persona.nombre,
-                    apellido: newApellido || persona.apellido,
-                    email: newEmail || persona.email,
-                    celular: newCelular || persona.celular,
-                    estado: newEstado !== undefined ? newEstado : persona.estado
+                    nombre: newNombre,
+                    apellido: newApellido,
+                    email: newEmail,
+                    celular: newCelular,
+                    estado: newEstado
                 };
-
-                // Si la empresa cambió, usar el nuevo valor
-                if (newEmpresa && newEmpresa !== persona.id_empresa) {
-                    payload.id_empresa = newEmpresa;
-                }
 
                 const actualizada = await personaApi.update(persona.id_persona, payload);
 
@@ -403,14 +428,12 @@ export const PersonasSection: React.FC = () => {
     return (
         <div data-tab="personas">
             <div>
-                <FormCard
-                    title="Nueva Persona"
-                    fields={personaFormFields.map(f => f.id === 'id_empresa' ? { ...f, options: [{ value: '', label: 'Seleccione empresa' }, ...empresaOptions] } : f)}
-                    values={formValues}
-                    onChange={(id, value) => setFormValues(prev => ({ ...prev, [id]: value }))}
-                    onSubmit={handleAddPersona}
-                    submitText={isSubmitting ? 'Registrando...' : 'Registrar'}
-                />
+                {/* Botón para abrir el modal de creación */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                    <button className="dc-btn" onClick={openCreateModal}>
+                        <i className="fas fa-plus-circle"></i> Nueva Persona
+                    </button>
+                </div>
 
                 <FilterSection
                     title="Filtrar personas"
@@ -439,6 +462,7 @@ export const PersonasSection: React.FC = () => {
 
                 <ActivityLog logs={personaActivityLogs} title="Actividad reciente · Personas" />
 
+                {/* Modales existentes (ver, editar, eliminar) */}
                 <Modal
                     isOpen={modalOpen}
                     onClose={() => setModalOpen(false)}
@@ -447,6 +471,59 @@ export const PersonasSection: React.FC = () => {
                     footer={modalContent?.footer}
                 >
                     {modalContent?.children}
+                </Modal>
+
+                {/* Modal para creación de persona */}
+                <Modal
+                    isOpen={isCreateModalOpen}
+                    onClose={() => setIsCreateModalOpen(false)}
+                    title="Nueva Persona"
+                    icon="fa-user-plus"
+                    footer={
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
+                            <button className="dc-btn secondary" onClick={() => setIsCreateModalOpen(false)}>
+                                <i className="fas fa-times"></i> Cancelar
+                            </button>
+                            <button className="dc-btn success" onClick={handleAddPersona} disabled={isSubmitting}>
+                                {isSubmitting ? 'Registrando...' : <><i className="fas fa-save"></i> Registrar</>}
+                            </button>
+                        </div>
+                    }
+                >
+                    <div className="dc-form-grid">
+                        {personaFormFields.map((field) => {
+                            // Para el campo id_empresa, usar las opciones actualizadas
+                            const fieldOptions = field.id === 'id_empresa'
+                                ? [{ value: '', label: 'Seleccione empresa' }, ...empresaOptions]
+                                : field.options;
+                            return (
+                                <div key={field.id} className="dc-input-group" style={{ flex: field.id === 'id_empresa' ? 1 : 1, minWidth: '150px' }}>
+                                    <label>{field.label}</label>
+                                    {field.type === 'select' ? (
+                                        <select
+                                            id={field.id}
+                                            value={(formValues as any)[field.id] || ''}
+                                            onChange={(e) => setFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                            required={field.required}
+                                        >
+                                            {fieldOptions?.map(opt => (
+                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type={field.type}
+                                            id={field.id}
+                                            placeholder={field.placeholder}
+                                            value={(formValues as any)[field.id] || ''}
+                                            onChange={(e) => setFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                            required={field.required}
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </Modal>
             </div>
             <div className="dc-toast-container">

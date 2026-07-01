@@ -5,7 +5,6 @@ import { Toast } from '../../../common/Toast';
 import { Modal } from '../../../common/modal/Modal';
 import { DataTable, Column } from '../../../common/DataTable';
 import { FilterSection, FilterField } from '../../../common/FilterSection';
-import { FormCard, FormField } from '../../../common/FormCard';
 import { ActivityLog } from '../../../common/ActivityLog';
 import { Empresa } from '../../../../features/types/person';
 import { empresaApi } from '../../../../services/api/empresaApi';
@@ -23,7 +22,8 @@ const empresaFilters: FilterField[] = [
     }
 ];
 
-const empresaFormFields: FormField[] = [
+// Campos para el formulario de creación
+const empresaFormFields = [
     { id: 'ruc', label: 'RUC (11 dígitos)', type: 'text', placeholder: '20123456789', required: true },
     { id: 'nombre', label: 'Nombre / Razón Social', type: 'text', placeholder: 'Ej: Distribuciones del Valle S.A.C.', required: true }
 ];
@@ -39,6 +39,9 @@ export const EmpresasSection: React.FC = () => {
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
     const [filteredData, setFilteredData] = useState<Empresa[]>(empresas);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Estado para controlar el modal de creación
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     useEffect(() => {
         let filtered = empresas.filter(e => {
@@ -65,6 +68,12 @@ export const EmpresasSection: React.FC = () => {
         }
     ];
 
+    // --- ABRIR MODAL DE CREACIÓN ---
+    const openCreateModal = () => {
+        setFormValues({ ruc: '', nombre: '' });
+        setIsCreateModalOpen(true);
+    };
+
     // --- CREAR ---
     const handleAddEmpresa = async () => {
         if (!formValues.ruc || !formValues.nombre) {
@@ -90,6 +99,9 @@ export const EmpresasSection: React.FC = () => {
             await addToHistory(nueva, formValues.nombre, "CREACIÓN", `Empresa creada por ${user?.nombre_completo || 'Admin'}`);
 
             showToast(`Empresa "${formValues.nombre}" creada exitosamente`, "success", "Empresa registrada");
+
+            // Cerrar modal y resetear formulario
+            setIsCreateModalOpen(false);
             setFormValues({ ruc: '', nombre: '' });
         } catch (error) {
             console.error('[EmpresasSection] Error al crear empresa:', error);
@@ -102,7 +114,6 @@ export const EmpresasSection: React.FC = () => {
     // --- VER ---
     const handleView = async (empresa: Empresa) => {
         try {
-            // Cargar historial desde la API
             const historial = await historialApi.getByEntity('empresas', empresa.id_empresa);
             const empresaConHistorial = { ...empresa, historial };
 
@@ -236,13 +247,8 @@ export const EmpresasSection: React.FC = () => {
             setIsSubmitting(true);
             try {
                 await empresaApi.delete(empresa.id_empresa);
-
-                // Actualizar estado global
                 setEmpresas(prev => prev.filter(e => e.id_empresa !== empresa.id_empresa));
-
-                // Registrar actividad
                 await addActivity("ELIMINAR", "empresas", `Eliminado "${empresa.empresa}"`);
-
                 showToast(`"${empresa.empresa}" ha sido eliminado correctamente`, "success", "Eliminado");
                 setModalOpen(false);
             } catch (error) {
@@ -281,14 +287,12 @@ export const EmpresasSection: React.FC = () => {
     return (
         <div data-tab="empresas">
             <div>
-                <FormCard
-                    title="Nueva Empresa"
-                    fields={empresaFormFields}
-                    values={formValues}
-                    onChange={(id, value) => setFormValues(prev => ({ ...prev, [id]: value }))}
-                    onSubmit={handleAddEmpresa}
-                    submitText={isSubmitting ? 'Registrando...' : 'Registrar'}
-                />
+                {/* Botón para abrir el modal de creación */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                    <button className="dc-btn" onClick={openCreateModal}>
+                        <i className="fas fa-plus-circle"></i> Nueva Empresa
+                    </button>
+                </div>
 
                 <FilterSection
                     title="Filtrar empresas"
@@ -317,6 +321,7 @@ export const EmpresasSection: React.FC = () => {
 
                 <ActivityLog logs={empresaActivityLogs} title="Actividad reciente · Empresas" />
 
+                {/* Modal para ver/editar/eliminar */}
                 <Modal
                     isOpen={modalOpen}
                     onClose={() => setModalOpen(false)}
@@ -325,6 +330,40 @@ export const EmpresasSection: React.FC = () => {
                     footer={modalContent?.footer}
                 >
                     {modalContent?.children}
+                </Modal>
+
+                {/* Modal para creación de empresa */}
+                <Modal
+                    isOpen={isCreateModalOpen}
+                    onClose={() => setIsCreateModalOpen(false)}
+                    title="Nueva Empresa"
+                    icon="fa-building"
+                    footer={
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
+                            <button className="dc-btn secondary" onClick={() => setIsCreateModalOpen(false)}>
+                                <i className="fas fa-times"></i> Cancelar
+                            </button>
+                            <button className="dc-btn success" onClick={handleAddEmpresa} disabled={isSubmitting}>
+                                {isSubmitting ? 'Registrando...' : <><i className="fas fa-save"></i> Registrar</>}
+                            </button>
+                        </div>
+                    }
+                >
+                    <div className="dc-form-grid">
+                        {empresaFormFields.map((field) => (
+                            <div key={field.id} className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                <label>{field.label}</label>
+                                <input
+                                    type={field.type}
+                                    id={field.id}
+                                    placeholder={field.placeholder}
+                                    value={(formValues as any)[field.id] || ''}
+                                    onChange={(e) => setFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                    required={field.required}
+                                />
+                            </div>
+                        ))}
+                    </div>
                 </Modal>
             </div>
             <div className="dc-toast-container">

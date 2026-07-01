@@ -142,9 +142,17 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         try {
             let entidad = '';
             let idEntidad = 0;
-            if ('id_empresa' in item) { entidad = 'empresas'; idEntidad = (item as any).id_empresa; }
-            else if ('id_persona' in item) { entidad = 'personas'; idEntidad = (item as any).id_persona; }
-            else if ('id_usuario' in item) { entidad = 'usuarios'; idEntidad = (item as any).id_usuario; }
+
+            if ('id_persona' in item) {
+                entidad = 'personas';
+                idEntidad = (item as any).id_persona;
+            } else if ('id_empresa' in item) {
+                entidad = 'empresas';
+                idEntidad = (item as any).id_empresa;
+            } else if ('id_usuario' in item) {
+                entidad = 'usuarios';
+                idEntidad = (item as any).id_usuario;
+            }
 
             if (entidad && idEntidad) {
                 const usuarioActual = getUsuarioActual();
