@@ -36,6 +36,7 @@ export interface Usuario {
     password_hash: string;
     estado: boolean;
     historial: HistorialEntry[];
+    empresasIds?: number[];
 }
 
 export interface ActivityLog {
@@ -46,7 +47,7 @@ export interface ActivityLog {
     usuario: string;
 }
 
-export type TipoModulo = 'empresas' | 'personas' | 'usuarios' | 'catering' | 'tienda' | 'ventas';
+export type TipoModulo = 'empresas' | 'personas' | 'usuarios' | 'personas-usuarios' | 'catering' | 'tienda' | 'ventas';
 
 export interface TabConfig {
     id: TipoModulo;

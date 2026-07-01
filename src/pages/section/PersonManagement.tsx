@@ -2,15 +2,13 @@ import { GlobalProvider } from '../../context/GlobalContext';
 import MainLayout from '../partials/MainLayout';
 import { GestionBase } from '../../components/ui/GestionBase';
 import { EmpresasSection } from '../../components/ui/gestion/person/EmpresasSection';
-import { PersonasSection } from '../../components/ui/gestion/person/PersonasSection';
-import { UsuariosSection } from '../../components/ui/gestion/person/UsuariosSection';
+import { PersonasUsuariosSection } from '../../components/ui/gestion/person/PersonasUsuariosSection';
 import { TabConfig } from '../../features/types/person';
 import '../../theme/section/management.css';
 
 const tabs: TabConfig[] = [
     { id: 'empresas', label: 'Empresas', icon: 'fa-building' },
-    { id: 'personas', label: 'Personas', icon: 'fa-users' },
-    { id: 'usuarios', label: 'Usuarios', icon: 'fa-user-lock' }
+    { id: 'personas-usuarios', label: 'Personas & Usuarios', icon: 'fa-user-friends' }
 ];
 
 function PersonManagement() {
@@ -26,8 +24,7 @@ function PersonManagement() {
                     </div>
                     <GestionBase tabs={tabs}>
                         <EmpresasSection data-tab="empresas" />
-                        <PersonasSection data-tab="personas" />
-                        <UsuariosSection data-tab="usuarios" />
+                        <PersonasUsuariosSection data-tab="personas-usuarios" />
                     </GestionBase>
                 </div>
             </MainLayout>

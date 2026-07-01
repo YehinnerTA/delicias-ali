@@ -9,7 +9,8 @@ const mapToFrontend = (data: any): Usuario => ({
     username: data.usuario,
     password_hash: data.password_hash,
     estado: data.estado === 1,
-    historial: []
+    historial: [],
+    empresasIds: data.empresasIds || []
 });
 
 export const usuarioApi = {
@@ -21,13 +22,14 @@ export const usuarioApi = {
     },
 
     create: async (
-        usuario: Omit<Usuario, 'id_usuario' | 'historial' | 'password_hash'> & { password: string }
+        usuario: Omit<Usuario, 'id_usuario' | 'historial' | 'password_hash'> & { password: string; empresasIds?: number[] }
     ): Promise<Usuario> => {
         const payload = {
             id_persona: usuario.id_persona,
             usuario: usuario.username,
-            password: usuario.password,   // ← backend lo hashea
-            id_rol: usuario.id_rol
+            password: usuario.password,
+            id_rol: usuario.id_rol,
+            empresasIds: usuario.empresasIds || []
         };
         const res = await fetch(`${API_URL}/usuarios`, {
             method: 'POST',
@@ -44,7 +46,8 @@ export const usuarioApi = {
             id_persona: usuario.id_persona,
             usuario: usuario.username,
             id_rol: usuario.id_rol,
-            estado: usuario.estado ? 1 : 0
+            estado: usuario.estado ? 1 : 0,
+            empresasIds: usuario.empresasIds || []
         };
         const res = await fetch(`${API_URL}/usuarios/${id}`, {
             method: 'PUT',
