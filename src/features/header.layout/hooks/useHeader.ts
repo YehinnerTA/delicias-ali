@@ -18,6 +18,7 @@ const NOTIFICACIONES_EJEMPLO: Notificacion[] = [
 ];
 
 const NAV_LINKS = [
+    { name: "Usuario", path: "/person-management" },
     { name: "Ventas", path: "/sales-management" },
     { name: "Logística", path: "/inventory-management" },
     { name: "Cocina", path: "/catering-management" },
