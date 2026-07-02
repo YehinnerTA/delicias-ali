@@ -1,9 +1,4 @@
-export interface HistorialEntry {
-    fecha: string;
-    usuario: string;
-    accion: string;
-    descripcion: string;
-}
+import { HistorialEntry } from './hist_act';
 
 export interface CateringItem {
     id: number;
@@ -31,14 +26,6 @@ export interface Postre {
     id: number;
     nombre: string;
     lotes: Lote[];
-}
-
-export interface ActivityLog {
-    timestamp: string;
-    accion: string;
-    modulo: string;
-    detalle: string;
-    usuario: string;
 }
 
 export type ModuloInventario = 'catering' | 'tienda';

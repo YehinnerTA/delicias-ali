@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { CateringItem, Postre, ActivityLog, ModuloInventario, CateringFilters, PostreFilters } from '../features/types/inventory';
+import { CateringItem, Postre, ModuloInventario, CateringFilters, PostreFilters } from '../features/types/inventory';
+import { ActivityLog } from '../features/types/hist_act';
 
 interface InventoryContextType {
     cateringItems: CateringItem[];
