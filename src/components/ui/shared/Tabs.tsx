@@ -1,5 +1,5 @@
 import React from 'react';
-import { TabConfig } from '../../../features/types/person';
+import { TabConfig } from '../../../features/types/config';
 
 interface TabsProps {
     tabs: TabConfig[];

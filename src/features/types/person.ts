@@ -47,14 +47,6 @@ export interface ActivityLog {
     usuario: string;
 }
 
-export type TipoModulo = 'empresas' | 'personas' | 'usuarios' | 'personas-usuarios' | 'catering' | 'tienda' | 'ventas';
-
-export interface TabConfig {
-    id: TipoModulo;
-    label: string;
-    icon: string;
-}
-
 export const ROLES: Record<number, string> = {
     1: 'Administrador',
     2: 'Chef',

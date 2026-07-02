@@ -1,4 +1,3 @@
-// src/components/ui/gestion/person/PersonasUsuariosSection.tsx
 import React, { useState, useEffect } from 'react';
 import { useGlobal } from '../../../../context/GlobalContext';
 import { useToast } from '../../../../hooks/base/useToast';

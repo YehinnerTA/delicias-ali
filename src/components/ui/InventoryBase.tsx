@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from './shared/Tabs';
-import { TabConfig } from '../../features/types/person';
+import { TabConfig } from '../../features/types/config';
 
 interface InventoryBaseProps {
     tabs: TabConfig[];
