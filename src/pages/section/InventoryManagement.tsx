@@ -4,7 +4,7 @@ import MainLayout from '../partials/MainLayout';
 import { InventoryBase } from '../../components/ui/InventoryBase';
 import { CateringSection } from '../../components/ui/gestion/inventory/CateringSection';
 import { PasteleriaSection } from '../../components/ui/gestion/inventory/TiendaSection';
-import { TabConfig } from '../../features/types/person';
+import { TabConfig } from '../../features/types/config';
 import '../../theme/section/management.css';
 
 const tabs: TabConfig[] = [

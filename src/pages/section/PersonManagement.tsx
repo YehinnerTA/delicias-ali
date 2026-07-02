@@ -3,7 +3,7 @@ import MainLayout from '../partials/MainLayout';
 import { GestionBase } from '../../components/ui/GestionBase';
 import { EmpresasSection } from '../../components/ui/gestion/person/EmpresasSection';
 import { PersonasUsuariosSection } from '../../components/ui/gestion/person/PersonasUsuariosSection';
-import { TabConfig } from '../../features/types/person';
+import { TabConfig } from '../../features/types/config';
 import '../../theme/section/management.css';
 
 const tabs: TabConfig[] = [
