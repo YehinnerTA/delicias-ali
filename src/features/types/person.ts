@@ -1,9 +1,4 @@
-export interface HistorialEntry {
-    fecha: string;
-    usuario: string;
-    accion: string;
-    descripcion: string;
-}
+import { HistorialEntry } from './hist_act';
 
 export interface Empresa {
     id_empresa: number;
@@ -37,14 +32,6 @@ export interface Usuario {
     estado: boolean;
     historial: HistorialEntry[];
     empresasIds?: number[];
-}
-
-export interface ActivityLog {
-    timestamp: string;
-    accion: string;
-    modulo: string;
-    detalle: string;
-    usuario: string;
 }
 
 export const ROLES: Record<number, string> = {

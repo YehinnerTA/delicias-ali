@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Empresa, Persona, Usuario, ActivityLog, TipoModulo, HistorialEntry } from '../features/types/person';
+import { Empresa, Persona, Usuario } from '../features/types/person';
+import { ActivityLog, HistorialEntry } from '../features/types/hist_act';
+import { TipoModulo } from '../features/types/config';
 import { empresaApi } from '../services/api/empresaApi';
 import { personaApi } from '../services/api/personaApi';
 import { usuarioApi } from '../services/api/usuarioApi';
