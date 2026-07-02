@@ -18,8 +18,8 @@ function PersonManagement() {
                 <div className="dc-catering-container">
                     <div className="dc-catering-header-card">
                         <div className="dc-title">
-                            <h1><i className="fas fa-building"></i> Delicias Catering</h1>
-                            <p>Gestión Empresas · Personas (Proveedores/Clientes/Empleados) · Usuarios</p>
+                            <h1><i className="fas fa-building"></i> Gestión de Personas / Empresas</h1>
+                            <p>CREATE - READ - UPDATE - DELETE</p>
                         </div>
                     </div>
                     <GestionBase tabs={tabs}>
