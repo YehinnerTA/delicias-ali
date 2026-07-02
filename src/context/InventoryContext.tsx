@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useAuth } from '../features/auth/context/AuthContext';
 import { CateringItem, Postre, ModuloInventario, CateringFilters, PostreFilters } from '../features/types/inventory';
 import { ActivityLog } from '../features/types/hist_act';
+import { cateringItemApi } from '../services/api/cateringApi';
+import { postreApi } from '../services/api/postreApi';
+import { actividadApi } from '../services/api/actividadApi';
+import { historialApi } from '../services/api/historialApi';
 
 interface InventoryContextType {
     cateringItems: CateringItem[];
@@ -10,25 +15,48 @@ interface InventoryContextType {
     postreFilters: PostreFilters;
     setCateringItems: (items: CateringItem[]) => void;
     setPostresItems: (items: Postre[]) => void;
-    addActivity: (accion: string, modulo: ModuloInventario, detalle: string) => void;
-    addToHistory: <T extends { historial: any[] }>(item: T, nombreItem: string, accion: string, descripcion: string) => void;
     setCateringFilters: (filters: CateringFilters) => void;
     setPostreFilters: (filters: PostreFilters) => void;
+    addActivity: (accion: string, modulo: ModuloInventario, detalle: string) => Promise<void>;
+    addToHistory: <T extends { historial: any[] }>(
+        item: T,
+        nombreItem: string,
+        accion: string,
+        descripcion: string
+    ) => Promise<void>;
+    refreshData: () => Promise<void>;
     calcularFechaVencimiento: (dias: number) => string;
     getDiasRestantes: (fechaVencimiento: string) => number;
-    saveToLocal: () => void;
+    isLoading: boolean;
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
 
-const USUARIO_ACTUAL = "Chef Ana (ana@delicias.com)";
+const loadFromLocalStorage = () => {
+    try {
+        const storedCat = localStorage.getItem("cateringInv");
+        const storedPos = localStorage.getItem("postresLotes");
+        const storedAct = localStorage.getItem("inventoryAct");
+
+        return {
+            cateringItems: storedCat ? JSON.parse(storedCat) : [],
+            postresItems: storedPos ? JSON.parse(storedPos) : [],
+            activityLogs: storedAct ? JSON.parse(storedAct) : []
+        };
+    } catch (e) {
+        console.warn('[InventoryContext] Error al leer localStorage:', e);
+        return { cateringItems: [], postresItems: [], activityLogs: [] };
+    }
+};
 
 export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const { user } = useAuth();
     const [cateringItems, setCateringItems] = useState<CateringItem[]>([]);
     const [postresItems, setPostresItems] = useState<Postre[]>([]);
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
     const [cateringFilters, setCateringFilters] = useState<CateringFilters>({ nombre: '', tipo: '', stockMin: '' });
     const [postreFilters, setPostreFilters] = useState<PostreFilters>({ nombre: '', estado: '' });
+    const [isLoading, setIsLoading] = useState(true);
 
     const calcularFechaVencimiento = (dias: number): string => {
         if (!dias || dias <= 0) return new Date().toISOString().split('T')[0];
@@ -44,103 +72,141 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
         return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     };
 
-    const addActivity = (accion: string, modulo: ModuloInventario, detalle: string) => {
-        const newLog: ActivityLog = {
-            timestamp: new Date().toLocaleString(),
-            accion,
-            modulo,
-            detalle,
-            usuario: USUARIO_ACTUAL
-        };
-        setActivityLogs(prev => [newLog, ...prev].slice(0, 30));
+    const getUsuarioActual = () => {
+        if (user) {
+            return user.nombre_completo || user.usuario || 'Usuario';
+        }
+        return 'Sistema';
     };
 
-    const addToHistory = <T extends { historial: any[] }>(
+    const loadData = async () => {
+        setIsLoading(true);
+        try {
+            const [catData, posData, actData] = await Promise.all([
+                cateringItemApi.getAll(),
+                postreApi.getAll(),
+                actividadApi.getAll()
+            ]);
+
+            if (catData.length > 0 || posData.length > 0) {
+                setCateringItems(catData);
+                setPostresItems(posData);
+                setActivityLogs(actData);
+                localStorage.setItem("cateringInv", JSON.stringify(catData));
+                localStorage.setItem("postresLotes", JSON.stringify(posData));
+                localStorage.setItem("inventoryAct", JSON.stringify(actData));
+            } else {
+                const localData = loadFromLocalStorage();
+                setCateringItems(localData.cateringItems);
+                setPostresItems(localData.postresItems);
+                setActivityLogs(localData.activityLogs);
+            }
+        } catch (error) {
+            console.error('[InventoryContext] Error cargando desde API, usando localStorage:', error);
+            const localData = loadFromLocalStorage();
+            setCateringItems(localData.cateringItems);
+            setPostresItems(localData.postresItems);
+            setActivityLogs(localData.activityLogs);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const addActivity = async (accion: string, modulo: ModuloInventario, detalle: string) => {
+        try {
+            const usuarioActual = getUsuarioActual();
+            await actividadApi.create({ modulo, accion, detalle, usuario: usuarioActual });
+            const updated = await actividadApi.getAll();
+            setActivityLogs(updated);
+        } catch (error) {
+            console.error('[InventoryContext] Error al agregar actividad:', error);
+        }
+    };
+
+    const addToHistory = async <T extends { historial: any[] }>(
         item: T,
         nombreItem: string,
         accion: string,
         descripcion: string
     ) => {
-        if (item.historial) {
-            item.historial.unshift({
-                fecha: new Date().toLocaleString(),
-                usuario: USUARIO_ACTUAL,
-                accion,
-                descripcion: `${nombreItem} - ${descripcion}`
-            });
-            if (item.historial.length > 40) item.historial.pop();
-        }
-        saveToLocal();
-    };
+        try {
+            let entidad = '';
+            let idEntidad = 0;
+            let esCateringItem = false;
 
-    const saveToLocal = () => {
-        localStorage.setItem("cateringInv", JSON.stringify(cateringItems));
-        localStorage.setItem("postresLotes", JSON.stringify(postresItems));
-        localStorage.setItem("inventoryAct", JSON.stringify(activityLogs));
-    };
+            if ('id' in item && 'tipo' in item) {
+                entidad = 'catering_items';
+                idEntidad = (item as any).id;
+                esCateringItem = true;
+            } else if ('lotes' in item) {
+                entidad = 'postres';
+                idEntidad = (item as any).id;
+            } else if ('postre_id' in item) {
+                entidad = 'lotes';
+                idEntidad = (item as any).id;
+            }
 
-    const loadFromLocal = () => {
-        const storedCat = localStorage.getItem("cateringInv");
-        const storedPos = localStorage.getItem("postresLotes");
-        const storedAct = localStorage.getItem("inventoryAct");
+            if (entidad && idEntidad) {
+                const usuarioActual = getUsuarioActual();
+                await historialApi.create({
+                    entidad,
+                    id_entidad: idEntidad,
+                    accion,
+                    descripcion: `${nombreItem} - ${descripcion}`,
+                    usuario: usuarioActual
+                });
 
-        let loadedCatering = storedCat ? JSON.parse(storedCat) : [];
-        let loadedPostres = storedPos ? JSON.parse(storedPos) : [];
-        let loadedActivity = storedAct ? JSON.parse(storedAct) : [];
-
-        if (loadedCatering.length === 0) {
-            const now = new Date().toLocaleString();
-            loadedCatering = [
-                { id: Date.now() + 1, nombre: "Harina de trigo", stock: 28, tipo: "materia prima", registradoPor: USUARIO_ACTUAL, ultimaEdicion: now, historial: [{ fecha: now, usuario: USUARIO_ACTUAL, accion: "CREACIÓN", descripcion: "Harina - creado con stock 28" }] },
-                { id: Date.now() + 2, nombre: "Batidora planetaria", stock: 2, tipo: "utensilio", registradoPor: USUARIO_ACTUAL, ultimaEdicion: now, historial: [{ fecha: now, usuario: USUARIO_ACTUAL, accion: "CREACIÓN", descripcion: "Utensilio registrado" }] },
-                { id: Date.now() + 3, nombre: "Azúcar morena", stock: 45, tipo: "materia prima", registradoPor: USUARIO_ACTUAL, ultimaEdicion: now, historial: [{ fecha: now, usuario: USUARIO_ACTUAL, accion: "CREACIÓN", descripcion: "Azúcar - creado con stock 45" }] }
-            ];
-            addActivity("INICIALIZAR", "catering", "Datos de ejemplo cargados");
-        }
-
-        if (loadedPostres.length === 0) {
-            const fechaRegistro = new Date().toLocaleDateString("es-ES");
-            loadedPostres = [
-                {
-                    id: Date.now() + 200, nombre: "Cheesecake", lotes: [
-                        { id: Date.now() + 100, stock: 12, precio: 6.2, fechaVencimiento: calcularFechaVencimiento(5), diasDuracion: 5, fechaRegistro, registradoPor: USUARIO_ACTUAL, ultimaEdicion: new Date().toLocaleString(), historial: [{ fecha: new Date().toLocaleString(), usuario: USUARIO_ACTUAL, accion: "CREACIÓN", descripcion: "Lote inicial cheesecake - 5 días de duración" }] },
-                        { id: Date.now() + 101, stock: 6, precio: 6.5, fechaVencimiento: calcularFechaVencimiento(12), diasDuracion: 12, fechaRegistro, registradoPor: USUARIO_ACTUAL, ultimaEdicion: new Date().toLocaleString(), historial: [{ fecha: new Date().toLocaleString(), usuario: USUARIO_ACTUAL, accion: "CREACIÓN", descripcion: "Segundo lote cheesecake - 12 días de duración" }] }
-                    ]
-                },
-                {
-                    id: Date.now() + 201, nombre: "Brownies", lotes: [
-                        { id: Date.now() + 102, stock: 8, precio: 4.5, fechaVencimiento: calcularFechaVencimiento(-2), diasDuracion: -2, fechaRegistro, registradoPor: USUARIO_ACTUAL, ultimaEdicion: new Date().toLocaleString(), historial: [{ fecha: new Date().toLocaleString(), usuario: USUARIO_ACTUAL, accion: "CREACIÓN", descripcion: "Lote brownies - ya vencido" }] }
-                    ]
+                // ✅ Actualizar el historial local del ítem
+                if (item.historial) {
+                    item.historial.unshift({
+                        fecha: new Date().toLocaleString(),
+                        usuario: usuarioActual,
+                        accion,
+                        descripcion: `${nombreItem} - ${descripcion}`
+                    });
                 }
-            ];
-            addActivity("INICIALIZAR", "tienda", "Datos de ejemplo cargados");
-        }
 
-        setCateringItems(loadedCatering);
-        setPostresItems(loadedPostres);
-        setActivityLogs(loadedActivity);
+                // ✅ Actualizar el estado global para reflejar el nuevo historial
+                if (esCateringItem) {
+                    const updatedItem = item as unknown as CateringItem;
+                    setCateringItems((prev) =>
+                        prev.map((ci) =>
+                            ci.id === updatedItem.id ? { ...ci, historial: updatedItem.historial } : ci
+                        )
+                    );
+                }
+                // Aquí puedes agregar lógica similar para Postre y Lote cuando los implementes
+            }
+        } catch (error) {
+            console.error('[InventoryContext] Error al agregar historial:', error);
+        }
     };
 
-    useEffect(() => {
-        loadFromLocal();
-    }, []);
-
-    useEffect(() => {
-        if (cateringItems.length || postresItems.length) {
-            saveToLocal();
-        }
-    }, [cateringItems, postresItems, activityLogs]);
+    const refreshData = async () => {
+        await loadData();
+    };
 
     return (
         <InventoryContext.Provider value={{
-            cateringItems, setCateringItems,
-            postresItems, setPostresItems,
+            cateringItems,
+            postresItems,
             activityLogs,
-            cateringFilters, setCateringFilters,
-            postreFilters, setPostreFilters,
-            addActivity, addToHistory,
-            calcularFechaVencimiento, getDiasRestantes,
-            saveToLocal
+            cateringFilters,
+            postreFilters,
+            setCateringItems,
+            setPostresItems,
+            setCateringFilters,
+            setPostreFilters,
+            addActivity,
+            addToHistory,
+            refreshData,
+            calcularFechaVencimiento,
+            getDiasRestantes,
+            isLoading
         }}>
             {children}
         </InventoryContext.Provider>

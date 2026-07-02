@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useInventory } from '../../../../context/InventoryContext';
 import { useToast } from '../../../../hooks/base/useToast';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { Toast } from '../../../common/Toast';
 import { Modal } from '../../../common/modal/Modal';
 import { DataTable, Column } from '../../../common/DataTable';
@@ -8,6 +9,8 @@ import { FilterSection, FilterField } from '../../../common/FilterSection';
 import { FormCard, FormField } from '../../../common/FormCard';
 import { ActivityLog } from '../../../common/ActivityLog';
 import { CateringItem } from '../../../../features/types/inventory';
+import { cateringItemApi } from '../../../../services/api/cateringApi';
+import { historialApi } from '../../../../services/api/historialApi';
 
 const cateringFiltersConfig: FilterField[] = [
     { id: 'nombre', label: 'Buscar por nombre', type: 'text', placeholder: 'Ej: Harina, Batidora...' },
@@ -32,14 +35,12 @@ const cateringFormFields: FormField[] = [
     }
 ];
 
-// Convertir CateringFilters a Record<string, string>
 const filtersToRecord = (filters: { nombre: string; tipo: string; stockMin: string }): Record<string, string> => ({
     nombre: filters.nombre,
     tipo: filters.tipo,
     stockMin: filters.stockMin
 });
 
-// Convertir Record<string, string> a CateringFilters
 const recordToFilters = (record: Record<string, string>): { nombre: string; tipo: string; stockMin: string } => ({
     nombre: record.nombre || '',
     tipo: record.tipo || '',
@@ -48,28 +49,31 @@ const recordToFilters = (record: Record<string, string>): { nombre: string; tipo
 
 export const CateringSection: React.FC = () => {
     const {
-        cateringItems, setCateringItems,
-        cateringFilters, setCateringFilters,
-        addActivity, addToHistory,
+        cateringItems,
+        setCateringItems,
+        cateringFilters,
+        setCateringFilters,
+        addActivity,
+        addToHistory,
         activityLogs
     } = useInventory();
+    const { user } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
     const [formValues, setFormValues] = useState({ nombre: '', stock: '0', tipo: 'materia prima' });
     const [modalOpen, setModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
     const [filteredData, setFilteredData] = useState<CateringItem[]>(cateringItems);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Estado para los valores del filtro en formato Record
     const [filterValues, setFilterValues] = useState<Record<string, string>>(filtersToRecord(cateringFilters));
 
-    // Sincronizar filtros cuando cambian externamente
     useEffect(() => {
         setFilterValues(filtersToRecord(cateringFilters));
     }, [cateringFilters]);
 
     useEffect(() => {
-        let filtered = cateringItems.filter(item => {
+        const filtered = cateringItems.filter(item => {
             const matchNombre = !filterValues.nombre ||
                 item.nombre.toLowerCase().includes(filterValues.nombre.toLowerCase());
             const matchTipo = !filterValues.tipo || item.tipo === filterValues.tipo;
@@ -89,7 +93,7 @@ export const CateringSection: React.FC = () => {
     const handleClearFilters = () => {
         setFilterValues({ nombre: '', tipo: '', stockMin: '' });
         setCateringFilters({ nombre: '', tipo: '', stockMin: '' });
-        showToast("Filtros de insumos limpiados", "info", "Filtros reseteados");
+        showToast('Filtros de insumos limpiados', 'info', 'Filtros reseteados');
     };
 
     const columns: Column<CateringItem>[] = [
@@ -100,93 +104,139 @@ export const CateringSection: React.FC = () => {
         { key: 'ultimaEdicion', header: 'Última edición' }
     ];
 
-    const handleAddItem = () => {
+    // --- CREAR ---
+    const handleAddItem = async () => {
         if (!formValues.nombre) {
             showToast('Nombre requerido', 'warning', 'Campos incompletos');
             return;
         }
 
-        const now = new Date().toLocaleString();
-        const newItem: CateringItem = {
-            id: Date.now(),
-            nombre: formValues.nombre,
-            stock: parseInt(formValues.stock) || 0,
-            tipo: formValues.tipo as 'materia prima' | 'utensilio',
-            registradoPor: "Chef Ana (ana@delicias.com)",
-            ultimaEdicion: now,
-            historial: [{ fecha: now, usuario: "Chef Ana (ana@delicias.com)", accion: "CREACIÓN", descripcion: `Creado con stock ${formValues.stock}` }]
-        };
+        const userId = user?.id;
+        if (!userId) {
+            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+            return;
+        }
 
-        setCateringItems([...cateringItems, newItem]);
-        addActivity("INSERT", "catering", `Nuevo ${formValues.tipo}: "${formValues.nombre}"`);
-        showToast(`Insumo "${formValues.nombre}" creado exitosamente`, "success", "Insumo registrado");
-        setFormValues({ nombre: '', stock: '0', tipo: 'materia prima' });
+        setIsSubmitting(true);
+        try {
+            const payload = {
+                nombre: formValues.nombre,
+                stock: parseInt(formValues.stock) || 0,
+                tipo: formValues.tipo as 'materia prima' | 'utensilio',
+                usuario_id: userId
+            };
+
+            const newItem = await cateringItemApi.create(payload);
+            setCateringItems([newItem, ...cateringItems]);
+
+            await addActivity('INSERT', 'catering', `Nuevo ${formValues.tipo}: "${formValues.nombre}"`);
+            await addToHistory(newItem, formValues.nombre, 'CREACIÓN', `Creado con stock ${formValues.stock}`);
+
+            showToast(`Insumo "${formValues.nombre}" creado exitosamente`, 'success', 'Insumo registrado');
+            setFormValues({ nombre: '', stock: '0', tipo: 'materia prima' });
+        } catch (error) {
+            console.error('[CateringSection] Error al crear insumo:', error);
+            showToast('Error al crear el insumo', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const handleView = (item: CateringItem) => {
-        const campos = [
-            { label: 'NOMBRE', value: item.nombre },
-            { label: 'STOCK', value: `${item.stock} unidades` },
-            { label: 'TIPO', value: item.tipo },
-            { label: 'REGISTRADO POR', value: item.registradoPor },
-            { label: 'ÚLTIMA EDICIÓN', value: item.ultimaEdicion }
-        ];
+    // --- VER (con historial completo desde API) ---
+    const handleView = async (item: CateringItem) => {
+        try {
+            // ✅ Cargar historial completo desde la API
+            const historial = await historialApi.getByEntity('catering_items', item.id);
+            const itemConHistorial = { ...item, historial };
 
-        setModalContent({
-            title: `Detalle de ${item.nombre}`,
-            icon: 'fa-eye',
-            children: (
-                <>
-                    <div className="dc-info-card">
-                        <h4><i className="fas fa-info-circle"></i> Información del Insumo</h4>
-                        <div className="dc-info-grid">
-                            {campos.map(campo => (
-                                <div key={campo.label} className="dc-info-item">
-                                    <span className="dc-info-label">{campo.label}</span>
-                                    <span className="dc-info-value">{campo.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="dc-history-card">
-                        <h4><i className="fas fa-history"></i> Historial de Cambios</h4>
-                        <div className="dc-history-log">
-                            {(item.historial || []).map((h, idx) => (
-                                <div key={idx} className="dc-history-entry">
-                                    <div>
-                                        <span className="dc-history-date">{h.fecha}</span>
-                                        <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
+            const campos = [
+                { label: 'NOMBRE', value: itemConHistorial.nombre },
+                { label: 'STOCK', value: `${itemConHistorial.stock} unidades` },
+                { label: 'TIPO', value: itemConHistorial.tipo },
+                { label: 'REGISTRADO POR', value: itemConHistorial.registradoPor },
+                { label: 'ÚLTIMA EDICIÓN', value: itemConHistorial.ultimaEdicion }
+            ];
+
+            setModalContent({
+                title: `Detalle de ${itemConHistorial.nombre}`,
+                icon: 'fa-eye',
+                children: (
+                    <>
+                        <div className="dc-info-card">
+                            <h4><i className="fas fa-info-circle"></i> Información del Insumo</h4>
+                            <div className="dc-info-grid">
+                                {campos.map(campo => (
+                                    <div key={campo.label} className="dc-info-item">
+                                        <span className="dc-info-label">{campo.label}</span>
+                                        <span className="dc-info-value">{campo.value}</span>
                                     </div>
-                                    <div className="dc-history-action">{h.accion}</div>
-                                    <div className="dc-history-desc">{h.descripcion}</div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </>
-            ),
-            footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
-        });
-        setModalOpen(true);
+                        <div className="dc-history-card">
+                            <h4><i className="fas fa-history"></i> Historial de Cambios</h4>
+                            <div className="dc-history-log">
+                                {itemConHistorial.historial && itemConHistorial.historial.length > 0 ? (
+                                    itemConHistorial.historial.map((h, idx) => (
+                                        <div key={idx} className="dc-history-entry">
+                                            <div>
+                                                <span className="dc-history-date">{h.fecha}</span>
+                                                <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
+                                            </div>
+                                            <div className="dc-history-action">{h.accion}</div>
+                                            <div className="dc-history-desc">{h.descripcion}</div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="dc-history-entry">Sin historial registrado</div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                ),
+                footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
+            });
+            setModalOpen(true);
+        } catch (error) {
+            console.error('[CateringSection] Error cargando historial:', error);
+            showToast('Error al cargar el historial', 'error', 'Error');
+        }
     };
 
+    // --- EDITAR ---
     const handleEdit = (item: CateringItem) => {
         const oldStock = item.stock;
-        const handleSave = () => {
+
+        const handleSave = async () => {
             const inc = parseInt((document.getElementById('incStock') as HTMLInputElement)?.value) || 0;
             if (inc < 0) {
-                showToast("Valor inválido", "error", "Error");
+                showToast('Valor inválido', 'error', 'Error');
                 return;
             }
             const nuevoStock = item.stock + inc;
-            const desc = `Stock: ${oldStock} → ${nuevoStock} (+${inc})`;
-            item.stock = nuevoStock;
-            item.ultimaEdicion = new Date().toLocaleString();
-            addToHistory(item, item.nombre, "MODIFICACIÓN", desc);
-            addActivity("MODIFICAR", "catering", `${item.nombre}: ${desc}`);
-            setCateringItems([...cateringItems]);
-            showToast(`Stock actualizado a ${nuevoStock} unidades`, "success", "Stock actualizado");
-            setModalOpen(false);
+
+            setIsSubmitting(true);
+            try {
+                const updatedItem = await cateringItemApi.update(item.id, { stock: nuevoStock });
+
+                setCateringItems(
+                    cateringItems.map((i: CateringItem) =>
+                        i.id === updatedItem.id ? updatedItem : i
+                    )
+                );
+
+                const desc = `Stock: ${oldStock} → ${nuevoStock} (+${inc})`;
+                await addToHistory(updatedItem, item.nombre, 'MODIFICACIÓN', desc);
+                await addActivity('MODIFICAR', 'catering', `${item.nombre}: ${desc}`);
+
+                showToast(`Stock actualizado a ${nuevoStock} unidades`, 'success', 'Stock actualizado');
+                setModalOpen(false);
+            } catch (error) {
+                console.error('[CateringSection] Error al actualizar stock:', error);
+                showToast('Error al actualizar el stock', 'error', 'Error');
+            } finally {
+                setIsSubmitting(false);
+            }
         };
 
         setModalContent({
@@ -205,20 +255,34 @@ export const CateringSection: React.FC = () => {
             ),
             footer: (
                 <>
-                    <button className="dc-btn success" onClick={handleSave}><i className="fas fa-save"></i> Guardar Cambios</button>
-                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cancelar</button>
+                    <button className="dc-btn success" onClick={handleSave} disabled={isSubmitting}>
+                        {isSubmitting ? 'Guardando...' : <><i className="fas fa-save"></i> Guardar Cambios</>}
+                    </button>
+                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}>
+                        <i className="fas fa-times"></i> Cancelar
+                    </button>
                 </>
             )
         });
         setModalOpen(true);
     };
 
+    // --- ELIMINAR ---
     const handleDelete = (item: CateringItem) => {
-        const handleConfirm = () => {
-            setCateringItems(cateringItems.filter(i => i.id !== item.id));
-            addActivity("ELIMINAR", "catering", `Eliminado "${item.nombre}"`);
-            showToast(`"${item.nombre}" ha sido eliminado correctamente`, "success", "Eliminado");
-            setModalOpen(false);
+        const handleConfirm = async () => {
+            setIsSubmitting(true);
+            try {
+                await cateringItemApi.delete(item.id);
+                setCateringItems(cateringItems.filter((i: CateringItem) => i.id !== item.id));
+                await addActivity('ELIMINAR', 'catering', `Eliminado "${item.nombre}"`);
+                showToast(`"${item.nombre}" ha sido eliminado correctamente`, 'success', 'Eliminado');
+                setModalOpen(false);
+            } catch (error) {
+                console.error('[CateringSection] Error al eliminar insumo:', error);
+                showToast('Error al eliminar el insumo', 'error', 'Error');
+            } finally {
+                setIsSubmitting(false);
+            }
         };
 
         setModalContent({
@@ -236,8 +300,12 @@ export const CateringSection: React.FC = () => {
             ),
             footer: (
                 <>
-                    <button className="dc-btn danger" onClick={handleConfirm}><i className="fas fa-trash"></i> Sí, Eliminar</button>
-                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-ban"></i> Cancelar</button>
+                    <button className="dc-btn danger" onClick={handleConfirm} disabled={isSubmitting}>
+                        {isSubmitting ? 'Eliminando...' : <><i className="fas fa-trash"></i> Sí, Eliminar</>}
+                    </button>
+                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}>
+                        <i className="fas fa-ban"></i> Cancelar
+                    </button>
                 </>
             )
         });
@@ -255,6 +323,7 @@ export const CateringSection: React.FC = () => {
                     values={formValues}
                     onChange={(id, value) => setFormValues(prev => ({ ...prev, [id]: value }))}
                     onSubmit={handleAddItem}
+                    submitText={isSubmitting ? 'Registrando...' : 'Registrar'}
                 />
 
                 <FilterSection
@@ -293,7 +362,6 @@ export const CateringSection: React.FC = () => {
                 >
                     {modalContent?.children}
                 </Modal>
-
             </div>
 
             <div className="dc-toast-container">

@@ -159,6 +159,7 @@ export const PasteleriaSection: React.FC = () => {
         const fechaVencimiento = calcularFechaVencimiento(parseInt(formValues.diasVenc));
         const nuevoLote: Lote = {
             id: Date.now(),
+            postre_id: 0,
             stock: parseInt(formValues.stock),
             precio: parseFloat(formValues.precio),
             fechaVencimiento,
@@ -177,7 +178,13 @@ export const PasteleriaSection: React.FC = () => {
         const nuevoPostre: Postre = {
             id: Date.now(),
             nombre: formValues.nombre,
-            lotes: [nuevoLote]
+            lotes: [nuevoLote],
+            historial: [{
+                fecha: new Date().toLocaleString(),
+                usuario: "Chef Ana (ana@delicias.com)",
+                accion: "CREACIÓN",
+                descripcion: `Postre "${formValues.nombre}" creado con lote (${formValues.stock} und, ${formValues.diasVenc} días de duración)`
+            }]
         };
 
         setPostresItems([...postresItems, nuevoPostre]);
@@ -250,6 +257,7 @@ export const PasteleriaSection: React.FC = () => {
             const fechaVencimiento = calcularFechaVencimiento(diasN);
             const nuevoLote: Lote = {
                 id: Date.now(),
+                postre_id: postre.id,
                 stock: stockN,
                 precio: precioN,
                 fechaVencimiento,

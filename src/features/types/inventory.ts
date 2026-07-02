@@ -12,6 +12,7 @@ export interface CateringItem {
 
 export interface Lote {
     id: number;
+    postre_id: number;
     stock: number;
     precio: number;
     fechaVencimiento: string;
@@ -26,6 +27,7 @@ export interface Postre {
     id: number;
     nombre: string;
     lotes: Lote[];
+    historial: HistorialEntry[];
 }
 
 export type ModuloInventario = 'catering' | 'tienda';

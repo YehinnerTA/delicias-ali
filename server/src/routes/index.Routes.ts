@@ -5,6 +5,9 @@ import usuarioRoutes from './direction/usuarioRoutes';
 import actividadRoutes from './direction/actividadRoutes';
 import historialRoutes from './direction/historialRoutes';
 import authRoutes from './direction/authRoutes';
+import cateringRoutes from './direction/cateringRoutes';
+import postreRoutes from './direction/postreRoutes';
+import loteRoutes from './direction/loteRoutes';
 
 const router = Router();
 
@@ -14,5 +17,8 @@ router.use('/usuarios', usuarioRoutes);
 router.use('/actividad', actividadRoutes);
 router.use('/historial', historialRoutes);
 router.use('/auth', authRoutes);
+router.use('/catering-items', cateringRoutes);
+router.use('/postres', postreRoutes);
+router.use('/lotes', loteRoutes);
 
 export default router;
