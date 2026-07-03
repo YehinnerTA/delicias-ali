@@ -1,4 +1,4 @@
-import { ActivityLog } from '../../features/types/person';
+import { ActivityLog } from '../../features/types/hist_act';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 

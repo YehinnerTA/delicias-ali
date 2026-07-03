@@ -2,7 +2,6 @@ import { Empresa } from '../../features/types/person';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Mapeo de backend a frontend
 const mapToFrontend = (data: any): Empresa => ({
     id_empresa: data.id,
     ruc: data.ruc,
