@@ -1,10 +1,8 @@
-// server/src/controllers/postreController.ts
 import { Request, Response } from 'express';
 import { executeQuery, executeMutation, executeQuerySingle } from '../config/database';
 
 export const getPostres = async (req: Request, res: Response) => {
     try {
-        // ✅ Usar executeQuery<any> en lugar de executeQuery<any[]>
         const rows = await executeQuery<any>(`
             SELECT 
                 p.*,
@@ -41,7 +39,6 @@ export const getPostres = async (req: Request, res: Response) => {
 export const getPostreById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        // ✅ Usar executeQuerySingle<any> y luego verificar si existe
         const row = await executeQuerySingle<any>(
             `
             SELECT 
@@ -79,20 +76,29 @@ export const getPostreById = async (req: Request, res: Response) => {
 
 export const createPostre = async (req: Request, res: Response) => {
     try {
-        const { nombre, lotes } = req.body;
+        const { nombre, lotes, usuario_id } = req.body;
 
-        if (!nombre) {
-            return res.status(400).json({ message: 'El nombre del postre es obligatorio' });
+        if (!nombre || !usuario_id) {
+            return res.status(400).json({ message: 'Nombre y usuario_id son obligatorios' });
         }
+
+        // Obtener la persona asociada al usuario
+        const personaRow = await executeQuerySingle<{ id_persona: number }>(
+            `SELECT id_persona FROM usuarios WHERE id = ?`,
+            [usuario_id]
+        );
+        if (!personaRow) {
+            return res.status(400).json({ message: 'Usuario no encontrado o sin persona asociada' });
+        }
+        const registrado_por = personaRow.id_persona;
 
         const result = await executeMutation(
             `INSERT INTO postres (nombre) VALUES (?)`,
             [nombre]
         );
-
         const postreId = result.insertId;
 
-        // Si se envían lotes iniciales, insertarlos
+        // Insertar lotes si vienen
         if (lotes && Array.isArray(lotes) && lotes.length > 0) {
             for (const lote of lotes) {
                 await executeMutation(
@@ -105,7 +111,7 @@ export const createPostre = async (req: Request, res: Response) => {
                         lote.fecha_vencimiento,
                         lote.dias_duracion || 0,
                         lote.fecha_registro || new Date().toISOString().split('T')[0],
-                        lote.registrado_por
+                        registrado_por
                     ]
                 );
             }
@@ -140,6 +146,7 @@ export const updatePostre = async (req: Request, res: Response) => {
 export const deletePostre = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        // Los lotes se eliminan en cascada por ON DELETE CASCADE
         await executeMutation('DELETE FROM postres WHERE id = ?', [id]);
         res.status(204).send();
     } catch (error) {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useInventory } from '../../../../context/InventoryContext';
 import { useToast } from '../../../../hooks/base/useToast';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { Toast } from '../../../common/Toast';
 import { Modal } from '../../../common/modal/Modal';
 import { DataTable, Column } from '../../../common/DataTable';
@@ -8,6 +9,9 @@ import { FilterSection, FilterField } from '../../../common/FilterSection';
 import { FormCard, FormField } from '../../../common/FormCard';
 import { ActivityLog } from '../../../common/ActivityLog';
 import { Postre, Lote } from '../../../../features/types/inventory';
+import { postreApi } from '../../../../services/api/postreApi';
+import { loteApi } from '../../../../services/api/loteApi';
+import { historialApi } from '../../../../services/api/historialApi';
 
 const postreFiltersConfig: FilterField[] = [
     { id: 'nombre', label: 'Buscar por nombre', type: 'text', placeholder: 'Ej: Cheesecake, Tarta...' },
@@ -28,13 +32,11 @@ const postreFormFields: FormField[] = [
     { id: 'diasVenc', label: 'Días hasta vencimiento', type: 'text', placeholder: 'Ej: 7', required: true }
 ];
 
-// Convertir PostreFilters a Record<string, string>
 const filtersToRecord = (filters: { nombre: string; estado: string }): Record<string, string> => ({
     nombre: filters.nombre,
     estado: filters.estado
 });
 
-// Convertir Record<string, string> a PostreFilters
 const recordToFilters = (record: Record<string, string>): { nombre: string; estado: string } => ({
     nombre: record.nombre || '',
     estado: record.estado || ''
@@ -48,17 +50,16 @@ export const PasteleriaSection: React.FC = () => {
         calcularFechaVencimiento, getDiasRestantes,
         activityLogs
     } = useInventory();
+    const { user } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
     const [formValues, setFormValues] = useState({ nombre: '', stock: '0', precio: '0', diasVenc: '7' });
     const [modalOpen, setModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
     const [filteredData, setFilteredData] = useState<Postre[]>(postresItems);
-
-    // Estado para los valores del filtro en formato Record
     const [filterValues, setFilterValues] = useState<Record<string, string>>(filtersToRecord(postreFilters));
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Sincronizar filtros cuando cambian externamente
     useEffect(() => {
         setFilterValues(filtersToRecord(postreFilters));
     }, [postreFilters]);
@@ -121,10 +122,10 @@ export const PasteleriaSection: React.FC = () => {
                         return (
                             <div key={idx} style={{ fontSize: '0.7rem', margin: '3px 0' }}>
                                 <span className={`dc-badge ${estado.className}`}>
-                                    📅 {l.fechaVencimiento} - {estado.texto}
+                                    {l.fechaVencimiento} - {estado.texto}
                                 </span>
                                 · {l.stock} und · ${l.precio.toFixed(2)} ·
-                                <span className="dc-badge">⏱️ {l.diasDuracion} días</span>
+                                <span className="dc-badge">{l.diasDuracion} días</span>
                             </div>
                         );
                     })}
@@ -149,102 +150,170 @@ export const PasteleriaSection: React.FC = () => {
         }
     ];
 
-    const handleAddPostre = () => {
+    // --- CREAR POSTRE CON LOTE INICIAL ---
+    const handleAddPostre = async () => {
         if (!formValues.nombre || !formValues.diasVenc || parseInt(formValues.diasVenc) <= 0 ||
             parseInt(formValues.stock) <= 0 || parseFloat(formValues.precio) <= 0) {
             showToast("Complete todos los campos del lote inicial", "warning", "Campos incompletos");
             return;
         }
 
-        const fechaVencimiento = calcularFechaVencimiento(parseInt(formValues.diasVenc));
-        const nuevoLote: Lote = {
-            id: Date.now(),
-            postre_id: 0,
-            stock: parseInt(formValues.stock),
-            precio: parseFloat(formValues.precio),
-            fechaVencimiento,
-            diasDuracion: parseInt(formValues.diasVenc),
-            fechaRegistro: new Date().toLocaleDateString("es-ES"),
-            registradoPor: "Chef Ana (ana@delicias.com)",
-            ultimaEdicion: new Date().toLocaleString(),
-            historial: [{
-                fecha: new Date().toLocaleString(),
-                usuario: "Chef Ana (ana@delicias.com)",
-                accion: "CREACIÓN",
-                descripcion: `Lote inicial: stock ${formValues.stock}, precio $${parseFloat(formValues.precio).toFixed(2)}, duración ${formValues.diasVenc} días (vence ${fechaVencimiento})`
-            }]
-        };
+        const userId = user?.id;
+        if (!userId) {
+            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+            return;
+        }
 
-        const nuevoPostre: Postre = {
-            id: Date.now(),
-            nombre: formValues.nombre,
-            lotes: [nuevoLote],
-            historial: [{
-                fecha: new Date().toLocaleString(),
-                usuario: "Chef Ana (ana@delicias.com)",
-                accion: "CREACIÓN",
-                descripcion: `Postre "${formValues.nombre}" creado con lote (${formValues.stock} und, ${formValues.diasVenc} días de duración)`
-            }]
-        };
+        setIsSubmitting(true);
+        try {
+            const fechaVencimiento = calcularFechaVencimiento(parseInt(formValues.diasVenc));
+            const nuevoLote = {
+                stock: parseInt(formValues.stock),
+                precio: parseFloat(formValues.precio),
+                fecha_vencimiento: fechaVencimiento,
+                dias_duracion: parseInt(formValues.diasVenc),
+                fecha_registro: new Date().toISOString().split('T')[0],
+            };
 
-        setPostresItems([...postresItems, nuevoPostre]);
-        addActivity("INSERT", "tienda", `Nuevo postre "${formValues.nombre}" con lote (${formValues.stock} und, ${formValues.diasVenc} días de duración)`);
-        showToast(`Postre "${formValues.nombre}" creado exitosamente`, "success", "Postre registrado");
-        setFormValues({ nombre: '', stock: '0', precio: '0', diasVenc: '7' });
+            const nuevoPostre = await postreApi.create({
+                nombre: formValues.nombre,
+                lotes: [nuevoLote],
+                usuario_id: userId
+            });
+
+            const todosLosPostres = await postreApi.getAll();
+            setPostresItems(todosLosPostres);
+
+            await addActivity('INSERT', 'tienda', `Nuevo postre "${formValues.nombre}" con lote (${formValues.stock} und, ${formValues.diasVenc} días de duración)`);
+            await addToHistory(nuevoPostre, formValues.nombre, 'CREACIÓN', `Postre creado con lote inicial de ${formValues.stock} und`);
+
+            showToast(`Postre "${formValues.nombre}" creado exitosamente`, "success", "Postre registrado");
+            setFormValues({ nombre: '', stock: '0', precio: '0', diasVenc: '7' });
+        } catch (error) {
+            console.error('[TiendaSection] Error al crear postre:', error);
+            showToast('Error al crear el postre', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const handleView = (postre: Postre) => {
-        const stockTotal = postre.lotes.reduce((s, l) => s + l.stock, 0);
+    // --- VER DETALLE CON HISTORIAL ---
+    const handleView = async (postre: Postre) => {
+        try {
+            const historialPostre = await historialApi.getByEntity('postres', postre.id);
 
-        setModalContent({
-            title: `Detalle de ${postre.nombre}`,
-            icon: 'fa-eye',
-            children: (
-                <>
-                    <div className="dc-info-card">
-                        <h4><i className="fas fa-info-circle"></i> Información del Postre</h4>
-                        <div className="dc-info-grid">
-                            <div className="dc-info-item">
-                                <span className="dc-info-label">NOMBRE</span>
-                                <span className="dc-info-value">{postre.nombre}</span>
-                            </div>
-                            <div className="dc-info-item">
-                                <span className="dc-info-label">CANTIDAD DE LOTES</span>
-                                <span className="dc-info-value">{postre.lotes.length}</span>
-                            </div>
-                            <div className="dc-info-item">
-                                <span className="dc-info-label">STOCK TOTAL</span>
-                                <span className="dc-info-value">{stockTotal} unidades</span>
+            const historialesLotes = await Promise.all(
+                postre.lotes.map(async (lote) => {
+                    const hist = await historialApi.getByEntity('lotes', lote.id);
+                    return hist.map((entry: any) => ({
+                        ...entry,
+                        _loteId: lote.id,
+                        _loteInfo: `Lote ${lote.id} (vence ${lote.fechaVencimiento})`
+                    }));
+                })
+            );
+
+            const historialCombinado = [
+                ...historialPostre.map((h: any) => ({ ...h, _tipo: 'Postre' })),
+                ...historialesLotes.flat().map((h: any) => ({ ...h, _tipo: 'Lote' }))
+            ];
+
+            historialCombinado.sort((a, b) => {
+                return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
+            });
+
+            const postreConHistorial = {
+                ...postre,
+                historial: historialCombinado
+            };
+
+            const stockTotal = postreConHistorial.lotes.reduce((s, l) => s + l.stock, 0);
+
+            setModalContent({
+                title: `Detalle de ${postreConHistorial.nombre}`,
+                icon: 'fa-eye',
+                children: (
+                    <>
+                        <div className="dc-info-card">
+                            <h4><i className="fas fa-info-circle"></i> Información del Postre</h4>
+                            <div className="dc-info-grid">
+                                <div className="dc-info-item">
+                                    <span className="dc-info-label">NOMBRE</span>
+                                    <span className="dc-info-value">{postreConHistorial.nombre}</span>
+                                </div>
+                                <div className="dc-info-item">
+                                    <span className="dc-info-label">CANTIDAD DE LOTES</span>
+                                    <span className="dc-info-value">{postreConHistorial.lotes.length}</span>
+                                </div>
+                                <div className="dc-info-item">
+                                    <span className="dc-info-label">STOCK TOTAL</span>
+                                    <span className="dc-info-value">{stockTotal} unidades</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div className="dc-info-card">
-                        <h4><i className="fas fa-boxes"></i> Detalle de Lotes</h4>
-                        {postre.lotes.map((l, idx) => {
-                            const diasRestantes = getDiasRestantes(l.fechaVencimiento);
-                            const estado = diasRestantes < 0 ? "VENCIDO" : (diasRestantes <= 2 ? "PRÓXIMO" : "Vigente");
-                            return (
-                                <div key={idx} className="batch-group" style={{ border: '1px solid #f0d6db', borderRadius: '1rem', marginBottom: '1rem', padding: '1rem', background: '#fffbfc' }}>
-                                    <strong>Lote {idx + 1}</strong> | Vence: {l.fechaVencimiento}
-                                    <span className={`dc-badge ${diasRestantes < 0 ? 'badge-expired' : (diasRestantes <= 2 ? 'badge-near-expiry' : '')}`}>
-                                        {estado} ({Math.abs(diasRestantes)} días {diasRestantes < 0 ? 'vencidos' : 'restantes'})
-                                    </span><br />
-                                    ⏱️ Duración original: {l.diasDuracion} días<br />
-                                    📦 Stock: {l.stock} | 💰 Precio: ${l.precio.toFixed(2)}<br />
-                                    📅 Registro: {l.fechaRegistro}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </>
-            ),
-            footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
-        });
-        setModalOpen(true);
+
+                        <div className="dc-info-card">
+                            <h4><i className="fas fa-boxes"></i> Detalle de Lotes</h4>
+                            {postreConHistorial.lotes.map((l, idx) => {
+                                const diasRestantes = getDiasRestantes(l.fechaVencimiento);
+                                const estado = diasRestantes < 0 ? "VENCIDO" : (diasRestantes <= 2 ? "PRÓXIMO" : "Vigente");
+                                return (
+                                    <div key={idx} className="batch-group" style={{ border: '1px solid #f0d6db', borderRadius: '1rem', marginBottom: '1rem', padding: '1rem', background: '#fffbfc' }}>
+                                        <strong>Lote {idx + 1}</strong> | Vence: {l.fechaVencimiento}
+                                        <span className={`dc-badge ${diasRestantes < 0 ? 'badge-expired' : (diasRestantes <= 2 ? 'badge-near-expiry' : '')}`}>
+                                            {estado} ({Math.abs(diasRestantes)} días {diasRestantes < 0 ? 'vencidos' : 'restantes'})
+                                        </span><br />
+                                        ⏱️ Duración original: {l.diasDuracion} días<br />
+                                        📦 Stock: {l.stock} | 💰 Precio: ${l.precio.toFixed(2)}<br />
+                                        📅 Registro: {l.fechaRegistro}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* HISTORIAL UNIFICADO (postre + lotes) */}
+                        <div className="dc-history-card">
+                            <h4><i className="fas fa-history"></i> Historial de Cambios</h4>
+                            <div className="dc-history-log">
+                                {postreConHistorial.historial && postreConHistorial.historial.length > 0 ? (
+                                    postreConHistorial.historial.map((h, idx) => (
+                                        <div key={idx} className="dc-history-entry">
+                                            <div>
+                                                <span className="dc-history-date">{h.fecha}</span>
+                                                <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
+                                                {/* Mostrar si es Postre o Lote */}
+                                                <span className="dc-badge" style={{ marginLeft: '0.5rem', fontSize: '0.6rem' }}>
+                                                    {h._tipo}
+                                                </span>
+                                                {h._tipo === 'Lote' && h._loteInfo && (
+                                                    <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', color: '#666' }}>
+                                                        ({h._loteInfo})
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="dc-history-action">{h.accion}</div>
+                                            <div className="dc-history-desc">{h.descripcion}</div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="dc-history-entry">Sin historial registrado</div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                ),
+                footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
+            });
+            setModalOpen(true);
+        } catch (error) {
+            console.error('[TiendaSection] Error cargando historial:', error);
+            showToast('Error al cargar el historial', 'error', 'Error');
+        }
     };
 
+    // --- AGREGAR NUEVO LOTE ---
     const handleAddLote = (postre: Postre) => {
-        const handleSave = () => {
+        const handleSave = async () => {
             const stockN = parseInt((document.getElementById('newLoteStock') as HTMLInputElement)?.value);
             const precioN = parseFloat((document.getElementById('newLotePrecio') as HTMLInputElement)?.value);
             const diasN = parseInt((document.getElementById('newLoteDias') as HTMLInputElement)?.value);
@@ -254,30 +323,41 @@ export const PasteleriaSection: React.FC = () => {
                 return;
             }
 
-            const fechaVencimiento = calcularFechaVencimiento(diasN);
-            const nuevoLote: Lote = {
-                id: Date.now(),
-                postre_id: postre.id,
-                stock: stockN,
-                precio: precioN,
-                fechaVencimiento,
-                diasDuracion: diasN,
-                fechaRegistro: new Date().toLocaleDateString("es-ES"),
-                registradoPor: "Chef Ana (ana@delicias.com)",
-                ultimaEdicion: new Date().toLocaleString(),
-                historial: [{
-                    fecha: new Date().toLocaleString(),
-                    usuario: "Chef Ana (ana@delicias.com)",
-                    accion: "CREACIÓN",
-                    descripcion: `Lote agregado: +${stockN} und, $${precioN.toFixed(2)}, duración ${diasN} días (vence ${fechaVencimiento})`
-                }]
-            };
+            const userId = user?.id;
+            if (!userId) {
+                showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+                return;
+            }
 
-            postre.lotes.push(nuevoLote);
-            setPostresItems([...postresItems]);
-            addActivity("MODIFICAR", "tienda", `Postre "${postre.nombre}": nuevo lote +${stockN} und, ${diasN} días de duración`);
-            showToast(`Nuevo lote agregado a "${postre.nombre}"`, "success", "Lote creado");
-            setModalOpen(false);
+            setIsSubmitting(true);
+            try {
+                const fechaVencimiento = calcularFechaVencimiento(diasN);
+                const nuevoLote = await loteApi.create({
+                    postre_id: postre.id,
+                    stock: stockN,
+                    precio: precioN,
+                    fechaVencimiento: fechaVencimiento,
+                    diasDuracion: diasN,
+                    fechaRegistro: new Date().toISOString().split('T')[0],
+                    usuario_id: userId
+                });
+
+                const updatedPostres = postresItems.map(p =>
+                    p.id === postre.id ? { ...p, lotes: [...p.lotes, nuevoLote] } : p
+                );
+                setPostresItems(updatedPostres);
+
+                await addActivity('MODIFICAR', 'tienda', `Postre "${postre.nombre}": nuevo lote +${stockN} und, ${diasN} días de duración`);
+                await addToHistory(nuevoLote, postre.nombre, 'CREACIÓN', `Lote agregado: +${stockN} und, $${precioN.toFixed(2)}`);
+
+                showToast(`Nuevo lote agregado a "${postre.nombre}"`, "success", "Lote creado");
+                setModalOpen(false);
+            } catch (error) {
+                console.error('[TiendaSection] Error al agregar lote:', error);
+                showToast('Error al agregar el lote', 'error', 'Error');
+            } finally {
+                setIsSubmitting(false);
+            }
         };
 
         setModalContent({
@@ -286,7 +366,7 @@ export const PasteleriaSection: React.FC = () => {
             children: (
                 <>
                     <div className="stock-info" style={{ background: '#feeef2', padding: '0.8rem', borderRadius: '1rem', marginBottom: '1rem' }}>
-                        <strong>➕ Nuevo lote para {postre.nombre}</strong><br />
+                        <strong>Nuevo lote para {postre.nombre}</strong><br />
                         Los valores actuales se mantienen. Este nuevo lote se sumará al inventario.
                     </div>
                     <div className="dc-modal-field">
@@ -305,27 +385,32 @@ export const PasteleriaSection: React.FC = () => {
             ),
             footer: (
                 <>
-                    <button id="confirmLoteBtn" className="dc-btn success"><i className="fas fa-save"></i> Crear lote</button>
+                    <button className="dc-btn success" onClick={handleSave} disabled={isSubmitting}>
+                        {isSubmitting ? 'Creando...' : <><i className="fas fa-save"></i> Crear lote</>}
+                    </button>
                     <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cancelar</button>
                 </>
             )
         });
         setModalOpen(true);
-
-        setTimeout(() => {
-            const confirmBtn = document.getElementById('confirmLoteBtn');
-            if (confirmBtn) {
-                confirmBtn.onclick = handleSave;
-            }
-        }, 50);
     };
 
+    // --- ELIMINAR POSTRE ---
     const handleDelete = (postre: Postre) => {
-        const handleConfirm = () => {
-            setPostresItems(postresItems.filter(p => p.id !== postre.id));
-            addActivity("ELIMINAR", "tienda", `Eliminado "${postre.nombre}"`);
-            showToast(`"${postre.nombre}" ha sido eliminado correctamente`, "success", "Eliminado");
-            setModalOpen(false);
+        const handleConfirm = async () => {
+            setIsSubmitting(true);
+            try {
+                await postreApi.delete(postre.id);
+                setPostresItems(postresItems.filter(p => p.id !== postre.id));
+                await addActivity('ELIMINAR', 'tienda', `Eliminado "${postre.nombre}"`);
+                showToast(`"${postre.nombre}" ha sido eliminado correctamente`, "success", "Eliminado");
+                setModalOpen(false);
+            } catch (error) {
+                console.error('[TiendaSection] Error al eliminar postre:', error);
+                showToast('Error al eliminar el postre', 'error', 'Error');
+            } finally {
+                setIsSubmitting(false);
+            }
         };
 
         setModalContent({
@@ -343,19 +428,14 @@ export const PasteleriaSection: React.FC = () => {
             ),
             footer: (
                 <>
-                    <button id="confirmDel" className="dc-btn danger"><i className="fas fa-trash"></i> Sí, Eliminar</button>
+                    <button className="dc-btn danger" onClick={handleConfirm} disabled={isSubmitting}>
+                        {isSubmitting ? 'Eliminando...' : <><i className="fas fa-trash"></i> Sí, Eliminar</>}
+                    </button>
                     <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-ban"></i> Cancelar</button>
                 </>
             )
         });
         setModalOpen(true);
-
-        setTimeout(() => {
-            const delBtn = document.getElementById('confirmDel');
-            if (delBtn) {
-                delBtn.onclick = handleConfirm;
-            }
-        }, 50);
     };
 
     const tiendaActivityLogs = activityLogs.filter(log => log.modulo === 'tienda').slice(0, 6);
@@ -373,7 +453,7 @@ export const PasteleriaSection: React.FC = () => {
                     values={formValues}
                     onChange={(id, value) => setFormValues(prev => ({ ...prev, [id]: value }))}
                     onSubmit={handleAddPostre}
-                    submitText="Crear lote inicial"
+                    submitText={isSubmitting ? 'Creando...' : 'Crear lote inicial'}
                 />
 
                 <FilterSection

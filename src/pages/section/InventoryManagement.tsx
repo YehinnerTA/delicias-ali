@@ -19,8 +19,8 @@ const InventoryManagement: React.FC = () => {
                 <div className="dc-catering-container">
                     <div className="dc-catering-header-card">
                         <div className="dc-title">
-                            <h1><i className="fas fa-crown"></i> Delicias Catering</h1>
-                            <p>Materia prima · Utensilios · Postres por lotes con trazabilidad</p>
+                            <h1><i className="fa-solid fa-truck-moving"></i> Gestión Inventarios</h1>
+                            <p>CREATE - READ - UPDATE - DELETE</p>
                         </div>
                     </div>
                     <InventoryBase tabs={tabs}>
