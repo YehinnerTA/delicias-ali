@@ -15,32 +15,26 @@ export const AppRoutes: React.FC = () => {
     const history = useHistory();
     const [showSplash, setShowSplash] = useState(true);
 
-    // Mostrar Splash al inicio
     useEffect(() => {
         const hasShownSplash = sessionStorage.getItem('splashShown');
         if (hasShownSplash) {
             setShowSplash(false);
         } else {
-            // Primera carga, mostrar Splash
             sessionStorage.setItem('splashShown', 'true');
         }
     }, []);
 
-    // Si está cargando la autenticación, mostrar Splash
     if (isLoading) {
         return <SplashLoader />;
     }
 
-    // Si el usuario está autenticado, redirigir a /home
     if (isAuthenticated) {
-        // Si está en login o splash, redirigir a home
         const currentPath = window.location.pathname;
         if (currentPath === '/' || currentPath === '/login' || currentPath === '/SplashScreen') {
             history.replace('/home');
         }
     }
 
-    // Si no está autenticado y está en una ruta protegida, redirigir a login
     const protectedPaths = ['/home', '/ruc-selector', '/person-management', '/inventory-management', '/sales-management', '/catering-management'];
     const currentPath = window.location.pathname;
     if (!isAuthenticated && protectedPaths.includes(currentPath)) {
@@ -49,13 +43,11 @@ export const AppRoutes: React.FC = () => {
 
     const handleSplashComplete = () => {
         setShowSplash(false);
-        // Si no está autenticado, ir a login
         if (!isAuthenticated) {
             history.replace('/');
         }
     };
 
-    // Mostrar Splash solo si no se ha mostrado antes y no está autenticado
     if (showSplash && !isAuthenticated) {
         return <SplashLoader onComplete={handleSplashComplete} />;
     }

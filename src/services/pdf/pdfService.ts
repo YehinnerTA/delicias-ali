@@ -3,7 +3,6 @@ import { VentaCatering } from '../../features/types/catering';
 
 declare const window: any;
 
-// Tipo unificado que soporta ambos tipos de venta
 type VentaCompatible = Venta | VentaCatering;
 
 // Helper para extraer productos de cualquier tipo de venta (sin romper el original)

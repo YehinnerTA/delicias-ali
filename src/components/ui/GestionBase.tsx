@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tabs } from './shared/Tabs';
-import { ActivityLog as ActivityLogType } from '../../features/types/person';
+import { ActivityLog as ActivityLogType } from '../../features/types/hist_act';
 import { TabConfig } from '../../features/types/config';
 
 interface GestionBaseProps {

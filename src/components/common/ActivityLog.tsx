@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityLog as ActivityLogType } from '../../features/types/person';
+import { ActivityLog as ActivityLogType } from '../../features/types/hist_act';
 
 interface ActivityLogProps {
     logs: ActivityLogType[];
