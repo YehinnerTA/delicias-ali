@@ -48,14 +48,6 @@ export interface CatalogoProducto {
     stock: number;
 }
 
-export interface ActivityLog {
-    timestamp: string;
-    accion: string;
-    modulo: string;
-    detalle: string;
-    usuario: string;
-}
-
 export interface ComponentesVenta {
     descuento: {
         activo: boolean;

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Venta, CatalogoProducto, ActivityLog, VentasFilters } from '../features/types/sales';
+import { Venta, CatalogoProducto, VentasFilters } from '../features/types/sales';
+import { ActivityLog } from '../features/types/hist_act';
 
 interface VentasContextType {
     ventas: Venta[];
