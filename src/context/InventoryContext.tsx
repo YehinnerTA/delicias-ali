@@ -160,7 +160,6 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
                     usuario: usuarioActual
                 });
 
-                // ✅ Actualizar el historial local del ítem
                 if (item.historial) {
                     item.historial.unshift({
                         fecha: new Date().toLocaleString(),
@@ -170,7 +169,6 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
                     });
                 }
 
-                // ✅ Actualizar el estado global para reflejar el nuevo historial
                 if (esCateringItem) {
                     const updatedItem = item as unknown as CateringItem;
                     setCateringItems((prev) =>
@@ -179,7 +177,6 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
                         )
                     );
                 }
-                // Aquí puedes agregar lógica similar para Postre y Lote cuando los implementes
             }
         } catch (error) {
             console.error('[InventoryContext] Error al agregar historial:', error);

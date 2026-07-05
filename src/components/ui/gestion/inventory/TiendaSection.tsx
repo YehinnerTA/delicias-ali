@@ -8,7 +8,7 @@ import { DataTable, Column } from '../../../common/DataTable';
 import { FilterSection, FilterField } from '../../../common/FilterSection';
 import { FormCard, FormField } from '../../../common/FormCard';
 import { ActivityLog } from '../../../common/ActivityLog';
-import { Postre, Lote } from '../../../../features/types/inventory';
+import { Postre } from '../../../../features/types/inventory';
 import { postreApi } from '../../../../services/api/postreApi';
 import { loteApi } from '../../../../services/api/loteApi';
 import { historialApi } from '../../../../services/api/historialApi';
@@ -27,8 +27,8 @@ const postreFiltersConfig: FilterField[] = [
 
 const postreFormFields: FormField[] = [
     { id: 'nombre', label: 'Nombre postre', type: 'text', placeholder: 'Ej: Tarta de fresa', required: true },
+    { id: 'precio', label: 'Precio unitario', type: 'text', placeholder: '0.00', required: true },
     { id: 'stock', label: 'Stock (unidades)', type: 'text', placeholder: '0', required: true },
-    { id: 'precio', label: 'Precio unitario', type: 'text', placeholder: '0', required: true },
     { id: 'diasVenc', label: 'Días hasta vencimiento', type: 'text', placeholder: 'Ej: 7', required: true }
 ];
 
@@ -53,7 +53,7 @@ export const PasteleriaSection: React.FC = () => {
     const { user } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
-    const [formValues, setFormValues] = useState({ nombre: '', stock: '0', precio: '0', diasVenc: '7' });
+    const [formValues, setFormValues] = useState({ nombre: '', precio: '0', stock: '0', diasVenc: '7' });
     const [modalOpen, setModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
     const [filteredData, setFilteredData] = useState<Postre[]>(postresItems);
@@ -112,6 +112,7 @@ export const PasteleriaSection: React.FC = () => {
 
     const columns: Column<Postre>[] = [
         { key: 'nombre', header: 'Postre', render: (item) => <strong>{item.nombre}</strong> },
+        { key: 'precio', header: 'Precio', render: (item) => `$${item.precio.toFixed(2)}` },
         {
             key: 'lotes',
             header: 'Lotes (stock por vencimiento)',
@@ -124,7 +125,7 @@ export const PasteleriaSection: React.FC = () => {
                                 <span className={`dc-badge ${estado.className}`}>
                                     {l.fechaVencimiento} - {estado.texto}
                                 </span>
-                                · {l.stock} und · ${l.precio.toFixed(2)} ·
+                                · {l.stock} und ·
                                 <span className="dc-badge">{l.diasDuracion} días</span>
                             </div>
                         );
@@ -136,21 +137,9 @@ export const PasteleriaSection: React.FC = () => {
             key: 'stockTotal',
             header: 'Stock total',
             render: (item) => item.lotes.reduce((s, l) => s + l.stock, 0)
-        },
-        {
-            key: 'precioProm',
-            header: 'Precio promedio',
-            render: (item) => {
-                const stockTotal = item.lotes.reduce((s, l) => s + l.stock, 0);
-                const precioProm = stockTotal > 0
-                    ? item.lotes.reduce((s, l) => s + (l.precio * l.stock), 0) / stockTotal
-                    : 0;
-                return `$${precioProm.toFixed(2)}`;
-            }
         }
     ];
 
-    // --- CREAR POSTRE CON LOTE INICIAL ---
     const handleAddPostre = async () => {
         if (!formValues.nombre || !formValues.diasVenc || parseInt(formValues.diasVenc) <= 0 ||
             parseInt(formValues.stock) <= 0 || parseFloat(formValues.precio) <= 0) {
@@ -169,7 +158,6 @@ export const PasteleriaSection: React.FC = () => {
             const fechaVencimiento = calcularFechaVencimiento(parseInt(formValues.diasVenc));
             const nuevoLote = {
                 stock: parseInt(formValues.stock),
-                precio: parseFloat(formValues.precio),
                 fecha_vencimiento: fechaVencimiento,
                 dias_duracion: parseInt(formValues.diasVenc),
                 fecha_registro: new Date().toISOString().split('T')[0],
@@ -177,6 +165,7 @@ export const PasteleriaSection: React.FC = () => {
 
             const nuevoPostre = await postreApi.create({
                 nombre: formValues.nombre,
+                precio: parseFloat(formValues.precio),
                 lotes: [nuevoLote],
                 usuario_id: userId
             });
@@ -188,7 +177,7 @@ export const PasteleriaSection: React.FC = () => {
             await addToHistory(nuevoPostre, formValues.nombre, 'CREACIÓN', `Postre creado con lote inicial de ${formValues.stock} und`);
 
             showToast(`Postre "${formValues.nombre}" creado exitosamente`, "success", "Postre registrado");
-            setFormValues({ nombre: '', stock: '0', precio: '0', diasVenc: '7' });
+            setFormValues({ nombre: '', precio: '0', stock: '0', diasVenc: '7' });
         } catch (error) {
             console.error('[TiendaSection] Error al crear postre:', error);
             showToast('Error al crear el postre', 'error', 'Error');
@@ -197,7 +186,6 @@ export const PasteleriaSection: React.FC = () => {
         }
     };
 
-    // --- VER DETALLE CON HISTORIAL ---
     const handleView = async (postre: Postre) => {
         try {
             const historialPostre = await historialApi.getByEntity('postres', postre.id);
@@ -242,6 +230,10 @@ export const PasteleriaSection: React.FC = () => {
                                     <span className="dc-info-value">{postreConHistorial.nombre}</span>
                                 </div>
                                 <div className="dc-info-item">
+                                    <span className="dc-info-label">PRECIO</span>
+                                    <span className="dc-info-value">${postreConHistorial.precio.toFixed(2)}</span>
+                                </div>
+                                <div className="dc-info-item">
                                     <span className="dc-info-label">CANTIDAD DE LOTES</span>
                                     <span className="dc-info-value">{postreConHistorial.lotes.length}</span>
                                 </div>
@@ -264,14 +256,13 @@ export const PasteleriaSection: React.FC = () => {
                                             {estado} ({Math.abs(diasRestantes)} días {diasRestantes < 0 ? 'vencidos' : 'restantes'})
                                         </span><br />
                                         ⏱️ Duración original: {l.diasDuracion} días<br />
-                                        📦 Stock: {l.stock} | 💰 Precio: ${l.precio.toFixed(2)}<br />
+                                        📦 Stock: {l.stock}<br />
                                         📅 Registro: {l.fechaRegistro}
                                     </div>
                                 );
                             })}
                         </div>
 
-                        {/* HISTORIAL UNIFICADO (postre + lotes) */}
                         <div className="dc-history-card">
                             <h4><i className="fas fa-history"></i> Historial de Cambios</h4>
                             <div className="dc-history-log">
@@ -281,7 +272,6 @@ export const PasteleriaSection: React.FC = () => {
                                             <div>
                                                 <span className="dc-history-date">{h.fecha}</span>
                                                 <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
-                                                {/* Mostrar si es Postre o Lote */}
                                                 <span className="dc-badge" style={{ marginLeft: '0.5rem', fontSize: '0.6rem' }}>
                                                     {h._tipo}
                                                 </span>
@@ -311,15 +301,13 @@ export const PasteleriaSection: React.FC = () => {
         }
     };
 
-    // --- AGREGAR NUEVO LOTE ---
     const handleAddLote = (postre: Postre) => {
         const handleSave = async () => {
             const stockN = parseInt((document.getElementById('newLoteStock') as HTMLInputElement)?.value);
-            const precioN = parseFloat((document.getElementById('newLotePrecio') as HTMLInputElement)?.value);
             const diasN = parseInt((document.getElementById('newLoteDias') as HTMLInputElement)?.value);
 
-            if (!stockN || stockN <= 0 || !precioN || !diasN || diasN <= 0) {
-                showToast("Complete campos válidos (stock > 0, precio > 0, días > 0)", "error", "Error");
+            if (!stockN || stockN <= 0 || !diasN || diasN <= 0) {
+                showToast("Complete campos válidos (stock > 0, días > 0)", "error", "Error");
                 return;
             }
 
@@ -335,7 +323,6 @@ export const PasteleriaSection: React.FC = () => {
                 const nuevoLote = await loteApi.create({
                     postre_id: postre.id,
                     stock: stockN,
-                    precio: precioN,
                     fechaVencimiento: fechaVencimiento,
                     diasDuracion: diasN,
                     fechaRegistro: new Date().toISOString().split('T')[0],
@@ -348,7 +335,7 @@ export const PasteleriaSection: React.FC = () => {
                 setPostresItems(updatedPostres);
 
                 await addActivity('MODIFICAR', 'tienda', `Postre "${postre.nombre}": nuevo lote +${stockN} und, ${diasN} días de duración`);
-                await addToHistory(nuevoLote, postre.nombre, 'CREACIÓN', `Lote agregado: +${stockN} und, $${precioN.toFixed(2)}`);
+                await addToHistory(nuevoLote, postre.nombre, 'CREACIÓN', `Lote agregado: +${stockN} und`);
 
                 showToast(`Nuevo lote agregado a "${postre.nombre}"`, "success", "Lote creado");
                 setModalOpen(false);
@@ -374,10 +361,6 @@ export const PasteleriaSection: React.FC = () => {
                         <input type="number" id="newLoteStock" min="1" required />
                     </div>
                     <div className="dc-modal-field">
-                        <label><i className="fas fa-dollar-sign"></i> Precio unitario (nuevo lote)</label>
-                        <input type="number" step="0.01" id="newLotePrecio" required />
-                    </div>
-                    <div className="dc-modal-field">
                         <label><i className="fas fa-calendar-day"></i> Días hasta vencimiento (nuevo lote)</label>
                         <input type="number" id="newLoteDias" min="1" required placeholder="Ej: 7" />
                     </div>
@@ -395,7 +378,6 @@ export const PasteleriaSection: React.FC = () => {
         setModalOpen(true);
     };
 
-    // --- ELIMINAR POSTRE ---
     const handleDelete = (postre: Postre) => {
         const handleConfirm = async () => {
             setIsSubmitting(true);

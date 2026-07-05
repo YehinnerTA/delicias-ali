@@ -10,7 +10,6 @@ export const getPostres = async (req: Request, res: Response) => {
                     JSON_OBJECT(
                         'id', l.id,
                         'stock', l.stock,
-                        'precio', l.precio,
                         'fecha_vencimiento', l.fecha_vencimiento,
                         'dias_duracion', l.dias_duracion,
                         'fecha_registro', l.fecha_registro,
@@ -47,7 +46,6 @@ export const getPostreById = async (req: Request, res: Response) => {
                     JSON_OBJECT(
                         'id', l.id,
                         'stock', l.stock,
-                        'precio', l.precio,
                         'fecha_vencimiento', l.fecha_vencimiento,
                         'dias_duracion', l.dias_duracion,
                         'fecha_registro', l.fecha_registro,
@@ -76,13 +74,12 @@ export const getPostreById = async (req: Request, res: Response) => {
 
 export const createPostre = async (req: Request, res: Response) => {
     try {
-        const { nombre, lotes, usuario_id } = req.body;
+        const { nombre, precio, lotes, usuario_id } = req.body;
 
         if (!nombre || !usuario_id) {
             return res.status(400).json({ message: 'Nombre y usuario_id son obligatorios' });
         }
 
-        // Obtener la persona asociada al usuario
         const personaRow = await executeQuerySingle<{ id_persona: number }>(
             `SELECT id_persona FROM usuarios WHERE id = ?`,
             [usuario_id]
@@ -93,21 +90,19 @@ export const createPostre = async (req: Request, res: Response) => {
         const registrado_por = personaRow.id_persona;
 
         const result = await executeMutation(
-            `INSERT INTO postres (nombre) VALUES (?)`,
-            [nombre]
+            `INSERT INTO postres (nombre, precio) VALUES (?, ?)`,
+            [nombre, precio || 0]
         );
         const postreId = result.insertId;
 
-        // Insertar lotes si vienen
         if (lotes && Array.isArray(lotes) && lotes.length > 0) {
             for (const lote of lotes) {
                 await executeMutation(
-                    `INSERT INTO lotes (postre_id, stock, precio, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO lotes (postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) 
+                     VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         postreId,
                         lote.stock || 0,
-                        lote.precio || 0,
                         lote.fecha_vencimiento,
                         lote.dias_duracion || 0,
                         lote.fecha_registro || new Date().toISOString().split('T')[0],
@@ -146,7 +141,6 @@ export const updatePostre = async (req: Request, res: Response) => {
 export const deletePostre = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        // Los lotes se eliminan en cascada por ON DELETE CASCADE
         await executeMutation('DELETE FROM postres WHERE id = ?', [id]);
         res.status(204).send();
     } catch (error) {

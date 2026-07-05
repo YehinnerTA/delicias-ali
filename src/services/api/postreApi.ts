@@ -6,7 +6,6 @@ const mapLoteToFrontend = (l: any): Lote => ({
     id: l.id,
     postre_id: l.postre_id,
     stock: parseInt(l.stock) || 0,
-    precio: parseFloat(l.precio) || 0,
     fechaVencimiento: l.fecha_vencimiento,
     diasDuracion: parseInt(l.dias_duracion) || 0,
     fechaRegistro: l.fecha_registro,
@@ -18,6 +17,7 @@ const mapLoteToFrontend = (l: any): Lote => ({
 const mapToFrontend = (data: any): Postre => ({
     id: data.id,
     nombre: data.nombre,
+    precio: parseFloat(data.precio) || 0,
     lotes: (data.lotes || []).map(mapLoteToFrontend),
     historial: []
 });
@@ -38,6 +38,7 @@ export const postreApi = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 nombre: postre.nombre,
+                precio: postre.precio,
                 lotes: postre.lotes,
                 usuario_id: postre.usuario_id
             })

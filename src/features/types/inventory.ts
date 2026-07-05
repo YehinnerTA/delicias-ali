@@ -14,7 +14,6 @@ export interface Lote {
     id: number;
     postre_id: number;
     stock: number;
-    precio: number;
     fechaVencimiento: string;
     diasDuracion: number;
     fechaRegistro: string;
@@ -26,6 +25,7 @@ export interface Lote {
 export interface Postre {
     id: number;
     nombre: string;
+    precio: number;
     lotes: Lote[];
     historial: HistorialEntry[];
 }

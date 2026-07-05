@@ -41,13 +41,12 @@ export const getLotesByPostre = async (req: Request, res: Response) => {
 
 export const createLote = async (req: Request, res: Response) => {
     try {
-        const { postre_id, stock, precio, fecha_vencimiento, dias_duracion, fecha_registro, usuario_id } = req.body;
+        const { postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, usuario_id } = req.body;
 
         if (!postre_id || !usuario_id) {
             return res.status(400).json({ message: 'Faltan campos obligatorios: postre_id, usuario_id' });
         }
 
-        // Obtener la persona asociada al usuario
         const personaRow = await executeQuerySingle<{ id_persona: number }>(
             `SELECT id_persona FROM usuarios WHERE id = ?`,
             [usuario_id]
@@ -58,12 +57,11 @@ export const createLote = async (req: Request, res: Response) => {
         const registrado_por = personaRow.id_persona;
 
         const result = await executeMutation(
-            `INSERT INTO lotes (postre_id, stock, precio, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO lotes (postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
             [
                 postre_id,
                 stock || 0,
-                precio || 0,
                 fecha_vencimiento,
                 dias_duracion || 0,
                 fecha_registro || new Date().toISOString().split('T')[0],
@@ -82,11 +80,11 @@ export const createLote = async (req: Request, res: Response) => {
 export const updateLote = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { stock, precio, fecha_vencimiento, dias_duracion } = req.body;
+        const { stock, fecha_vencimiento, dias_duracion } = req.body;
 
         await executeMutation(
-            `UPDATE lotes SET stock = ?, precio = ?, fecha_vencimiento = ?, dias_duracion = ? WHERE id = ?`,
-            [stock, precio, fecha_vencimiento, dias_duracion, id]
+            `UPDATE lotes SET stock = ?, fecha_vencimiento = ?, dias_duracion = ? WHERE id = ?`,
+            [stock, fecha_vencimiento, dias_duracion, id]
         );
 
         const updated = await executeQuerySingle('SELECT * FROM lotes WHERE id = ?', [id]);

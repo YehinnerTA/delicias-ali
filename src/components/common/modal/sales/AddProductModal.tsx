@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useVentas } from '../../../../context/SalesContext';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useToast } from '../../../../hooks/base/useToast';
-import { Venta, ProductoVenta } from '../../../../features/types/sales';
+import { Venta, ProductoVenta, CatalogoProducto } from '../../../../features/types/sales';
 
 interface AgregarProductosModalProps {
     isOpen: boolean;
@@ -12,16 +13,31 @@ interface AgregarProductosModalProps {
 }
 
 export const AgregarProductosModal: React.FC<AgregarProductosModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
-    const { ventas, setVentas, catalogoProductos, addActivity, addToHistory } = useVentas();
+    const { catalogoProductos, addActivity, addToHistory, refreshData } = useVentas();
+    const { user } = useAuth();
     const { showToast } = useToast();
 
     const [nuevosProductos, setNuevosProductos] = useState<ProductoVenta[]>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const [productosDisponibles, setProductosDisponibles] = useState<CatalogoProducto[]>([]);
+
+    const productoVigente = (producto: CatalogoProducto): boolean => {
+        if (!producto.fechaVencimiento) return true;
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const fechaVenc = new Date(producto.fechaVencimiento);
+        fechaVenc.setHours(0, 0, 0, 0);
+        return fechaVenc >= hoy;
+    };
 
     useEffect(() => {
         if (isOpen) {
+            const disponibles = catalogoProductos.filter(p => p.stock > 0 && productoVigente(p));
+            setProductosDisponibles(disponibles);
             setNuevosProductos([]);
         }
-    }, [isOpen]);
+    }, [isOpen, catalogoProductos]);
 
     const agregarProducto = () => {
         const select = document.getElementById('productoSelectAgregar') as HTMLSelectElement;
@@ -29,9 +45,17 @@ export const AgregarProductosModal: React.FC<AgregarProductosModalProps> = ({ is
         if (!select || !cantidadInput) return;
 
         const prodId = parseInt(select.value);
+        if (!prodId) {
+            showToast("Seleccione un producto", "warning", "Campos incompletos");
+            return;
+        }
+
         const cant = parseInt(cantidadInput.value) || 1;
-        const prod = catalogoProductos.find(p => p.id === prodId);
-        if (!prod) return;
+        const prod = productosDisponibles.find(p => p.id === prodId);
+        if (!prod) {
+            showToast("Producto no disponible", "error", "Error");
+            return;
+        }
 
         if (cant > prod.stock) {
             showToast(`Stock insuficiente. Solo ${prod.stock} unidades`, "error", "Error");
@@ -46,11 +70,18 @@ export const AgregarProductosModal: React.FC<AgregarProductosModalProps> = ({ is
             }
             existente.cantidad += cant;
         } else {
-            nuevosProductos.push({ id: prod.id, nombre: prod.nombre, precio: prod.precio, cantidad: cant, stock: prod.stock });
+            nuevosProductos.push({
+                id: prod.id,
+                nombre: prod.nombre,
+                precio: prod.precio,
+                cantidad: cant,
+                stock: prod.stock
+            });
         }
         setNuevosProductos([...nuevosProductos]);
         select.value = "";
         cantidadInput.value = "1";
+        showToast(`Producto agregado`, 'success', 'Agregado');
     };
 
     const eliminarProducto = (idx: number) => {
@@ -65,36 +96,69 @@ export const AgregarProductosModal: React.FC<AgregarProductosModalProps> = ({ is
         return { subtotal, igv, total };
     };
 
-    const confirmarAgregar = () => {
-        if (!venta) return;
+    const confirmarAgregar = async () => {
+        if (!venta) {
+            showToast("Venta no válida", "error", "Error");
+            return;
+        }
         if (nuevosProductos.length === 0) {
             showToast("No hay productos para agregar", "warning", "Campos incompletos");
             return;
         }
 
-        const productosStr = nuevosProductos.map(p => `${p.nombre} x${p.cantidad}`).join(', ');
-        const { subtotal, igv, total } = calcularTotales();
+        const userId = user?.id;
+        if (!userId) {
+            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+            return;
+        }
 
-        nuevosProductos.forEach(nuevo => {
-            const existente = venta.productos.find(p => p.id === nuevo.id);
-            if (existente) {
-                existente.cantidad += nuevo.cantidad;
-            } else {
-                venta.productos.push({ ...nuevo });
-            }
-        });
+        setIsSubmitting(true);
+        try {
+            const productosActualizados = [...venta.productos];
+            nuevosProductos.forEach(nuevo => {
+                const existente = productosActualizados.find(p => p.id === nuevo.id);
+                if (existente) {
+                    existente.cantidad += nuevo.cantidad;
+                } else {
+                    productosActualizados.push({ ...nuevo });
+                }
+            });
 
-        venta.subtotal = venta.productos.reduce((s, p) => s + p.cantidad * p.precio, 0);
-        venta.igv = venta.subtotal * 0.18;
-        venta.total = venta.subtotal + venta.igv;
-        venta.estado = "completada";
+            const nuevoSubtotal = productosActualizados.reduce((s, p) => s + p.cantidad * p.precio, 0);
+            const nuevoIgv = nuevoSubtotal * 0.18;
+            const nuevoTotal = nuevoSubtotal + nuevoIgv;
 
-        addToHistory(venta, "AGREGAR PRODUCTOS", `Se agregaron: ${productosStr}. Nuevo total: S/ ${venta.total}`);
-        addActivity("AGREGAR", "ventas", `${venta.numero} - Productos agregados: ${productosStr}`);
-        setVentas([...ventas]);
-        showToast(`Productos agregados a ${venta.numero}`, "success", "Productos agregados");
-        onSuccess();
-        onClose();
+            const payload = {
+                productos: productosActualizados.map(p => ({
+                    id_lote: p.id,
+                    nombre: p.nombre,
+                    precio: p.precio,
+                    cantidad: p.cantidad
+                })),
+                subtotal: nuevoSubtotal,
+                igv: nuevoIgv,
+                total: nuevoTotal,
+                usuario_id: userId
+            };
+
+            const { ventaApi } = await import('../../../../services/api/ventaApi');
+            const ventaActualizada = await ventaApi.update(venta.id, payload);
+
+            await refreshData();
+
+            const productosStr = nuevosProductos.map(p => `${p.nombre} x${p.cantidad}`).join(', ');
+            await addActivity("AGREGAR", "ventas", `${venta.numero} - Productos agregados: ${productosStr}`);
+            await addToHistory(ventaActualizada, "AGREGAR PRODUCTOS", `Se agregaron: ${productosStr}. Nuevo total: S/ ${nuevoTotal}`);
+
+            showToast(`Productos agregados a ${venta.numero}`, "success", "Productos agregados");
+            onSuccess();
+            onClose();
+        } catch (error) {
+            console.error('[AddProductModal] Error al agregar productos:', error);
+            showToast('Error al agregar productos', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const { subtotal, igv, total } = calcularTotales();
@@ -103,7 +167,9 @@ export const AgregarProductosModal: React.FC<AgregarProductosModalProps> = ({ is
     const modalFooter = (
         <>
             <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
-            <button className="dc-btn success" onClick={confirmarAgregar}>Agregar Productos</button>
+            <button className="dc-btn success" onClick={confirmarAgregar} disabled={isSubmitting}>
+                {isSubmitting ? 'Guardando...' : 'Agregar Productos'}
+            </button>
         </>
     );
 
@@ -113,10 +179,13 @@ export const AgregarProductosModal: React.FC<AgregarProductosModalProps> = ({ is
                 <div className="fase-body">
                     <div className="dc-form-grid">
                         <div className="dc-input-group">
-                            <label>Producto</label>
+                            <label>Producto (Lote):</label>
                             <select id="productoSelectAgregar">
-                                {catalogoProductos.map(p => (
-                                    <option key={p.id} value={p.id}>{p.nombre} - S/ {p.precio} (Stock: {p.stock})</option>
+                                <option value="">Seleccionar producto...</option>
+                                {productosDisponibles.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.nombre} - S/ {p.precio.toFixed(2)} (Stock: {p.stock})
+                                    </option>
                                 ))}
                             </select>
                         </div>
@@ -130,7 +199,7 @@ export const AgregarProductosModal: React.FC<AgregarProductosModalProps> = ({ is
                     </div>
 
                     <div className="dc-table-wrapper">
-                        <table className="dc-table" >
+                        <table className="dc-table">
                             <thead>
                                 <tr>
                                     <th>Producto</th>
@@ -145,12 +214,14 @@ export const AgregarProductosModal: React.FC<AgregarProductosModalProps> = ({ is
                                     <tr><td colSpan={5} className="text-center">No hay productos para agregar</td></tr>
                                 ) : (
                                     nuevosProductos.map((p, idx) => (
-                                        <tr key={idx}>
+                                        <tr key={p.id || idx}>
                                             <td>{p.nombre}</td>
                                             <td>{p.cantidad}</td>
                                             <td>S/ {p.precio.toFixed(2)}</td>
                                             <td>S/ {(p.cantidad * p.precio).toFixed(2)}</td>
-                                            <td><i className="fas fa-trash dc-eliminar" onClick={() => eliminarProducto(idx)}></i></td>
+                                            <td>
+                                                <i className="fas fa-trash dc-eliminar" onClick={() => eliminarProducto(idx)}></i>
+                                            </td>
                                         </tr>
                                     ))
                                 )}
@@ -175,7 +246,9 @@ export const AgregarProductosModal: React.FC<AgregarProductosModalProps> = ({ is
             <div className="dc-info-card">
                 <p><strong>Venta actual:</strong> {venta?.numero} - {venta?.cliente}</p>
                 <p><strong>Total actual:</strong> S/ {venta?.total.toFixed(2)}</p>
-                <p className='total-line total-grande'><strong>Nuevo total:</strong><span>S/ {nuevoTotal.toFixed(2)}</span></p>
+                <p className="total-line total-grande">
+                    <strong>Nuevo total:</strong> <span>S/ {nuevoTotal.toFixed(2)}</span>
+                </p>
             </div>
         </Modal>
     );

@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
-import { Venta } from '../../../../features/types/sales';
+import { Venta, HistorialEntry } from '../../../../features/types/sales';
+import { historialApi } from '../../../../services/api/historialApi';
+import { useToast } from '../../../../hooks/base/useToast';
 
 interface DetalleVentaModalProps {
     isOpen: boolean;
@@ -12,18 +14,41 @@ type TabType = 'detalle' | 'historial';
 
 export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, onClose, venta }) => {
     const [activeTab, setActiveTab] = useState<TabType>('detalle');
+    const [historial, setHistorial] = useState<HistorialEntry[]>([]);
+    const [isLoadingHistorial, setIsLoadingHistorial] = useState(false);
+    const { showToast } = useToast();
+
+    useEffect(() => {
+        if (isOpen && venta?.id) {
+            cargarHistorial(venta.id);
+        }
+    }, [isOpen, venta]);
+
+    const cargarHistorial = async (ventaId: number) => {
+        setIsLoadingHistorial(true);
+        try {
+            const data = await historialApi.getByEntity('ventas', ventaId);
+            setHistorial(data);
+        } catch (error) {
+            console.error('[DetalleVentaModal] Error al cargar historial:', error);
+            showToast('Error al cargar el historial', 'error', 'Error');
+            setHistorial([]);
+        } finally {
+            setIsLoadingHistorial(false);
+        }
+    };
 
     if (!venta) return null;
 
     const prodHtml = venta.productos.map((p, idx) => (
-        <div key={idx} className="detalle-producto-item">
+        <div key={p.id || idx} className="detalle-producto-item">
             <div><strong>{p.nombre}</strong> - S/ {p.precio.toFixed(2)}</div>
             <div>Cant: {p.cantidad} | Subtotal: S/ {(p.cantidad * p.precio).toFixed(2)}</div>
         </div>
     ));
 
     const devHtml = (venta.devoluciones || []).map((d, idx) => (
-        <div key={idx} className="devolucion-card">
+        <div key={idx} className="devolucion-card">   {/* ← CORREGIDO: usar idx */}
             <small>{d.fecha}</small><br />
             <strong>NC: {d.notaCredito}</strong><br />
             Monto: S/ {d.monto.toFixed(2)}<br />
@@ -32,14 +57,14 @@ export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, on
         </div>
     ));
 
-    const histHtml = (venta.historial || []).map((h, idx) => (
-        <div key={idx} className="dc-info-card">
-            <div className="dc-info-item">
-                <span className="dc-info-label">{h.fecha}</span>
-                <span className="dc-info-value">{h.usuario}</span>
-                <div className="dc-info-value">{h.accion}</div>
+    const histHtml = (historial.length > 0 ? historial : venta.historial || []).map((h, idx) => (
+        <div key={idx} className="dc-history-entry">   {/* ← CORREGIDO: usar idx */}
+            <div>
+                <span className="dc-history-date">{h.fecha}</span>
+                <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
             </div>
-            <div className="dc-info-label">{h.descripcion}</div>
+            <div className="dc-history-action">{h.accion}</div>
+            <div className="dc-history-desc">{h.descripcion}</div>
         </div>
     ));
 
@@ -52,7 +77,7 @@ export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, on
             {/* Tabs internos */}
             <div className="dc-tabs">
                 <button
-                    className={`dc-tab-btn  ${activeTab === 'detalle' ? 'active' : ''}`}
+                    className={`dc-tab-btn ${activeTab === 'detalle' ? 'active' : ''}`}
                     onClick={() => setActiveTab('detalle')}
                 >
                     <i className="fas fa-info-circle"></i> Detalle
@@ -111,7 +136,16 @@ export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, on
                 <div>
                     <h4 style={{ marginBottom: '1rem' }}>{venta.numero} - {venta.cliente}</h4>
                     <div className="detalle-venta-card">
-                        {histHtml.length > 0 ? histHtml : <p>Sin historial</p>}
+                        {isLoadingHistorial ? (
+                            <div style={{ textAlign: 'center', padding: '2rem' }}>
+                                <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem' }}></i>
+                                <p>Cargando historial...</p>
+                            </div>
+                        ) : (
+                            <>
+                                {histHtml.length > 0 ? histHtml : <p>Sin historial registrado</p>}
+                            </>
+                        )}
                     </div>
                 </div>
             )}

@@ -1,137 +1,143 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Venta, CatalogoProducto, VentasFilters } from '../features/types/sales';
 import { ActivityLog } from '../features/types/hist_act';
+import { useAuth } from '../features/auth/context/AuthContext';
+import { ventaApi } from '../services/api/ventaApi';
+import { actividadApi } from '../services/api/actividadApi';
+import { historialApi } from '../services/api/historialApi';
 
-interface VentasContextType {
+interface SalesContextType {
     ventas: Venta[];
     catalogoProductos: CatalogoProducto[];
     activityLogs: ActivityLog[];
     filters: VentasFilters;
     setVentas: (ventas: Venta[]) => void;
-    addActivity: (accion: string, modulo: string, detalle: string) => void;
-    addToHistory: (venta: Venta, accion: string, descripcion: string) => void;
+    setCatalogoProductos: (productos: CatalogoProducto[]) => void;
+    addActivity: (accion: string, modulo: string, detalle: string) => Promise<void>;
+    addToHistory: (venta: Venta, accion: string, descripcion: string) => Promise<void>;
     setFilters: (filters: VentasFilters) => void;
-    saveToLocal: () => void;
-    getNextNumeroVenta: () => string;
+    getNextNumeroVenta: () => Promise<string>;
+    refreshData: () => Promise<void>;
+    isLoading: boolean;
 }
 
-const VentasContext = createContext<VentasContextType | undefined>(undefined);
+const SalesContext = createContext<SalesContextType | undefined>(undefined);
 
-const USUARIO_ACTUAL = "Ana Martínez";
-
-export const VentasProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const { user } = useAuth();
     const [ventas, setVentas] = useState<Venta[]>([]);
-    const [catalogoProductos] = useState<CatalogoProducto[]>([
-        { id: 1, nombre: "Causa Rellena", precio: 25.00, stock: 50 },
-        { id: 2, nombre: "Lomo Saltado", precio: 35.00, stock: 40 },
-        { id: 3, nombre: "Ceviche Mixto", precio: 45.00, stock: 30 },
-        { id: 4, nombre: "Suspiro a la Limeña", precio: 15.00, stock: 60 },
-        { id: 5, nombre: "Chicha Morada (1L)", precio: 12.00, stock: 100 }
-    ]);
+    const [catalogoProductos, setCatalogoProductos] = useState<CatalogoProducto[]>([]);
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
     const [filters, setFilters] = useState<VentasFilters>({ search: '', estado: '', fecha: '' });
+    const [isLoading, setIsLoading] = useState(true);
 
-    const addActivity = (accion: string, modulo: string, detalle: string) => {
-        const newLog: ActivityLog = {
-            timestamp: new Date().toLocaleString(),
-            accion,
-            modulo,
-            detalle,
-            usuario: USUARIO_ACTUAL
-        };
-        setActivityLogs(prev => [newLog, ...prev].slice(0, 30));
-    };
-
-    const addToHistory = (venta: Venta, accion: string, descripcion: string) => {
-        if (!venta.historial) venta.historial = [];
-        venta.historial.unshift({
-            fecha: new Date().toLocaleString(),
-            usuario: USUARIO_ACTUAL,
-            accion,
-            descripcion
-        });
-        if (venta.historial.length > 40) venta.historial.pop();
-        saveToLocal();
-    };
-
-    const getNextNumeroVenta = (): string => {
-        const nextNumber = ventas.length + 1;
-        return `V-${String(nextNumber).padStart(6, '0')}`;
-    };
-
-    const saveToLocal = () => {
-        localStorage.setItem("ventas_catering", JSON.stringify(ventas));
-        localStorage.setItem("actividad_ventas", JSON.stringify(activityLogs));
-    };
-
-    const loadFromLocal = () => {
-        const storedVentas = localStorage.getItem("ventas_catering");
-        const storedActivity = localStorage.getItem("actividad_ventas");
-
-        let loadedVentas = storedVentas ? JSON.parse(storedVentas) : [];
-        let loadedActivity = storedActivity ? JSON.parse(storedActivity) : [];
-
-        if (loadedVentas.length === 0) {
-            loadedVentas = [{
-                id: Date.now(),
-                numero: "V-000001",
-                fecha: new Date().toLocaleString(),
-                fechaObj: new Date(),
-                cliente: "Juan Pérez",
-                clienteDoc: "12345678",
-                productos: [{ id: 1, nombre: "Causa Rellena", precio: 25, cantidad: 2 }],
-                subtotal: 50,
-                descuento: 0,
-                igv: 9,
-                total: 59,
-                metodoPago: "EFECTIVO",
-                estado: "completada",
-                devoluciones: [],
-                historial: []
-            }];
-            addActivity("INICIALIZAR", "ventas", "Datos de ejemplo cargados");
-        } else {
-            loadedVentas = loadedVentas.map((v: any) => ({
-                ...v,
-                fechaObj: new Date(v.fecha)
-            }));
+    const getUsuarioActual = () => {
+        if (user) {
+            return user.nombre_completo || user.usuario || 'Usuario';
         }
+        return 'Sistema';
+    };
 
-        setVentas(loadedVentas);
-        setActivityLogs(loadedActivity);
+    const loadData = async () => {
+        setIsLoading(true);
+        try {
+            const [ventasData, catalogoData, activityData] = await Promise.all([
+                ventaApi.getAll(),
+                ventaApi.getCatalogo(),
+                actividadApi.getAll()
+            ]);
+
+            setVentas(ventasData);
+            setCatalogoProductos(catalogoData);
+            setActivityLogs(activityData.filter(log => log.modulo === 'ventas'));
+        } catch (error) {
+            console.error('[SalesContext] Error cargando datos:', error);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     useEffect(() => {
-        loadFromLocal();
+        loadData();
     }, []);
 
-    useEffect(() => {
-        saveToLocal();
-    }, [ventas, activityLogs]);
-
-    useEffect(() => {
-        if (ventas.length) {
-            saveToLocal();
+    const addActivity = async (accion: string, modulo: string, detalle: string) => {
+        try {
+            const usuarioActual = getUsuarioActual();
+            await actividadApi.create({ modulo, accion, detalle, usuario: usuarioActual });
+            const updated = await actividadApi.getAll();
+            setActivityLogs(updated.filter(log => log.modulo === 'ventas'));
+        } catch (error) {
+            console.error('[SalesContext] Error al agregar actividad:', error);
         }
-    }, [ventas, activityLogs]);
+    };
+
+    const addToHistory = async (venta: Venta, accion: string, descripcion: string) => {
+        try {
+            const usuarioActual = getUsuarioActual();
+            await historialApi.create({
+                entidad: 'ventas',
+                id_entidad: venta.id,
+                accion,
+                descripcion: `${venta.numero} - ${descripcion}`,
+                usuario: usuarioActual
+            });
+
+            if (venta.historial) {
+                venta.historial.unshift({
+                    fecha: new Date().toLocaleString(),
+                    usuario: usuarioActual,
+                    accion,
+                    descripcion: `${venta.numero} - ${descripcion}`
+                });
+            }
+
+            setVentas((prev) =>
+                prev.map((v) =>
+                    v.id === venta.id ? { ...v, historial: venta.historial } : v
+                )
+            );
+        } catch (error) {
+            console.error('[SalesContext] Error al agregar historial:', error);
+        }
+    };
+
+    const getNextNumeroVenta = async (): Promise<string> => {
+        try {
+            return await ventaApi.getNextNumero();
+        } catch (error) {
+            console.error('[SalesContext] Error al obtener próximo número:', error);
+            const nextNumber = ventas.length + 1;
+            return `V-${String(nextNumber).padStart(6, '0')}`;
+        }
+    };
+
+    const refreshData = async () => {
+        await loadData();
+    };
 
     return (
-        <VentasContext.Provider value={{
-            ventas, setVentas,
+        <SalesContext.Provider value={{
+            ventas,
             catalogoProductos,
             activityLogs,
-            filters, setFilters,
-            addActivity, addToHistory,
-            saveToLocal,
-            getNextNumeroVenta
+            filters,
+            setVentas,
+            setCatalogoProductos,
+            addActivity,
+            addToHistory,
+            setFilters,
+            getNextNumeroVenta,
+            refreshData,
+            isLoading
         }}>
             {children}
-        </VentasContext.Provider>
+        </SalesContext.Provider>
     );
 };
 
 export const useVentas = () => {
-    const context = useContext(VentasContext);
-    if (!context) throw new Error('useVentas must be used within VentasProvider');
+    const context = useContext(SalesContext);
+    if (!context) throw new Error('useVentas must be used within SalesProvider');
     return context;
 };

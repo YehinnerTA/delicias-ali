@@ -7,6 +7,7 @@ export interface HistorialEntry {
 
 export interface ProductoVenta {
     id: number;
+    detalleId?: number;
     nombre: string;
     precio: number;
     cantidad: number;
@@ -46,6 +47,8 @@ export interface CatalogoProducto {
     nombre: string;
     precio: number;
     stock: number;
+    fechaVencimiento: string;
+    diasDuracion: number;
 }
 
 export interface ComponentesVenta {

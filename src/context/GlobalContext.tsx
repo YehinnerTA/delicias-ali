@@ -32,7 +32,6 @@ interface GlobalContextType {
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
 
-// Función auxiliar para cargar desde localStorage
 const loadFromLocalStorage = () => {
     try {
         const storedEmpresas = localStorage.getItem("dc_gestion_empresas");
@@ -63,7 +62,6 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const loadData = async () => {
         setIsLoading(true);
         try {
-            // Intentar cargar desde API
             const [empData, perData, usrData, actData] = await Promise.all([
                 empresaApi.getAll(),
                 personaApi.getAll(),
@@ -71,19 +69,16 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 actividadApi.getAll()
             ]);
 
-            // Si la API devuelve datos, los usamos
             if (empData.length > 0 || perData.length > 0 || usrData.length > 0) {
                 setEmpresas(empData);
                 setPersonas(perData);
                 setUsuarios(usrData);
                 setActivityLogs(actData);
-                // Guardar en localStorage para futuras cargas rápidas
                 localStorage.setItem("dc_gestion_empresas", JSON.stringify(empData));
                 localStorage.setItem("dc_gestion_personas", JSON.stringify(perData));
                 localStorage.setItem("dc_gestion_usuarios", JSON.stringify(usrData));
                 localStorage.setItem("dc_gestion_actividad", JSON.stringify(actData));
             } else {
-                // Si la API devuelve vacío, usar localStorage como fallback
                 console.warn('[GlobalContext] API devolvió datos vacíos. Usando localStorage.');
                 const localData = loadFromLocalStorage();
                 setEmpresas(localData.empresas);
@@ -145,7 +140,6 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             let entidad = '';
             let idEntidad = 0;
 
-            // ✅ ORDEN CORRECTO: Usuarios primero, luego Personas, luego Empresas
             if ('id_usuario' in item) {
                 entidad = 'usuarios';
                 idEntidad = (item as any).id_usuario;

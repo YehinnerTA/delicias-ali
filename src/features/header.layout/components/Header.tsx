@@ -43,7 +43,7 @@ const Header: React.FC = () => {
             <header className="delicias-main-header">
                 <div className="delicias-header-container">
                     <div className="delicias-logo-area">
-                        <a aria-label="Inicio" className="delicias-logo-link"
+                        <a className="delicias-logo-link"
                             onClick={(e) => {
                                 e.preventDefault();
                                 handleLogoClick();
@@ -54,7 +54,7 @@ const Header: React.FC = () => {
                     </div>
 
                     {/* Navegación desktop */}
-                    <nav className="delicias-nav-center" aria-label="Navegación principal">
+                    <nav className="delicias-nav-center">
                         <ul className="delicias-nav-links">
                             {navLinks.map((link) => (
                                 <li key={link.name}>
@@ -81,7 +81,7 @@ const Header: React.FC = () => {
                                 <span>Empresa</span>
                             </label>
                             <select id="companySelect" className="company-select" value={selectedCompany ?? ''}
-                                onChange={handleCompanyChange} aria-label="Seleccionar empresa"
+                                onChange={handleCompanyChange}
                             >
                                 {companyOptions.map(option => (
                                     <option key={option.value} value={option.value}>
@@ -91,7 +91,7 @@ const Header: React.FC = () => {
                             </select>
                         </div>
 
-                        <button className="delicias-notification-bell btn-reset" id="deliciasNotifDesktopBtn" aria-label="Notificaciones" onClick={openNotificationModal} >
+                        <button className="delicias-notification-bell btn-reset" id="deliciasNotifDesktopBtn" onClick={openNotificationModal} >
                             <i className="fas fa-bell"></i>
                             {notificationCount > 0 && (
                                 <span className="badge" id="deliciasNotifBadge">{notificationCount}</span>
@@ -106,7 +106,7 @@ const Header: React.FC = () => {
                         >
                             <div className="avatar" aria-hidden="true">{nombreUsuario.charAt(0).toUpperCase()}</div>
                             <span className="delicias-profile-text">{nombreUsuario}</span>
-                            <button className="delicias-logout-icon btn-reset" id="deliciasLogoutDesktopBtn" aria-label="Cerrar sesión"
+                            <button className="delicias-logout-icon btn-reset" id="deliciasLogoutDesktopBtn"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     openLogoutModal();
@@ -118,7 +118,7 @@ const Header: React.FC = () => {
                     </div>
 
                     {/* Hamburguesa */}
-                    <button className="delicias-hamburger btn-reset" id="deliciasHamburgerBtn" ref={hamburgerBtnRef} aria-label="Abrir menú" aria-expanded={isMenuOpen} onClick={openMobileMenu} >
+                    <button className="delicias-hamburger btn-reset" id="deliciasHamburgerBtn" ref={hamburgerBtnRef} aria-expanded={isMenuOpen} onClick={openMobileMenu} >
                         <span></span><span></span><span></span>
                     </button>
                 </div>
@@ -131,7 +131,7 @@ const Header: React.FC = () => {
             <div className={`delicias-mobile-menu ${isMenuOpen ? 'active' : ''}`} id="deliciasMobileMenu" aria-hidden={!isMenuOpen} >
                 <div className="delicias-mobile-menu-header">
                     <span className="delicias-menu-title">Menú</span>
-                    <button className="delicias-close-menu btn-reset" id="deliciasCloseMenuBtn" ref={closeMenuBtnRef} aria-label="Cerrar menú" onClick={closeMobileMenu} >
+                    <button className="delicias-close-menu btn-reset" id="deliciasCloseMenuBtn" ref={closeMenuBtnRef} onClick={closeMobileMenu} >
                         &times;
                     </button>
                 </div>
@@ -148,7 +148,6 @@ const Header: React.FC = () => {
                             className="company-select"
                             value={selectedCompany ?? ''}
                             onChange={handleCompanyChange}
-                            aria-label="Seleccionar empresa"
                         >
                             {companyOptions.map(option => (
                                 <option key={option.value} value={option.value}>
@@ -158,7 +157,7 @@ const Header: React.FC = () => {
                         </select>
                     </div>
 
-                    <nav aria-label="Navegación móvil">
+                    <nav>
                         <ul className="delicias-mobile-nav-links">
                             {navLinks.map((link) => (
                                 <li key={link.name}>

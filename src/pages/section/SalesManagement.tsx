@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { VentasProvider, useVentas } from '../../context/SalesContext';
+import { SalesProvider, useVentas } from '../../context/SalesContext';
 import MainLayout from '../partials/MainLayout';
 import { NewSaleModal } from '../../components/common/modal/sales/NewSaleModal';
 import { DetalleVentaModal } from '../../components/common/modal/sales/DetailsSalesModal';
@@ -154,7 +154,9 @@ const VentasContent: React.FC = () => {
                     actions={(item) => (
                         <>
                             <i className="fas fa-eye" onClick={() => { setSelectedVenta(item); setDetalleVentaOpen(true); }} title="Ver detalle"></i>
-                            <i className="fas fa-edit" onClick={() => { setSelectedVenta(item); setEditarVentaOpen(true); }} title="Editar venta"></i>
+                            {item.estado !== 'devolucion-parcial' && item.estado !== 'devolucion-total' && (
+                                <i className="fas fa-edit" onClick={() => { setSelectedVenta(item); setEditarVentaOpen(true); }} title="Editar venta"></i>
+                            )}
                             <i className="fas fa-plus-circle" onClick={() => { setSelectedVenta(item); setAgregarProductosOpen(true); }} title="Agregar productos"></i>
                             <i className="fas fa-exchange-alt" onClick={() => { setSelectedVenta(item); setDevolucionOpen(true); }} title="Devolución"></i>
                             <i className="fas fa-print" onClick={() => { setSelectedVenta(item); setReimprimirOpen(true); }} title="Reimprimir"></i>
@@ -184,11 +186,11 @@ const VentasContent: React.FC = () => {
 
 const VentasManagement: React.FC = () => {
     return (
-        <VentasProvider>
+        <SalesProvider>
             <MainLayout>
                 <VentasContent />
             </MainLayout>
-        </VentasProvider>
+        </SalesProvider>
     );
 };
 

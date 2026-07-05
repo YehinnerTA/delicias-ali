@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useVentas } from '../../../../context/SalesContext';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useToast } from '../../../../hooks/base/useToast';
-import { Venta, VentaTemporal, ProductoVenta } from '../../../../features/types/sales';
+import { Venta, VentaTemporal, ProductoVenta, CatalogoProducto } from '../../../../features/types/sales';
 import { generarVistaPreviaHTML, generarPDF } from '../../../../services/pdf/pdfService';
 
 interface NewSaleModalProps {
@@ -12,11 +13,12 @@ interface NewSaleModalProps {
 }
 
 export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onSuccess }) => {
-    const { ventas, catalogoProductos, addActivity, addToHistory, getNextNumeroVenta } = useVentas();
+    const { catalogoProductos, addActivity, addToHistory, refreshData } = useVentas();
+    const { user } = useAuth();
     const { showToast } = useToast();
 
     const [currentVenta, setCurrentVenta] = useState<VentaTemporal>({
-        cliente: { nombre: "Juan Pérez", documento: "12345678" },
+        cliente: { nombre: "", documento: "" },
         productos: [],
         componentes: {
             descuento: { activo: false, tipo: 'porcentaje', valor: 0 },
@@ -28,6 +30,70 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
 
     const [tipoComprobante, setTipoComprobante] = useState<'ticket' | 'factura'>('ticket');
     const [fasesAbiertas, setFasesAbiertas] = useState<{ [key: number]: boolean }>({ 1: true, 2: false, 3: false, 4: false });
+    const [clientes, setClientes] = useState<any[]>([]);
+    const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [montoPago, setMontoPago] = useState<number>(0);
+    const [productosDisponibles, setProductosDisponibles] = useState<CatalogoProducto[]>([]);
+
+    const productoVigente = (producto: CatalogoProducto): boolean => {
+        if (!producto.fechaVencimiento) return true;
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const fechaVenc = new Date(producto.fechaVencimiento);
+        fechaVenc.setHours(0, 0, 0, 0);
+        return fechaVenc >= hoy;
+    };
+
+    useEffect(() => {
+        if (isOpen) {
+            cargarClientes();
+            setSelectedProductId(null);
+            setMontoPago(0);
+            const productSelect = document.getElementById('productoSelect') as HTMLSelectElement;
+            if (productSelect) productSelect.value = '';
+            const cantidadInput = document.getElementById('cantidadProd') as HTMLInputElement;
+            if (cantidadInput) {
+                cantidadInput.value = '1';
+                cantidadInput.max = '999';
+                cantidadInput.placeholder = 'Cantidad';
+            }
+            const docInput = document.getElementById('clienteDoc') as HTMLInputElement;
+            const nombreInput = document.getElementById('clienteNombre') as HTMLInputElement;
+            const montoInput = document.getElementById('montoPago') as HTMLInputElement;
+            if (docInput) docInput.value = '';
+            if (nombreInput) nombreInput.value = '';
+            if (montoInput) montoInput.value = '';
+            setCurrentVenta({
+                cliente: { nombre: "", documento: "" },
+                productos: [],
+                componentes: {
+                    descuento: { activo: false, tipo: 'porcentaje', valor: 0 },
+                    cupon: { activo: false, codigo: "", valor: 0 }
+                },
+                metodoPago: { tipo: 'efectivo', monto: 0, vuelto: 0 },
+                subtotal: 0, igv: 0, total: 0
+            });
+        }
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (isOpen) {
+            const disponibles = catalogoProductos.filter(p => p.stock > 0 && productoVigente(p));
+            setProductosDisponibles(disponibles);
+        }
+    }, [isOpen, catalogoProductos]);
+
+    const cargarClientes = async () => {
+        try {
+            const { ventaApi } = await import('../../../../services/api/ventaApi');
+            const data = await ventaApi.getClientes();
+            setClientes(data);
+        } catch (error) {
+            console.error('[NewSaleModal] Error al cargar clientes:', error);
+            showToast('Error al cargar clientes', 'error', 'Error');
+        }
+    };
 
     const toggleFase = (fase: number) => {
         setFasesAbiertas(prev => ({ ...prev, [fase]: !prev[fase] }));
@@ -56,50 +122,161 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
         calcularTotales();
     }, [currentVenta.productos, currentVenta.componentes]);
 
+    const buscarClientePorDocumento = (documento: string) => {
+        if (!documento) {
+            const nombreInput = document.getElementById('clienteNombre') as HTMLInputElement;
+            if (nombreInput) nombreInput.value = '';
+            return;
+        }
+        const cliente = clientes.find(c => c.numeroDocumento === documento);
+        const nombreInput = document.getElementById('clienteNombre') as HTMLInputElement;
+        if (cliente) {
+            if (nombreInput) nombreInput.value = cliente.nombreCompleto;
+            setCurrentVenta(prev => ({
+                ...prev,
+                cliente: { nombre: cliente.nombreCompleto, documento: cliente.numeroDocumento }
+            }));
+        } else {
+            if (nombreInput) nombreInput.value = '';
+            setCurrentVenta(prev => ({
+                ...prev,
+                cliente: { nombre: '', documento }
+            }));
+        }
+    };
+
+    const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const productId = parseInt(e.target.value);
+        setSelectedProductId(productId);
+        const producto = productosDisponibles.find(p => p.id === productId);
+        if (producto) {
+            const cantidadInput = document.getElementById('cantidadProd') as HTMLInputElement;
+            if (cantidadInput) {
+                cantidadInput.max = producto.stock.toString();
+                cantidadInput.placeholder = `Máx ${producto.stock}`;
+                cantidadInput.value = '1';
+            }
+        }
+    };
+
     const agregarProducto = () => {
-        const select = document.getElementById('productoSelect') as HTMLSelectElement;
-        const cantidadInput = document.getElementById('cantidadProd') as HTMLInputElement;
-        if (!select || !cantidadInput) return;
-
-        const prodId = parseInt(select.value);
-        const cant = parseInt(cantidadInput.value) || 1;
-        const prod = catalogoProductos.find(p => p.id === prodId);
-        if (!prod) return;
-
-        if (cant > prod.stock) {
-            showToast(`Stock insuficiente. Solo ${prod.stock} unidades`, "error", "Error");
+        if (selectedProductId === null) {
+            showToast("Seleccione un producto", "warning", "Campos incompletos");
             return;
         }
 
-        const existente = currentVenta.productos.find(p => p.id === prodId);
+        const cantidadInput = document.getElementById('cantidadProd') as HTMLInputElement;
+        if (!cantidadInput) return;
+
+        const cant = parseInt(cantidadInput.value) || 1;
+        const producto = productosDisponibles.find(p => p.id === selectedProductId);
+        if (!producto) {
+            showToast("Producto no encontrado o vencido", "error", "Error");
+            return;
+        }
+
+        if (cant > producto.stock) {
+            showToast(`Stock insuficiente. Solo ${producto.stock} unidades`, "error", "Error");
+            return;
+        }
+
+        const existente = currentVenta.productos.find(p => p.id === selectedProductId);
         if (existente) {
-            if (existente.cantidad + cant > prod.stock) {
-                showToast(`Máximo ${prod.stock - existente.cantidad} más`, "error", "Error");
+            const nuevaCantidad = existente.cantidad + cant;
+            if (nuevaCantidad > producto.stock + existente.cantidad) {
+                showToast(`No puede exceder el stock total (${producto.stock + existente.cantidad})`, "error", "Error");
                 return;
             }
-            existente.cantidad += cant;
+            const updatedProductos = currentVenta.productos.map(p =>
+                p.id === selectedProductId ? { ...p, cantidad: nuevaCantidad } : p
+            );
+            setCurrentVenta(prev => ({ ...prev, productos: updatedProductos }));
+
+            const updatedDisponibles = productosDisponibles.map(p =>
+                p.id === selectedProductId ? { ...p, stock: p.stock - cant } : p
+            ).filter(p => p.stock > 0 && productoVigente(p));
+            setProductosDisponibles(updatedDisponibles);
         } else {
-            currentVenta.productos.push({ id: prod.id, nombre: prod.nombre, precio: prod.precio, cantidad: cant, stock: prod.stock });
+            const nuevoProducto: ProductoVenta = {
+                id: selectedProductId,
+                nombre: producto.nombre,
+                precio: producto.precio,
+                cantidad: cant,
+                stock: producto.stock
+            };
+            setCurrentVenta(prev => ({
+                ...prev,
+                productos: [...prev.productos, nuevoProducto]
+            }));
+
+            const updatedDisponibles = productosDisponibles.map(p =>
+                p.id === selectedProductId ? { ...p, stock: p.stock - cant } : p
+            ).filter(p => p.stock > 0 && productoVigente(p));
+            setProductosDisponibles(updatedDisponibles);
         }
-        setCurrentVenta({ ...currentVenta });
-        select.value = "";
-        cantidadInput.value = "1";
+
+        setSelectedProductId(null);
+        const productSelect = document.getElementById('productoSelect') as HTMLSelectElement;
+        if (productSelect) productSelect.value = '';
+        cantidadInput.value = '1';
+        cantidadInput.placeholder = 'Cantidad';
+        cantidadInput.max = '999';
+        showToast(`Producto agregado`, 'success', 'Agregado');
     };
 
     const eliminarProducto = (idx: number) => {
-        currentVenta.productos.splice(idx, 1);
-        setCurrentVenta({ ...currentVenta });
+        const productoEliminado = currentVenta.productos[idx];
+        const updatedProductos = productosDisponibles.map(p => {
+            if (p.id === productoEliminado.id) {
+                return { ...p, stock: p.stock + productoEliminado.cantidad };
+            }
+            return p;
+        });
+        if (!updatedProductos.find(p => p.id === productoEliminado.id)) {
+            const productoOriginal = catalogoProductos.find(p => p.id === productoEliminado.id);
+            if (productoOriginal) {
+                updatedProductos.push({
+                    ...productoOriginal,
+                    stock: productoEliminado.cantidad
+                });
+            }
+        }
+        setProductosDisponibles(updatedProductos.filter(p => p.stock > 0 && productoVigente(p)));
+
+        const updatedVentaProductos = currentVenta.productos.filter((_, i) => i !== idx);
+        setCurrentVenta(prev => ({ ...prev, productos: updatedVentaProductos }));
+        showToast('Producto eliminado', 'info', 'Eliminado');
     };
 
     const actualizarCantidad = (idx: number, val: string) => {
-        let cant = parseInt(val) || 1;
-        const prod = catalogoProductos.find(p => p.id === currentVenta.productos[idx].id);
-        if (prod && cant > prod.stock) {
-            showToast(`Stock: ${prod.stock}`, "error", "Error");
-            cant = prod.stock;
+        const cant = parseInt(val) || 1;
+        const prod = currentVenta.productos[idx];
+        const productoOriginal = catalogoProductos.find(p => p.id === prod.id);
+        if (!productoOriginal) return;
+
+        const totalUsado = currentVenta.productos
+            .filter(p => p.id === prod.id)
+            .reduce((sum, p) => sum + p.cantidad, 0);
+        const stockDisponible = productoOriginal.stock - (totalUsado - prod.cantidad);
+
+        if (cant > stockDisponible + prod.cantidad) {
+            showToast(`Stock máximo disponible: ${stockDisponible + prod.cantidad}`, "error", "Error");
+            return;
         }
-        currentVenta.productos[idx].cantidad = cant;
-        setCurrentVenta({ ...currentVenta });
+
+        const diff = cant - prod.cantidad;
+        const updatedDisponibles = productosDisponibles.map(p => {
+            if (p.id === prod.id) {
+                return { ...p, stock: p.stock - diff };
+            }
+            return p;
+        }).filter(p => p.stock > 0 && productoVigente(p));
+        setProductosDisponibles(updatedDisponibles);
+
+        const updatedProductos = currentVenta.productos.map((p, i) =>
+            i === idx ? { ...p, cantidad: cant } : p
+        );
+        setCurrentVenta(prev => ({ ...prev, productos: updatedProductos }));
     };
 
     const toggleComponente = (componente: 'descuento' | 'cupon') => {
@@ -154,64 +331,142 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
             ...prev,
             metodoPago: { ...prev.metodoPago, tipo }
         }));
+        if (tipo !== 'efectivo') {
+            setMontoPago(currentVenta.total);
+        }
     };
 
-    const registrarVenta = () => {
+    const handleMontoPagoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const valor = parseFloat(e.target.value) || 0;
+        setMontoPago(valor);
+    };
+
+    const registrarVenta = async () => {
         if (currentVenta.productos.length === 0) {
             showToast("Agregue al menos un producto", "warning", "Campos incompletos");
             return;
         }
 
-        const clienteNombre = (document.getElementById('clienteNombre') as HTMLInputElement)?.value || "Cliente";
-        const clienteDoc = (document.getElementById('clienteDoc') as HTMLInputElement)?.value || "";
+        const clienteNombreInput = document.getElementById('clienteNombre') as HTMLInputElement;
+        const clienteDocInput = document.getElementById('clienteDoc') as HTMLInputElement;
+        const clienteDocumento = clienteDocInput?.value?.trim() || '';
+        const clienteNombre = clienteNombreInput?.value?.trim() || '';
 
-        const nuevaVenta: Venta = {
-            id: Date.now(),
-            numero: getNextNumeroVenta(),
-            fecha: new Date().toLocaleString(),
-            fechaObj: new Date(),
-            cliente: clienteNombre,
-            clienteDoc,
-            productos: JSON.parse(JSON.stringify(currentVenta.productos)),
-            subtotal: currentVenta.subtotal,
-            descuento: currentVenta.componentes.descuento.activo ? currentVenta.componentes.descuento.valor : 0,
-            igv: currentVenta.igv,
-            total: currentVenta.total,
-            metodoPago: currentVenta.metodoPago.tipo.toUpperCase(),
-            estado: 'completada',
-            devoluciones: [],
-            historial: []
-        };
+        if (!clienteDocumento || !clienteNombre) {
+            showToast("Ingrese el documento y nombre del cliente", "warning", "Campos incompletos");
+            return;
+        }
 
-        addToHistory(nuevaVenta, "CREACIÓN", `Venta creada - Total: S/ ${nuevaVenta.total}`);
-        addActivity("VENTA", "ventas", `${nuevaVenta.numero} - S/ ${nuevaVenta.total}`);
-        generarPDF(nuevaVenta, tipoComprobante);
-        showToast(`Venta ${nuevaVenta.numero} registrada y comprobante generado`, "success", "Venta registrada");
+        if (currentVenta.metodoPago.tipo === 'efectivo') {
+            if (montoPago < currentVenta.total) {
+                showToast(`El monto pagado (S/ ${montoPago.toFixed(2)}) no puede ser menor al total (S/ ${currentVenta.total.toFixed(2)})`, "error", "Error");
+                return;
+            }
+        }
 
-        onSuccess(nuevaVenta);
-        onClose();
+        const userId = user?.id;
+        if (!userId) {
+            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const productosParaAPI = currentVenta.productos.map(p => ({
+                id_lote: p.id,
+                nombre: p.nombre,
+                precio: p.precio,
+                cantidad: p.cantidad
+            }));
+
+            const payload = {
+                cliente_documento: clienteDocumento,
+                cliente_nombre: clienteNombre,
+                cliente_apellido: '',
+                cliente_email: '',
+                cliente_celular: '',
+                productos: productosParaAPI,
+                subtotal: currentVenta.subtotal,
+                descuento: currentVenta.componentes.descuento.activo ? currentVenta.componentes.descuento.valor : 0,
+                igv: currentVenta.igv,
+                total: currentVenta.total,
+                metodo_pago: currentVenta.metodoPago.tipo.toUpperCase(),
+                usuario_id: userId
+            };
+
+            const { ventaApi } = await import('../../../../services/api/ventaApi');
+            const nuevaVenta = await ventaApi.create(payload);
+
+            await refreshData();
+            await addActivity("VENTA", "ventas", `${nuevaVenta.numero} - S/ ${nuevaVenta.total}`);
+            await addToHistory(nuevaVenta, "CREACIÓN", `Venta creada - Total: S/ ${nuevaVenta.total}`);
+
+            generarPDF(nuevaVenta, tipoComprobante);
+            showToast(`Venta ${nuevaVenta.numero} registrada y comprobante generado`, "success", "Venta registrada");
+
+            setCurrentVenta({
+                cliente: { nombre: "", documento: "" },
+                productos: [],
+                componentes: {
+                    descuento: { activo: false, tipo: 'porcentaje', valor: 0 },
+                    cupon: { activo: false, codigo: "", valor: 0 }
+                },
+                metodoPago: { tipo: 'efectivo', monto: 0, vuelto: 0 },
+                subtotal: 0, igv: 0, total: 0
+            });
+            setProductosDisponibles(catalogoProductos.filter(p => p.stock > 0 && productoVigente(p)));
+            setSelectedProductId(null);
+            setMontoPago(0);
+            const productSelect = document.getElementById('productoSelect') as HTMLSelectElement;
+            if (productSelect) productSelect.value = '';
+            const cantidadInput = document.getElementById('cantidadProd') as HTMLInputElement;
+            if (cantidadInput) {
+                cantidadInput.value = '1';
+                cantidadInput.max = '999';
+                cantidadInput.placeholder = 'Cantidad';
+            }
+            const docInput = document.getElementById('clienteDoc') as HTMLInputElement;
+            const nombreInput = document.getElementById('clienteNombre') as HTMLInputElement;
+            const montoInput = document.getElementById('montoPago') as HTMLInputElement;
+            if (docInput) docInput.value = '';
+            if (nombreInput) nombreInput.value = '';
+            if (montoInput) montoInput.value = '';
+
+            onSuccess(nuevaVenta);
+            onClose();
+        } catch (error) {
+            console.error('[NewSaleModal] Error al registrar venta:', error);
+            showToast('Error al registrar la venta', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const ventaPreview: Venta = {
         ...currentVenta as any,
         id: 0,
-        numero: getNextNumeroVenta(),
+        numero: 'V-XXXXXX',
         fecha: new Date().toLocaleString(),
         fechaObj: new Date(),
-        cliente: currentVenta.cliente.nombre,
-        clienteDoc: currentVenta.cliente.documento,
+        cliente: currentVenta.cliente.nombre || 'Cliente',
+        clienteDoc: currentVenta.cliente.documento || '',
         productos: currentVenta.productos,
         descuento: currentVenta.componentes.descuento.activo ? currentVenta.componentes.descuento.valor : 0,
         metodoPago: currentVenta.metodoPago.tipo.toUpperCase(),
         estado: 'completada',
-        devoluciones: []
+        devoluciones: [],
+        historial: []
     };
 
     const modalFooter = (
         <>
             <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
-            <button className="dc-btn success" onClick={registrarVenta}>
-                <i className="fas fa-check-circle"></i> Registrar e Imprimir
+            <button
+                className="dc-btn success"
+                onClick={registrarVenta}
+                disabled={isSubmitting}
+            >
+                {isSubmitting ? 'Registrando...' : <><i className="fas fa-check-circle"></i> Registrar e Imprimir</>}
             </button>
         </>
     );
@@ -220,7 +475,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
         <Modal isOpen={isOpen} onClose={onClose} title="Nueva Venta" icon="fa-shopping-cart" footer={modalFooter}>
             <div className="split-layout">
                 <div className="split-left">
-
                     {/* Fase 1: Cliente */}
                     <div className="fase">
                         <div className="fase-header" onClick={() => toggleFase(1)}>
@@ -231,12 +485,27 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                             <div className="fase-body">
                                 <div className="dc-form-grid">
                                     <div className="dc-input-group">
-                                        <label>Nombre del Cliente:</label>
-                                        <input type="text" id="clienteNombre" defaultValue={currentVenta.cliente.nombre} />
+                                        <label>Documento (DNI/RUC):</label>
+                                        <input
+                                            type="text"
+                                            id="clienteDoc"
+                                            placeholder="Ingrese DNI o RUC"
+                                            onChange={(e) => buscarClientePorDocumento(e.target.value)}
+                                        />
                                     </div>
                                     <div className="dc-input-group">
-                                        <label>Documento:</label>
-                                        <input type="text" id="clienteDoc" defaultValue={currentVenta.cliente.documento} />
+                                        <label>Nombre del Cliente:</label>
+                                        <input
+                                            type="text"
+                                            id="clienteNombre"
+                                            placeholder="Nombre completo"
+                                            onChange={(e) => {
+                                                setCurrentVenta(prev => ({
+                                                    ...prev,
+                                                    cliente: { ...prev.cliente, nombre: e.target.value }
+                                                }));
+                                            }}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -250,21 +519,31 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                             <i className="fas fa-chevron-down"></i>
                         </div>
                         {fasesAbiertas[2] && (
-                            <div className="fase-body" >
+                            <div className="fase-body">
                                 <div className="dc-form-grid">
                                     <div className="dc-input-group">
-                                        <label>Producto</label>
-                                        <select id="productoSelect">
-                                            {catalogoProductos.map(p => (
-                                                <option key={p.id} value={p.id}>{p.nombre} - S/ {p.precio} (Stock: {p.stock})</option>
+                                        <label>Producto (Lote):</label>
+                                        <select id="productoSelect" onChange={handleProductChange} value={selectedProductId ?? ''}>
+                                            <option value="">Seleccionar producto...</option>
+                                            {productosDisponibles.map(p => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.nombre} - S/ {p.precio.toFixed(2)} (Stock: {p.stock})
+                                                </option>
                                             ))}
                                         </select>
                                     </div>
                                     <div className="dc-input-group">
-                                        <label>Cantidad</label>
-                                        <input type="number" id="cantidadProd" defaultValue="1" min="1" />
+                                        <label>Cantidad:</label>
+                                        <input
+                                            type="number"
+                                            id="cantidadProd"
+                                            defaultValue="1"
+                                            min="1"
+                                            max="999"
+                                            placeholder="Cantidad"
+                                        />
                                     </div>
-                                    <button className="dc-btn info" onClick={agregarProducto} >
+                                    <button className="dc-btn info" onClick={agregarProducto}>
                                         <i className="fas fa-plus"></i> Agregar
                                     </button>
                                 </div>
@@ -285,16 +564,27 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                                                     <td colSpan={5} className="text-center">No hay productos agregados</td>
                                                 </tr>
                                             ) : (
-                                                currentVenta.productos.map((p, idx) => (
-                                                    <tr key={idx}>
+                                                currentVenta.productos.map((p) => (
+                                                    <tr key={p.id}>
                                                         <td>{p.nombre}</td>
                                                         <td>
-                                                            <input type="number" className="cantidad-input" min="1" value={p.cantidad} onChange={(e) => actualizarCantidad(idx, e.target.value)} />
+                                                            <input
+                                                                type="number"
+                                                                className="cantidad-input"
+                                                                min="1"
+                                                                value={p.cantidad}
+                                                                onChange={(e) => actualizarCantidad(
+                                                                    currentVenta.productos.findIndex(prod => prod.id === p.id),
+                                                                    e.target.value
+                                                                )}
+                                                            />
                                                         </td>
                                                         <td>S/ {p.precio.toFixed(2)}</td>
                                                         <td>S/ {(p.cantidad * p.precio).toFixed(2)}</td>
                                                         <td>
-                                                            <i className="fas fa-trash dc-eliminar" onClick={() => eliminarProducto(idx)}></i>
+                                                            <i className="fas fa-trash dc-eliminar" onClick={() => eliminarProducto(
+                                                                currentVenta.productos.findIndex(prod => prod.id === p.id)
+                                                            )}></i>
                                                         </td>
                                                     </tr>
                                                 ))
@@ -313,11 +603,10 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                             <i className="fas fa-chevron-down"></i>
                         </div>
                         {fasesAbiertas[3] && (
-                            <div className="fase-body" >
-                                <div className="componentes-grid" >
-                                    {/* Descuento */}
-                                    <div className="componente-card" >
-                                        <div className="componente-header" >
+                            <div className="fase-body">
+                                <div className="componentes-grid">
+                                    <div className="componente-card">
+                                        <div className="componente-header">
                                             <strong>💰 Descuento</strong>
                                             <div
                                                 className={`toggle-componente ${currentVenta.componentes.descuento.activo ? 'active' : ''}`}
@@ -327,8 +616,8 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                                             </div>
                                         </div>
                                         {currentVenta.componentes.descuento.activo && (
-                                            <div className="dc-input-group dc-form-grid" >
-                                                <select id="descTipo" onChange={actualizarDescuento}>
+                                            <div className="dc-input-group dc-form-grid">
+                                                <select id="descTipo" onChange={actualizarDescuento} defaultValue={currentVenta.componentes.descuento.tipo}>
                                                     <option value="porcentaje">% Porcentaje</option>
                                                     <option value="monto">S/ Monto fijo</option>
                                                 </select>
@@ -336,9 +625,8 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                                             </div>
                                         )}
                                     </div>
-                                    {/* Cupón */}
-                                    <div className="componente-card" >
-                                        <div className="componente-header" >
+                                    <div className="componente-card">
+                                        <div className="componente-header">
                                             <strong>🎫 Cupón</strong>
                                             <div
                                                 className={`toggle-componente ${currentVenta.componentes.cupon.activo ? 'active' : ''}`}
@@ -365,9 +653,9 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                             <i className="fas fa-chevron-down"></i>
                         </div>
                         {fasesAbiertas[4] && (
-                            <div className="fase-body" >
+                            <div className="fase-body">
                                 <div className="dc-form-grid">
-                                    <div className="metodos-pago" >
+                                    <div className="metodos-pago">
                                         {['efectivo', 'tarjeta', 'yape', 'plin'].map(m => (
                                             <div
                                                 key={m}
@@ -382,12 +670,22 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                                         {currentVenta.metodoPago.tipo === 'efectivo' && (
                                             <div>
                                                 <label>Monto con el que paga:</label>
-                                                <input type="number" id="montoPago" placeholder="S/ " />
+                                                <input
+                                                    type="number"
+                                                    id="montoPago"
+                                                    placeholder="S/ "
+                                                    onChange={handleMontoPagoChange}
+                                                />
+                                                {montoPago > 0 && montoPago < currentVenta.total && (
+                                                    <div style={{ color: 'red', fontSize: '0.8rem' }}>
+                                                        El monto debe ser mayor o igual al total (S/ {currentVenta.total.toFixed(2)})
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                         {currentVenta.metodoPago.tipo === 'yape' && (
-                                            <div className="qr-container" >
-                                                <i className="fab fa-yape" ></i>
+                                            <div className="qr-container">
+                                                <i className="fab fa-yape"></i>
                                                 <p><strong>Yape</strong> - Número: 999 888 777</p>
                                             </div>
                                         )}
@@ -431,6 +729,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                     <div id="vistaPreviaContenido" dangerouslySetInnerHTML={{ __html: generarVistaPreviaHTML(ventaPreview, tipoComprobante) }} />
                 </div>
             </div>
-        </Modal >
+        </Modal>
     );
 };

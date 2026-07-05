@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useVentas } from '../../../../context/SalesContext';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useToast } from '../../../../hooks/base/useToast';
-import { Venta, ProductoVenta, Devolucion } from '../../../../features/types/sales';
+import { Venta } from '../../../../features/types/sales';
 import { generarPDFNotaCredito } from '../../../../services/pdf/pdfService';
 
 interface DevolucionModalProps {
@@ -12,34 +13,63 @@ interface DevolucionModalProps {
     onSuccess: () => void;
 }
 
-interface ProductoDevolucion {
-    id: number;
+interface ProductoAgrupado {
     nombre: string;
-    precio: number;
-    cantidad: number;
+    detalleIds: number[];
+    precioPromedio: number;
+    cantidadTotal: number;
     cantidadDevuelta: number;
     maxDevolver: number;
 }
 
 export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
-    const { ventas, setVentas, addActivity, addToHistory } = useVentas();
+    const { addActivity, addToHistory, refreshData } = useVentas();
+    const { user } = useAuth();
     const { showToast } = useToast();
 
-    const [productosDevolucion, setProductosDevolucion] = useState<ProductoDevolucion[]>([]);
+    const [productosAgrupados, setProductosAgrupados] = useState<ProductoAgrupado[]>([]);
     const [motivo, setMotivo] = useState('Producto defectuoso');
     const [notaCreditoNumero, setNotaCreditoNumero] = useState('');
     const [faseAbierta, setFaseAbierta] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (venta && isOpen) {
-            setProductosDevolucion(
-                venta.productos.map(p => ({
-                    ...p,
+            const map = new Map<string, {
+                detalleIds: number[],
+                precios: number[],
+                cantidades: number[]
+            }>();
+
+            venta.productos.forEach(p => {
+                if (!p.detalleId) return;
+                const key = p.nombre;
+                if (!map.has(key)) {
+                    map.set(key, { detalleIds: [], precios: [], cantidades: [] });
+                }
+                const grupo = map.get(key)!;
+                grupo.detalleIds.push(p.detalleId);
+                grupo.precios.push(p.precio);
+                grupo.cantidades.push(p.cantidad);
+            });
+
+            const agrupados: ProductoAgrupado[] = [];
+            map.forEach((value, nombre) => {
+                const totalCantidad = value.cantidades.reduce((a, b) => a + b, 0);
+                const precioPromedio = value.precios.reduce((a, b) => a + b, 0) / value.precios.length;
+                agrupados.push({
+                    nombre,
+                    detalleIds: value.detalleIds,
+                    precioPromedio: Math.round(precioPromedio * 100) / 100,
+                    cantidadTotal: totalCantidad,
                     cantidadDevuelta: 0,
-                    maxDevolver: p.cantidad
-                }))
-            );
-            setNotaCreditoNumero(`NC-${venta.numero}-${(venta.devoluciones?.length || 0) + 1}`);
+                    maxDevolver: totalCantidad
+                });
+            });
+
+            setProductosAgrupados(agrupados);
+            const devCount = (venta.devoluciones?.length || 0) + 1;
+            setNotaCreditoNumero(`NC-${venta.numero}-${devCount}`);
             setMotivo('Producto defectuoso');
         }
     }, [venta, isOpen]);
@@ -48,73 +78,84 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
         setFaseAbierta(!faseAbierta);
     };
 
-    const actualizarCantidadDevuelta = (id: number, cantidad: number) => {
-        setProductosDevolucion(prev =>
-            prev.map(p =>
-                p.id === id ? { ...p, cantidadDevuelta: Math.min(cantidad, p.maxDevolver) } : p
+    const actualizarCantidadDevuelta = (index: number, cantidad: number) => {
+        setProductosAgrupados(prev =>
+            prev.map((p, i) =>
+                i === index ? { ...p, cantidadDevuelta: Math.min(cantidad, p.maxDevolver) } : p
             )
         );
     };
 
     const calcularTotalDevolucion = (): number => {
-        return productosDevolucion.reduce((total, p) => total + (p.cantidadDevuelta * p.precio), 0);
+        return productosAgrupados.reduce((total, p) => total + (p.cantidadDevuelta * p.precioPromedio), 0);
     };
 
-    const procesarDevolucion = () => {
+    const procesarDevolucion = async () => {
         if (!venta) return;
 
-        const productosDevueltos = productosDevolucion.filter(p => p.cantidadDevuelta > 0);
+        const productosDevueltos = productosAgrupados.filter(p => p.cantidadDevuelta > 0);
         if (productosDevueltos.length === 0) {
             showToast("Seleccione al menos un producto", "warning", "Campos incompletos");
             return;
         }
 
-        const montoTotal = calcularTotalDevolucion();
-        const nuevaDevolucion: Devolucion = {
-            fecha: new Date().toLocaleString(),
-            productos: productosDevueltos.map(p => ({
-                id: p.id,
-                nombre: p.nombre,
-                precio: p.precio,
-                cantidad: p.cantidadDevuelta
-            })),
-            monto: montoTotal,
-            motivo,
-            notaCredito: notaCreditoNumero,
-            usuario: "Ana Martínez"
-        };
-
-        if (!venta.devoluciones) venta.devoluciones = [];
-        venta.devoluciones.push(nuevaDevolucion);
-
-        // Actualizar stock de productos
-        venta.productos = venta.productos.map(p => {
-            const devuelto = productosDevueltos.find(d => d.id === p.id);
-            if (devuelto) {
-                return { ...p, cantidad: p.cantidad - devuelto.cantidadDevuelta };
-            }
-            return p;
-        }).filter(p => p.cantidad > 0);
-
-        // Actualizar estado de la venta
-        if (venta.productos.length === 0) {
-            venta.estado = "devolucion-total";
-        } else {
-            venta.estado = "devolucion-parcial";
+        const userId = user?.id;
+        if (!userId) {
+            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+            return;
         }
 
-        // Recalcular totales
-        venta.subtotal = venta.productos.reduce((s, p) => s + p.cantidad * p.precio, 0);
-        venta.igv = venta.subtotal * 0.18;
-        venta.total = venta.subtotal + venta.igv;
+        const montoTotal = calcularTotalDevolucion();
 
-        addToHistory(venta, "DEVOLUCIÓN", `Monto: S/ ${montoTotal} - Motivo: ${motivo} - NC: ${notaCreditoNumero}`);
-        addActivity("DEVOLUCIÓN", "ventas", `${venta.numero} - S/ ${montoTotal} - NC: ${notaCreditoNumero}`);
-        generarPDFNotaCredito(venta, nuevaDevolucion, montoTotal, notaCreditoNumero);
-        setVentas([...ventas]);
-        showToast(`Devolución procesada. Nota Crédito: ${notaCreditoNumero}`, "success", "Devolución");
-        onSuccess();
-        onClose();
+        const productosParaAPI: { id_detalle_venta: number; cantidad: number }[] = [];
+        productosDevueltos.forEach(grupo => {
+            const primerDetalleId = grupo.detalleIds[0];
+            productosParaAPI.push({
+                id_detalle_venta: primerDetalleId,
+                cantidad: grupo.cantidadDevuelta
+            });
+        });
+
+        setIsSubmitting(true);
+        try {
+            const payload = {
+                productos_devueltos: productosParaAPI,
+                motivo,
+                nota_credito: notaCreditoNumero,
+                usuario_id: userId
+            };
+
+            const { ventaApi } = await import('../../../../services/api/ventaApi');
+            const resultado = await ventaApi.devolver(venta.id, payload);
+
+            await refreshData();
+
+            await addActivity("DEVOLUCIÓN", "ventas", `${venta.numero} - S/ ${montoTotal} - NC: ${notaCreditoNumero}`);
+            await addToHistory(venta, "DEVOLUCIÓN", `Monto: S/ ${montoTotal} - Motivo: ${motivo} - NC: ${notaCreditoNumero}`);
+
+            generarPDFNotaCredito(venta, {
+                fecha: new Date().toLocaleString(),
+                productos: productosDevueltos.map(p => ({
+                    id: 0,
+                    nombre: p.nombre,
+                    precio: p.precioPromedio,
+                    cantidad: p.cantidadDevuelta
+                })),
+                monto: montoTotal,
+                motivo,
+                notaCredito: notaCreditoNumero,
+                usuario: user?.nombre_completo || 'Usuario'
+            }, montoTotal, notaCreditoNumero);
+
+            showToast(`Devolución procesada. Nota Crédito: ${notaCreditoNumero}`, "success", "Devolución");
+            onSuccess();
+            onClose();
+        } catch (error) {
+            console.error('[DevolucionModal] Error al procesar devolución:', error);
+            showToast('Error al procesar la devolución', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const totalDevolucion = calcularTotalDevolucion();
@@ -123,7 +164,9 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
     const modalFooter = (
         <>
             <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
-            <button className="dc-btn success" onClick={procesarDevolucion}>Procesar Devolución</button>
+            <button className="dc-btn success" onClick={procesarDevolucion} disabled={isSubmitting}>
+                {isSubmitting ? 'Procesando...' : 'Procesar Devolución'}
+            </button>
         </>
     );
 
@@ -164,23 +207,23 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
 
             <div className="fase">
                 <div className="fase-header" onClick={toggleFase}>
-                    <span><i className="fas fa-user"></i>Seleccione productos a devolver ahora</span>
+                    <span><i className="fas fa-user"></i> Seleccione productos a devolver ahora</span>
                     <i className="fas fa-chevron-down"></i>
                 </div>
 
                 {faseAbierta && (
                     <div className="fase-body">
-                        {productosDevolucion.map(p => (
-                            <div key={p.id} className="detalle-producto-item">
-                                <div><strong className="dc-info-label">{p.nombre}:</strong> S/ {p.precio.toFixed(2)}</div>
-                                <div><strong className="dc-info-label">{p.maxDevolver} unidades:</strong> S/ {(p.maxDevolver * p.precio).toFixed(2)}</div>
+                        {productosAgrupados.map((p, idx) => (
+                            <div key={idx} className="detalle-producto-item">
+                                <div><strong className="dc-info-label">{p.nombre}:</strong> S/ {p.precioPromedio.toFixed(2)}</div>
+                                <div><strong className="dc-info-label">{p.maxDevolver} unidades:</strong> S/ {(p.maxDevolver * p.precioPromedio).toFixed(2)}</div>
                                 <div><strong className="dc-info-label">Devolver: </strong>
                                     <input
                                         type="number"
                                         min="0"
                                         max={p.maxDevolver}
                                         value={p.cantidadDevuelta}
-                                        onChange={(e) => actualizarCantidadDevuelta(p.id, parseInt(e.target.value) || 0)}
+                                        onChange={(e) => actualizarCantidadDevuelta(idx, parseInt(e.target.value) || 0)}
                                         className="cantidad-input"
                                     /> de {p.maxDevolver}
                                 </div>
@@ -207,7 +250,6 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
                         </div>
                     </div>
                 )}
-
 
                 <div style={{ marginTop: '1rem', padding: '0.8rem', background: '#d1ecf1', borderRadius: '0.5rem' }}>
                     <i className="fas fa-info-circle"></i> Se generará una Nota de Crédito por el monto devuelto.
