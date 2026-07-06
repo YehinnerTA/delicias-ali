@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
-import { useCateringSales } from '../../../../context/CateringContext';
+import { useCateringService } from '../../../../context/CateringContext';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useToast } from '../../../../hooks/base/useToast';
-import { VentaCatering, ServicioCatering, MaterialVenta, CANTIDAD_MINIMA_PRODUCTOS, SERVICIOS_DISPONIBLES, CATALOGO_MATERIALES } from '../../../../features/types/catering';
+import { VentaCatering, ServicioCatering, MaterialVenta, ProductoVenta, ProductoCarta, CANTIDAD_MINIMA_PRODUCTOS } from '../../../../features/types/catering';
 import { generarVistaPreviaHTML, generarPDF } from '../../../../services/pdf/pdfService';
 
 interface NewCateringModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: (venta: VentaCatering) => void;
+    onSuccess: () => void;
 }
 
 interface VentaTemporal {
@@ -29,7 +30,8 @@ interface VentaTemporal {
 }
 
 export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onClose, onSuccess }) => {
-    const { ventas, serviciosDisponibles, catalogoMateriales, addActivity, addToHistory, getNextNumeroVenta } = useCateringSales();
+    const { serviciosDisponibles, catalogoMateriales, addActivity, addToHistory, getNextNumeroVenta, refreshData } = useCateringService();
+    const { user } = useAuth();
     const { showToast } = useToast();
 
     const [currentVenta, setCurrentVenta] = useState<VentaTemporal>({
@@ -49,6 +51,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
 
     const [tipoComprobante, setTipoComprobante] = useState<'ticket' | 'factura'>('ticket');
     const [fasesAbiertas, setFasesAbiertas] = useState<{ [key: number]: boolean }>({ 1: true, 2: false, 3: false, 4: false, 5: false, 6: false });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const toggleFase = (fase: number) => {
         setFasesAbiertas(prev => ({ ...prev, [fase]: !prev[fase] }));
@@ -85,12 +88,14 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
     }, [currentVenta.servicios, currentVenta.materiales, currentVenta.descuentoActivo,
     currentVenta.descuentoValor, currentVenta.descuentoTipo, currentVenta.cuponActivo, currentVenta.cuponValor]);
 
-    // ============ SERVICIOS ============
     const agregarNuevoServicio = () => {
         const select = document.getElementById('nuevoServicioSelect') as HTMLSelectElement;
         const tipoKey = select.value;
         const servicioInfo = serviciosDisponibles[tipoKey];
-        if (!servicioInfo) return;
+        if (!servicioInfo) {
+            showToast("Seleccione un servicio válido", "warning", "Error");
+            return;
+        }
 
         const nuevoServicio: ServicioCatering = {
             id: Date.now(),
@@ -115,7 +120,10 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
 
     const agregarProductoAServicio = (servicioId: number) => {
         const servicio = currentVenta.servicios.find(s => s.id === servicioId);
-        if (!servicio) return;
+        if (!servicio) {
+            showToast("Servicio no encontrado", "error", "Error");
+            return;
+        }
 
         const select = document.getElementById(`select-prod-${servicioId}`) as HTMLSelectElement;
         const cantidadInput = document.getElementById(`cant-prod-${servicioId}`) as HTMLInputElement;
@@ -130,26 +138,64 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         }
 
         const catalogoServ = serviciosDisponibles[servicio.tipoKey];
-        const producto = catalogoServ.carta.find(p => p.id === prodId);
-        if (!producto) return;
-
-        const existente = servicio.productos.find(p => p.id === producto.id);
-        if (existente) {
-            existente.cantidad += cantidad;
-        } else {
-            servicio.productos.push({ ...producto, cantidad: cantidad });
+        if (!catalogoServ) {
+            showToast("Catálogo de servicio no encontrado", "error", "Error");
+            return;
         }
-        setCurrentVenta({ ...currentVenta });
+
+        const producto = catalogoServ.carta.find((p: ProductoCarta) => p.id === prodId);
+        if (!producto) {
+            showToast("Producto no encontrado en el catálogo", "error", "Error");
+            return;
+        }
+
+        setCurrentVenta(prev => {
+            const servIndex = prev.servicios.findIndex(s => s.id === servicioId);
+            if (servIndex === -1) return prev;
+
+            const serv = prev.servicios[servIndex];
+            const prodIndex = serv.productos.findIndex((p: ProductoVenta) => p.id === producto.id);
+            let nuevosProductos;
+            if (prodIndex !== -1) {
+                nuevosProductos = serv.productos.map((p: ProductoVenta, idx: number) =>
+                    idx === prodIndex ? { ...p, cantidad: p.cantidad + cantidad } : p
+                );
+            } else {
+                nuevosProductos = [...serv.productos, { ...producto, cantidad }];
+            }
+
+            const nuevosServicios = prev.servicios.map((s, idx) =>
+                idx === servIndex ? { ...s, productos: nuevosProductos } : s
+            );
+
+            return {
+                ...prev,
+                servicios: nuevosServicios
+            };
+        });
+
         select.value = "";
         cantidadInput.value = CANTIDAD_MINIMA_PRODUCTOS.toString();
+        showToast(`Producto agregado al servicio`, "success", "Producto agregado");
     };
 
     const eliminarProductoDeServicio = (servicioId: number, prodIndex: number) => {
-        const servicio = currentVenta.servicios.find(s => s.id === servicioId);
-        if (servicio) {
-            servicio.productos.splice(prodIndex, 1);
-            setCurrentVenta({ ...currentVenta });
-        }
+        setCurrentVenta(prev => {
+            const servIndex = prev.servicios.findIndex(s => s.id === servicioId);
+            if (servIndex === -1) return prev;
+
+            const serv = prev.servicios[servIndex];
+            const nuevosProductos = serv.productos.filter((_, idx) => idx !== prodIndex);
+            const nuevosServicios = prev.servicios.map((s, idx) =>
+                idx === servIndex ? { ...s, productos: nuevosProductos } : s
+            );
+
+            return {
+                ...prev,
+                servicios: nuevosServicios
+            };
+        });
+        showToast("Producto eliminado del servicio", "info");
     };
 
     const actualizarCantProdServicio = (servicioId: number, prodIndex: number, nuevaCant: string) => {
@@ -158,23 +204,48 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
             showToast(`⚠️ Cantidad mínima ${CANTIDAD_MINIMA_PRODUCTOS}`, "warning");
             cantidad = CANTIDAD_MINIMA_PRODUCTOS;
         }
-        const servicio = currentVenta.servicios.find(s => s.id === servicioId);
-        if (servicio && servicio.productos[prodIndex]) {
-            servicio.productos[prodIndex].cantidad = cantidad;
-            setCurrentVenta({ ...currentVenta });
-        }
+
+        setCurrentVenta(prev => {
+            const servIndex = prev.servicios.findIndex(s => s.id === servicioId);
+            if (servIndex === -1) return prev;
+
+            const serv = prev.servicios[servIndex];
+            const nuevosProductos = serv.productos.map((p, idx) =>
+                idx === prodIndex ? { ...p, cantidad } : p
+            );
+            const nuevosServicios = prev.servicios.map((s, idx) =>
+                idx === servIndex ? { ...s, productos: nuevosProductos } : s
+            );
+
+            return {
+                ...prev,
+                servicios: nuevosServicios
+            };
+        });
     };
 
     const actualizarPrecioProducto = (servicioId: number, prodIndex: number, nuevoPrecio: string) => {
         const precio = parseFloat(nuevoPrecio) || 0;
-        const servicio = currentVenta.servicios.find(s => s.id === servicioId);
-        if (servicio && servicio.productos[prodIndex]) {
-            servicio.productos[prodIndex].precio = precio;
-            setCurrentVenta({ ...currentVenta });
-        }
+
+        setCurrentVenta(prev => {
+            const servIndex = prev.servicios.findIndex(s => s.id === servicioId);
+            if (servIndex === -1) return prev;
+
+            const serv = prev.servicios[servIndex];
+            const nuevosProductos = serv.productos.map((p, idx) =>
+                idx === prodIndex ? { ...p, precio } : p
+            );
+            const nuevosServicios = prev.servicios.map((s, idx) =>
+                idx === servIndex ? { ...s, productos: nuevosProductos } : s
+            );
+
+            return {
+                ...prev,
+                servicios: nuevosServicios
+            };
+        });
     };
 
-    // ============ MATERIALES ============
     const agregarMaterial = () => {
         const select = document.getElementById('materialSelect') as HTMLSelectElement;
         const cantidadInput = document.getElementById('cantidadMaterial') as HTMLInputElement;
@@ -182,38 +253,49 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
 
         const matId = parseInt(select.value);
         const cantidad = parseInt(cantidadInput.value) || 1;
-        const material = catalogoMateriales.find(m => m.id === matId);
+        const material = catalogoMateriales.find((m: MaterialVenta) => m.id === matId);
         if (!material) return;
 
-        const existente = currentVenta.materiales.find(m => m.id === material.id);
-        if (existente) {
-            existente.cantidad += cantidad;
-        } else {
-            currentVenta.materiales.push({ ...material, cantidad });
-        }
-        setCurrentVenta({ ...currentVenta });
+        setCurrentVenta(prev => {
+            const existente = prev.materiales.find((m: MaterialVenta) => m.id === material.id);
+            let nuevosMateriales;
+            if (existente) {
+                nuevosMateriales = prev.materiales.map((m: MaterialVenta) =>
+                    m.id === material.id ? { ...m, cantidad: m.cantidad + cantidad } : m
+                );
+            } else {
+                nuevosMateriales = [...prev.materiales, { ...material, cantidad }];
+            }
+            return { ...prev, materiales: nuevosMateriales };
+        });
+
         select.value = "";
         cantidadInput.value = "1";
     };
 
     const eliminarMaterial = (idx: number) => {
-        currentVenta.materiales.splice(idx, 1);
-        setCurrentVenta({ ...currentVenta });
+        setCurrentVenta(prev => ({
+            ...prev,
+            materiales: prev.materiales.filter((_, i) => i !== idx)
+        }));
     };
 
     const actualizarCantMaterial = (idx: number, val: string) => {
         const cantidad = parseInt(val) || 1;
-        currentVenta.materiales[idx].cantidad = cantidad;
-        setCurrentVenta({ ...currentVenta });
+        setCurrentVenta(prev => ({
+            ...prev,
+            materiales: prev.materiales.map((m, i) => i === idx ? { ...m, cantidad } : m)
+        }));
     };
 
     const actualizarPrecioMaterial = (idx: number, nuevoPrecio: string) => {
         const precio = parseFloat(nuevoPrecio) || 0;
-        currentVenta.materiales[idx].precio = precio;
-        setCurrentVenta({ ...currentVenta });
+        setCurrentVenta(prev => ({
+            ...prev,
+            materiales: prev.materiales.map((m, i) => i === idx ? { ...m, precio } : m)
+        }));
     };
 
-    // ============ DESCUENTOS Y PAGO ============
     const toggleDescuento = () => {
         setCurrentVenta(prev => ({ ...prev, descuentoActivo: !prev.descuentoActivo }));
     };
@@ -259,8 +341,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         setCurrentVenta(prev => ({ ...prev, metodoPago: metodo }));
     };
 
-    // ============ REGISTRAR VENTA ============
-    const registrarVenta = () => {
+    const registrarVenta = async () => {
         const clienteNombre = (document.getElementById('clienteNombre') as HTMLInputElement)?.value.trim();
         const clienteDoc = (document.getElementById('clienteDoc') as HTMLInputElement)?.value || "";
 
@@ -273,41 +354,77 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
             return;
         }
 
+        const userId = user?.id;
+        if (!userId) {
+            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+            return;
+        }
+
         const eventoFecha = (document.getElementById('eventoFecha') as HTMLInputElement)?.value || "";
         const eventoHorario = (document.getElementById('eventoHorario') as HTMLInputElement)?.value || "12:00";
         const eventoPersonas = parseInt((document.getElementById('eventoPersonas') as HTMLInputElement)?.value) || 1;
         const eventoTipoDesayuno = (document.getElementById('eventoTipoDesayuno') as HTMLSelectElement)?.value || "Clásico";
 
-        const nuevaVenta: VentaCatering = {
-            id: Date.now(),
-            numero: getNextNumeroVenta(),
-            fecha: new Date().toLocaleString(),
-            fechaObj: new Date(),
-            cliente: clienteNombre,
-            clienteDoc,
-            servicios: JSON.parse(JSON.stringify(currentVenta.servicios)),
-            materiales: JSON.parse(JSON.stringify(currentVenta.materiales)),
-            eventoData: { fecha: eventoFecha, horario: eventoHorario, personas: eventoPersonas, tipoDesayuno: eventoTipoDesayuno },
-            subtotal: currentVenta.subtotal,
-            descuento: currentVenta.descuentoActivo ? currentVenta.descuentoValor : 0,
-            igv: currentVenta.igv,
-            total: currentVenta.total,
-            metodoPago: currentVenta.metodoPago,
-            estado: 'completada',
-            devoluciones: [],
-            historial: []
-        };
+        setIsSubmitting(true);
+        try {
+            const numero = await getNextNumeroVenta();
 
-        addToHistory(nuevaVenta, "CREACIÓN", `${nuevaVenta.servicios.length} servicio(s), ${nuevaVenta.materiales.length} material(es) - Total S/ ${nuevaVenta.total}`);
-        addActivity("VENTA", "ventas", `${nuevaVenta.numero} - ${nuevaVenta.cliente} - S/ ${nuevaVenta.total}`);
-        generarPDF(nuevaVenta as any, tipoComprobante);
-        showToast(`Venta ${nuevaVenta.numero} registrada y PDF generado`, "success", "Venta registrada");
+            const payload = {
+                cliente_documento: clienteDoc,
+                cliente_nombre: clienteNombre,
+                cliente_apellido: '',
+                cliente_email: '',
+                cliente_celular: '',
+                servicios: currentVenta.servicios.map(serv => ({
+                    tipoKey: serv.tipoKey,
+                    productos: serv.productos.map(p => ({
+                        id: p.id,
+                        nombre: p.nombre,
+                        precio: p.precio,
+                        cantidad: p.cantidad
+                    }))
+                })),
+                materiales: currentVenta.materiales.map(m => ({
+                    id: m.id,
+                    nombre: m.nombre,
+                    precio: m.precio,
+                    cantidad: m.cantidad
+                })),
+                eventoData: {
+                    fecha: eventoFecha,
+                    horario: eventoHorario,
+                    personas: eventoPersonas,
+                    tipoDesayuno: eventoTipoDesayuno
+                },
+                subtotal: currentVenta.subtotal,
+                descuento: currentVenta.descuentoActivo ? currentVenta.descuentoValor : 0,
+                igv: currentVenta.igv,
+                total: currentVenta.total,
+                metodo_pago: currentVenta.metodoPago,
+                usuario_id: userId
+            };
 
-        onSuccess(nuevaVenta);
-        onClose();
+            const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
+            const nuevaVenta = await cateringServiceApi.create(payload);
+
+            await refreshData();
+
+            await addActivity("VENTA", "ventas", `${nuevaVenta.numero} - ${nuevaVenta.cliente} - S/ ${nuevaVenta.total}`);
+            await addToHistory(nuevaVenta, "CREACIÓN", `${nuevaVenta.servicios.length} servicio(s), ${nuevaVenta.materiales.length} material(es) - Total S/ ${nuevaVenta.total}`);
+
+            generarPDF(nuevaVenta as any, tipoComprobante);
+            showToast(`Venta ${nuevaVenta.numero} registrada y PDF generado`, "success", "Venta registrada");
+
+            onSuccess();
+            onClose();
+        } catch (error) {
+            console.error('[NewCateringModal] Error al registrar venta:', error);
+            showToast('Error al registrar la venta', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    // ============ VISTA PREVIA ============
     const ventaPreview = {
         cliente: (document.getElementById('clienteNombre') as HTMLInputElement)?.value || "Cliente",
         servicios: currentVenta.servicios,
@@ -316,7 +433,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         descuento: currentVenta.descuentoActivo ? currentVenta.descuentoValor : 0,
         igv: currentVenta.igv,
         total: currentVenta.total,
-        numero: getNextNumeroVenta()
+        numero: 'V-XXXXXX'
     };
 
     const actualizarPrevisualizacion = () => {
@@ -327,7 +444,6 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         }
     };
 
-    // ============ RENDERIZAR SERVICIOS ============
     const renderServicios = () => {
         if (currentVenta.servicios.length === 0) {
             return <div className="empty-servicios">No hay servicios agregados.</div>;
@@ -335,7 +451,25 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
 
         return currentVenta.servicios.map(serv => {
             const catalogoServ = serviciosDisponibles[serv.tipoKey];
-            const selectOptions = catalogoServ.carta.map(p =>
+            if (!catalogoServ) {
+                return (
+                    <div key={serv.id} className="dc-container">
+                        <div className="service-divider">
+                            <div className="service-label-header">
+                                <span className="service-name">Servicio no disponible</span>
+                                <button className="dc-btn-default dc-eliminar" onClick={() => eliminarServicio(serv.id)}>
+                                    <i className="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div className="service-body">
+                            <p style={{ color: 'red' }}>Error: Tipo de servicio "{serv.tipoKey}" no encontrado en catálogo.</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            const selectOptions = catalogoServ.carta.map((p: ProductoCarta) =>
                 `<option value="${p.id}">${p.nombre} - S/ ${p.precio}</option>`
             ).join('');
 
@@ -350,7 +484,6 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                             min={CANTIDAD_MINIMA_PRODUCTOS}
                             onChange={(e) => actualizarCantProdServicio(serv.id, idx, e.target.value)}
                         />
-                        <span className="cantidad-minima">(mín. {CANTIDAD_MINIMA_PRODUCTOS})</span>
                     </td>
                     <td>
                         <input
@@ -381,7 +514,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                     <div className="service-body">
                         <div className="dc-form-grid">
                             <div className="dc-input-group">
-                                <label>Servicio</label>
+                                <label>Producto</label>
                                 <select id={`select-prod-${serv.id}`} dangerouslySetInnerHTML={{ __html: selectOptions }} />
                             </div>
                             <div className="dc-input-group">
@@ -416,7 +549,6 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         });
     };
 
-    // ============ RENDERIZAR MATERIALES ============
     const renderMateriales = () => {
         if (currentVenta.materiales.length === 0) {
             return <div className="empty-servicios">No hay materiales agregados.</div>;
@@ -471,15 +603,15 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         `<option value="${key}">${serviciosDisponibles[key].nombre}</option>`
     ).join('');
 
-    const materialesOptions = catalogoMateriales.map(m =>
+    const materialesOptions = catalogoMateriales.map((m: MaterialVenta) =>
         `<option value="${m.id}">${m.nombre} - S/ ${m.precio}</option>`
     ).join('');
 
     const modalFooter = (
         <>
             <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
-            <button className="dc-btn success" onClick={registrarVenta}>
-                <i className="fas fa-check-circle"></i> Registrar e Imprimir
+            <button className="dc-btn success" onClick={registrarVenta} disabled={isSubmitting}>
+                {isSubmitting ? 'Registrando...' : <><i className="fas fa-check-circle"></i> Registrar e Imprimir</>}
             </button>
         </>
     );

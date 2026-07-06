@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CateringSalesProvider, useCateringSales } from '../../context/CateringContext';
+import { CateringServiceProvider, useCateringService } from '../../context/CateringContext';
 import MainLayout from '../partials/MainLayout';
 import { NewCateringModal } from '../../components/common/modal/catering/NewCateringModal';
 import { CateringDetailsModal } from '../../components/common/modal/catering/CateringDetailsModal';
@@ -32,10 +32,9 @@ const ventasFiltersConfig: FilterField[] = [
 ];
 
 const CateringSalesContent: React.FC = () => {
-    const { ventas, filters, setFilters, activityLogs, setVentas } = useCateringSales();
+    const { ventas, filters, setFilters, activityLogs, refreshData } = useCateringService();
     const { toasts, showToast, removeToast } = useToast();
 
-    // Estados para modales
     const [nuevaVentaOpen, setNuevaVentaOpen] = useState(false);
     const [detalleVentaOpen, setDetalleVentaOpen] = useState(false);
     const [editarVentaOpen, setEditarVentaOpen] = useState(false);
@@ -45,7 +44,8 @@ const CateringSalesContent: React.FC = () => {
     const [historialOpen, setHistorialOpen] = useState(false);
     const [cocinaOpen, setCocinaOpen] = useState(false);
     const [anularOpen, setAnularOpen] = useState(false);
-    const [selectedVenta, setSelectedVenta] = useState<VentaCatering | null>(null); const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    const [selectedVenta, setSelectedVenta] = useState<VentaCatering | null>(null);
+    const [filterValues, setFilterValues] = useState<Record<string, string>>({
         search: filters.search,
         estado: filters.estado,
         fecha: filters.fecha
@@ -115,8 +115,7 @@ const CateringSalesContent: React.FC = () => {
 
     const ventasActivityLogs = activityLogs.filter(log => log.modulo === 'ventas').slice(0, 8);
 
-    const handleNuevaVentaSuccess = (nuevaVenta: VentaCatering) => {
-        setVentas([nuevaVenta, ...ventas]);
+    const handleNuevaVentaSuccess = () => {
         setNuevaVentaOpen(false);
     };
 
@@ -187,11 +186,11 @@ const CateringSalesContent: React.FC = () => {
 
 const CateringSalesManagement: React.FC = () => {
     return (
-        <CateringSalesProvider>
+        <CateringServiceProvider>
             <MainLayout>
                 <CateringSalesContent />
             </MainLayout>
-        </CateringSalesProvider>
+        </CateringServiceProvider>
     );
 };
 

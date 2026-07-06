@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
-import { useCateringSales } from '../../../../context/CateringContext';
+import { useCateringService } from '../../../../context/CateringContext';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useToast } from '../../../../hooks/base/useToast';
-import { VentaCatering, ServicioCatering, MaterialVenta, CANTIDAD_MINIMA_PRODUCTOS, SERVICIOS_DISPONIBLES, CATALOGO_MATERIALES } from '../../../../features/types/catering';
+import { VentaCatering, ServicioCatering, MaterialVenta, ProductoVenta, ProductoCarta, CANTIDAD_MINIMA_PRODUCTOS } from '../../../../features/types/catering';
 
 interface CateringModifyModalProps {
     isOpen: boolean;
@@ -12,7 +13,8 @@ interface CateringModifyModalProps {
 }
 
 export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
-    const { ventas, setVentas, addActivity, addToHistory } = useCateringSales();
+    const { serviciosDisponibles, catalogoMateriales, addActivity, addToHistory, refreshData } = useCateringService();
+    const { user } = useAuth();
     const { showToast } = useToast();
 
     const [servicios, setServicios] = useState<ServicioCatering[]>([]);
@@ -21,6 +23,7 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
     const [clienteDoc, setClienteDoc] = useState('');
     const [eventoData, setEventoData] = useState({ fecha: "", horario: "12:00", personas: 1, tipoDesayuno: "Clásico" });
     const [fasesAbiertas, setFasesAbiertas] = useState<{ [key: number]: boolean }>({ 1: true, 2: false, 3: false, 4: false, 5: false });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (venta) {
@@ -36,11 +39,10 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
         setFasesAbiertas(prev => ({ ...prev, [fase]: !prev[fase] }));
     };
 
-    // ============ SERVICIOS ============
     const agregarNuevoServicio = () => {
         const select = document.getElementById('nuevoServicioSelectEditar') as HTMLSelectElement;
         const tipoKey = select.value;
-        const servicioInfo = SERVICIOS_DISPONIBLES[tipoKey];
+        const servicioInfo = serviciosDisponibles[tipoKey];
         if (!servicioInfo) return;
 
         const nuevoServicio: ServicioCatering = {
@@ -74,11 +76,11 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
             return;
         }
 
-        const catalogoServ = SERVICIOS_DISPONIBLES[servicio.tipoKey];
-        const producto = catalogoServ.carta.find(p => p.id === prodId);
+        const catalogoServ = serviciosDisponibles[servicio.tipoKey];
+        const producto = catalogoServ.carta.find((p: ProductoCarta) => p.id === prodId);
         if (!producto) return;
 
-        const existente = servicio.productos.find(p => p.id === producto.id);
+        const existente = servicio.productos.find((p: ProductoVenta) => p.id === producto.id);
         if (existente) {
             existente.cantidad += cantidad;
         } else {
@@ -119,7 +121,6 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
         }
     };
 
-    // ============ MATERIALES ============
     const agregarMaterial = () => {
         const select = document.getElementById('materialSelectEditar') as HTMLSelectElement;
         const cantidadInput = document.getElementById('cantidadMaterialEditar') as HTMLInputElement;
@@ -127,10 +128,10 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
 
         const matId = parseInt(select.value);
         const cantidad = parseInt(cantidadInput.value) || 1;
-        const material = CATALOGO_MATERIALES.find(m => m.id === matId);
+        const material = catalogoMateriales.find((m: MaterialVenta) => m.id === matId);
         if (!material) return;
 
-        const existente = materiales.find(m => m.id === material.id);
+        const existente = materiales.find((m: MaterialVenta) => m.id === material.id);
         if (existente) {
             existente.cantidad += cantidad;
         } else {
@@ -158,7 +159,6 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
         setMateriales([...materiales]);
     };
 
-    // ============ CÁLCULO DE TOTALES ============
     const calcularTotales = () => {
         let subtotalServicios = servicios.reduce((s, serv) =>
             s + serv.productos.reduce((sum, p) => sum + p.cantidad * p.precio, 0), 0);
@@ -169,10 +169,16 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
         return { subtotal, igv, total };
     };
 
-    const guardarCambios = () => {
+    const guardarCambios = async () => {
         if (!venta) return;
         if (servicios.length === 0 && materiales.length === 0) {
             showToast("Agregue al menos un servicio o material", "warning", "Campos incompletos");
+            return;
+        }
+
+        const userId = user?.id;
+        if (!userId) {
+            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
             return;
         }
 
@@ -180,21 +186,56 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
         const totalProductos = servicios.reduce((count, s) => count + s.productos.length, 0);
         const cambiosStr = `${servicios.length} servicio(s), ${totalProductos} producto(s), ${materiales.length} material(es)`;
 
-        venta.cliente = clienteNombre;
-        venta.clienteDoc = clienteDoc;
-        venta.servicios = servicios;
-        venta.materiales = materiales;
-        venta.eventoData = eventoData;
-        venta.subtotal = subtotal;
-        venta.igv = igv;
-        venta.total = total;
+        setIsSubmitting(true);
+        try {
+            const payload = {
+                cliente: clienteNombre,
+                clienteDoc: clienteDoc,
+                servicios: servicios.map(serv => ({
+                    tipoKey: serv.tipoKey,
+                    productos: serv.productos.map(p => ({
+                        id: p.id,
+                        nombre: p.nombre,
+                        precio: p.precio,
+                        cantidad: p.cantidad
+                    }))
+                })),
+                materiales: materiales.map(m => ({
+                    id: m.id,
+                    nombre: m.nombre,
+                    precio: m.precio,
+                    cantidad: m.cantidad
+                })),
+                eventoData: {
+                    fecha: eventoData.fecha,
+                    horario: eventoData.horario,
+                    personas: eventoData.personas,
+                    tipoDesayuno: eventoData.tipoDesayuno
+                },
+                subtotal,
+                igv,
+                total,
+                metodo_pago: venta.metodoPago,
+                usuario_id: userId
+            };
 
-        addToHistory(venta, "MODIFICACIÓN", `${cambiosStr}. Nuevo total: S/ ${total}`);
-        addActivity("EDITAR", "ventas", `${venta.numero} modificada`);
-        setVentas([...ventas]);
-        showToast("Venta actualizada", "success", "Actualizado");
-        onSuccess();
-        onClose();
+            const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
+            await cateringServiceApi.update(venta.id, payload);
+
+            await refreshData();
+
+            await addActivity("EDITAR", "ventas", `${venta.numero} modificada - ${cambiosStr}`);
+            await addToHistory(venta, "MODIFICACIÓN", `${cambiosStr}. Nuevo total: S/ ${total}`);
+
+            showToast("Venta actualizada correctamente", "success", "Actualizado");
+            onSuccess();
+            onClose();
+        } catch (error) {
+            console.error('[CateringModifyModal] Error al actualizar venta:', error);
+            showToast('Error al actualizar la venta', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const { subtotal, igv, total } = calcularTotales();
@@ -202,7 +243,9 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
     const modalFooter = (
         <>
             <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
-            <button className="dc-btn success" onClick={guardarCambios}>Guardar Cambios</button>
+            <button className="dc-btn success" onClick={guardarCambios} disabled={isSubmitting}>
+                {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+            </button>
         </>
     );
 
@@ -249,8 +292,9 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                         <div className="dc-form-grid">
                             <div className="dc-input-group">
                                 <select id="nuevoServicioSelectEditar">
-                                    {Object.keys(SERVICIOS_DISPONIBLES).map(key => (
-                                        <option key={key} value={key}>{SERVICIOS_DISPONIBLES[key].nombre}</option>
+                                    <option value="">Seleccionar servicio...</option>
+                                    {Object.keys(serviciosDisponibles).map(key => (
+                                        <option key={key} value={key}>{serviciosDisponibles[key].nombre}</option>
                                     ))}
                                 </select>
                             </div>
@@ -263,7 +307,7 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                 <div className="empty-servicios">No hay servicios agregados.</div>
                             ) : (
                                 servicios.map(serv => {
-                                    const catalogoServ = SERVICIOS_DISPONIBLES[serv.tipoKey];
+                                    const catalogoServ = serviciosDisponibles[serv.tipoKey];
 
                                     return (
                                         <div key={serv.id} className="dc-container">
@@ -280,7 +324,8 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                                     <div className='dc-input-group'>
                                                         <label>Servicio</label>
                                                         <select id={`select-prod-editar-${serv.id}`}>
-                                                            {catalogoServ.carta.map(p => (
+                                                            <option value="">Seleccionar producto...</option>
+                                                            {catalogoServ.carta.map((p: ProductoCarta) => (
                                                                 <option key={p.id} value={p.id}>{p.nombre} - S/ {p.precio}</option>
                                                             ))}
                                                         </select>
@@ -316,7 +361,6 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                                                             min={CANTIDAD_MINIMA_PRODUCTOS}
                                                                             onChange={(e) => actualizarCantProdServicio(serv.id, idx, e.target.value)}
                                                                         />
-                                                                        <span className="cantidad-minima">(mín. {CANTIDAD_MINIMA_PRODUCTOS})</span>
                                                                     </td>
                                                                     <td>
                                                                         <input
@@ -358,7 +402,8 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                             <div className="dc-input-group">
                                 <label>Material</label>
                                 <select id="materialSelectEditar">
-                                    {CATALOGO_MATERIALES.map(m => (
+                                    <option value="">Seleccionar material...</option>
+                                    {catalogoMateriales.map((m: MaterialVenta) => (
                                         <option key={m.id} value={m.id}>{m.nombre} - S/ {m.precio}</option>
                                     ))}
                                 </select>

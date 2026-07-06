@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
-import { useCateringSales } from '../../../../context/CateringContext';
+import { useCateringService } from '../../../../context/CateringContext';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useToast } from '../../../../hooks/base/useToast';
-import { VentaCatering, ServicioCatering, MaterialVenta, CANTIDAD_MINIMA_PRODUCTOS, SERVICIOS_DISPONIBLES, CATALOGO_MATERIALES } from '../../../../features/types/catering';
+import { VentaCatering, ServicioCatering, MaterialVenta, ProductoVenta, ProductoCarta, CANTIDAD_MINIMA_PRODUCTOS } from '../../../../features/types/catering';
 
 interface CateringAddProductsModalProps {
     isOpen: boolean;
@@ -11,24 +12,15 @@ interface CateringAddProductsModalProps {
     onSuccess: () => void;
 }
 
-// Tipo para productos temporales a agregar
-interface ProductoTemporal {
-    id: number;
-    nombre: string;
-    precio: number;
-    cantidad: number;
-    tipo: 'servicio' | 'material';
-    servicioId?: number;
-    servicioTipoKey?: string;
-}
-
 export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
-    const { ventas, setVentas, serviciosDisponibles, catalogoMateriales, addActivity, addToHistory } = useCateringSales();
+    const { serviciosDisponibles, catalogoMateriales, addActivity, addToHistory, refreshData } = useCateringService();
+    const { user } = useAuth();
     const { showToast } = useToast();
 
     const [nuevosServicios, setNuevosServicios] = useState<ServicioCatering[]>([]);
     const [nuevosMateriales, setNuevosMateriales] = useState<MaterialVenta[]>([]);
     const [tipoAgregar, setTipoAgregar] = useState<'servicio' | 'material'>('servicio');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -38,7 +30,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
         }
     }, [isOpen]);
 
-    // ============ AGREGAR SERVICIO COMPLETO ============
     const agregarNuevoServicio = () => {
         const select = document.getElementById('nuevoServicioSelectAgregar') as HTMLSelectElement;
         const tipoKey = select.value;
@@ -61,7 +52,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
         showToast("Servicio eliminado", "info");
     };
 
-    // ============ AGREGAR PRODUCTO A SERVICIO ============
     const agregarProductoAServicio = (servicioId: number) => {
         const servicio = nuevosServicios.find(s => s.id === servicioId);
         if (!servicio) return;
@@ -79,10 +69,10 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
         }
 
         const catalogoServ = serviciosDisponibles[servicio.tipoKey];
-        const producto = catalogoServ.carta.find(p => p.id === prodId);
+        const producto = catalogoServ.carta.find((p: ProductoCarta) => p.id === prodId);
         if (!producto) return;
 
-        const existente = servicio.productos.find(p => p.id === producto.id);
+        const existente = servicio.productos.find((p: ProductoVenta) => p.id === producto.id);
         if (existente) {
             existente.cantidad += cantidad;
         } else {
@@ -123,7 +113,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
         }
     };
 
-    // ============ AGREGAR MATERIALES ============
     const agregarMaterial = () => {
         const select = document.getElementById('materialSelectAgregar') as HTMLSelectElement;
         const cantidadInput = document.getElementById('cantidadMaterialAgregar') as HTMLInputElement;
@@ -131,10 +120,10 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
 
         const matId = parseInt(select.value);
         const cantidad = parseInt(cantidadInput.value) || 1;
-        const material = catalogoMateriales.find(m => m.id === matId);
+        const material = catalogoMateriales.find((m: MaterialVenta) => m.id === matId);
         if (!material) return;
 
-        const existente = nuevosMateriales.find(m => m.id === material.id);
+        const existente = nuevosMateriales.find((m: MaterialVenta) => m.id === material.id);
         if (existente) {
             existente.cantidad += cantidad;
         } else {
@@ -162,7 +151,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
         setNuevosMateriales([...nuevosMateriales]);
     };
 
-    // ============ CÁLCULO DE TOTALES ============
     const calcularTotales = () => {
         let subtotalServicios = nuevosServicios.reduce((s, serv) =>
             s + serv.productos.reduce((sum, p) => sum + p.cantidad * p.precio, 0), 0);
@@ -173,54 +161,91 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
         return { subtotal, igv, total };
     };
 
-    // ============ CONFIRMAR AGREGAR ============
-    const confirmarAgregar = () => {
+    const confirmarAgregar = async () => {
         if (!venta) return;
         if (nuevosServicios.length === 0 && nuevosMateriales.length === 0) {
             showToast("No hay servicios o materiales para agregar", "warning", "Campos incompletos");
             return;
         }
 
-        // Contar productos para el historial
+        const userId = user?.id;
+        if (!userId) {
+            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+            return;
+        }
+
         const totalProductos = nuevosServicios.reduce((count, s) => count + s.productos.length, 0);
         const totalMateriales = nuevosMateriales.length;
         const resumen = `${nuevosServicios.length} servicio(s) (${totalProductos} producto(s)), ${totalMateriales} material(es)`;
 
-        // Agregar nuevos servicios
-        nuevosServicios.forEach(nuevoServicio => {
-            venta.servicios.push(nuevoServicio);
-        });
+        setIsSubmitting(true);
+        try {
+            const serviciosActualizados = [...venta.servicios, ...nuevosServicios];
+            const materialesActualizados = [...venta.materiales];
 
-        // Agregar nuevos materiales
-        nuevosMateriales.forEach(nuevoMaterial => {
-            const existente = venta.materiales.find(m => m.id === nuevoMaterial.id);
-            if (existente) {
-                existente.cantidad += nuevoMaterial.cantidad;
-            } else {
-                venta.materiales.push({ ...nuevoMaterial });
-            }
-        });
+            nuevosMateriales.forEach(nuevoMaterial => {
+                const existente = materialesActualizados.find(m => m.id === nuevoMaterial.id);
+                if (existente) {
+                    existente.cantidad += nuevoMaterial.cantidad;
+                } else {
+                    materialesActualizados.push({ ...nuevoMaterial });
+                }
+            });
 
-        // Recalcular totales
-        venta.subtotal = venta.servicios.reduce((s, serv) =>
-            s + serv.productos.reduce((sum, p) => sum + p.cantidad * p.precio, 0), 0)
-            + venta.materiales.reduce((s, m) => s + m.cantidad * m.precio, 0);
-        venta.igv = venta.subtotal * 0.18;
-        venta.total = venta.subtotal + venta.igv;
-        venta.estado = "completada";
+            const nuevoSubtotal = serviciosActualizados.reduce((s, serv) =>
+                s + serv.productos.reduce((sum, p) => sum + p.cantidad * p.precio, 0), 0)
+                + materialesActualizados.reduce((s, m) => s + m.cantidad * m.precio, 0);
+            const nuevoIgv = nuevoSubtotal * 0.18;
+            const nuevoTotal = nuevoSubtotal + nuevoIgv;
 
-        addToHistory(venta, "AGREGAR PRODUCTOS", `Se agregaron: ${resumen}. Nuevo total: S/ ${venta.total}`);
-        addActivity("AGREGAR", "ventas", `${venta.numero} - Productos agregados: ${resumen}`);
-        setVentas([...ventas]);
-        showToast(`Servicios y materiales agregados a ${venta.numero}`, "success", "Agregado exitoso");
-        onSuccess();
-        onClose();
+            const payload = {
+                cliente: venta.cliente,
+                clienteDoc: venta.clienteDoc,
+                servicios: serviciosActualizados.map(serv => ({
+                    tipoKey: serv.tipoKey,
+                    productos: serv.productos.map(p => ({
+                        id: p.id,
+                        nombre: p.nombre,
+                        precio: p.precio,
+                        cantidad: p.cantidad
+                    }))
+                })),
+                materiales: materialesActualizados.map(m => ({
+                    id: m.id,
+                    nombre: m.nombre,
+                    precio: m.precio,
+                    cantidad: m.cantidad
+                })),
+                eventoData: venta.eventoData,
+                subtotal: nuevoSubtotal,
+                igv: nuevoIgv,
+                total: nuevoTotal,
+                metodo_pago: venta.metodoPago,
+                usuario_id: userId
+            };
+
+            const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
+            await cateringServiceApi.update(venta.id, payload);
+
+            await refreshData();
+
+            await addActivity("AGREGAR", "ventas", `${venta.numero} - Productos agregados: ${resumen}`);
+            await addToHistory(venta, "AGREGAR PRODUCTOS", `Se agregaron: ${resumen}. Nuevo total: S/ ${nuevoTotal}`);
+
+            showToast(`Servicios y materiales agregados a ${venta.numero}`, "success", "Agregado exitoso");
+            onSuccess();
+            onClose();
+        } catch (error) {
+            console.error('[CateringAddProductsModal] Error al agregar productos:', error);
+            showToast('Error al agregar productos', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const { subtotal, igv, total } = calcularTotales();
     const nuevoTotal = venta ? venta.total + total : 0;
 
-    // ============ RENDERIZAR SERVICIOS TEMPORALES ============
     const renderServicios = () => {
         if (nuevosServicios.length === 0) {
             return <div className="empty-servicios">No hay servicios agregados.</div>;
@@ -274,7 +299,7 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
                                 <label>Producto</label>
                                 <select id={`select-prod-agregar-${serv.id}`}>
                                     <option value="">Seleccionar producto</option>
-                                    {catalogoServ.carta.map(p => (
+                                    {catalogoServ.carta.map((p: ProductoCarta) => (
                                         <option key={p.id} value={p.id}>{p.nombre} - S/ {p.precio}</option>
                                     ))}
                                 </select>
@@ -311,7 +336,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
         });
     };
 
-    // ============ RENDERIZAR MATERIALES TEMPORALES ============
     const renderMateriales = () => {
         if (nuevosMateriales.length === 0) {
             return <div className="empty-servicios">No hay materiales agregados.</div>;
@@ -365,7 +389,9 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
     const modalFooter = (
         <>
             <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
-            <button className="dc-btn success" onClick={confirmarAgregar}>Agregar Servicios/Materiales</button>
+            <button className="dc-btn success" onClick={confirmarAgregar} disabled={isSubmitting}>
+                {isSubmitting ? 'Agregando...' : 'Agregar Servicios/Materiales'}
+            </button>
         </>
     );
 
@@ -421,7 +447,7 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
                                 <label>Material</label>
                                 <select id="materialSelectAgregar">
                                     <option value="">Seleccionar material</option>
-                                    {catalogoMateriales.map(m => (
+                                    {catalogoMateriales.map((m: MaterialVenta) => (
                                         <option key={m.id} value={m.id}>{m.nombre} - S/ {m.precio}</option>
                                     ))}
                                 </select>

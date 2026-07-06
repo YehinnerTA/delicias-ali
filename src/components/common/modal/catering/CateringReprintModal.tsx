@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Modal } from '../Modal';
-import { useCateringSales } from '../../../../context/CateringContext';
+import { useCateringService } from '../../../../context/CateringContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { VentaCatering } from '../../../../features/types/catering';
 import { generarVistaPreviaHTML, generarPDF } from '../../../../services/pdf/pdfService';
@@ -12,7 +12,7 @@ interface CateringReprintModalProps {
 }
 
 export const CateringReprintModal: React.FC<CateringReprintModalProps> = ({ isOpen, onClose, venta }) => {
-    const { addToHistory } = useCateringSales();
+    const { addToHistory } = useCateringService();
     const { showToast } = useToast();
     const [tipoComprobante, setTipoComprobante] = useState<'ticket' | 'factura'>('ticket');
 

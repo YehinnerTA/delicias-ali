@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../Modal';
-import { useCateringSales } from '../../../../context/CateringContext';
+import { useCateringService } from '../../../../context/CateringContext';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { VentaCatering } from '../../../../features/types/catering';
 
@@ -12,25 +13,47 @@ interface CateringCancelModalProps {
 }
 
 export const CateringCancelModal: React.FC<CateringCancelModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
-    const { ventas, setVentas, addActivity, addToHistory } = useCateringSales();
+    const { addActivity, addToHistory, refreshData } = useCateringService();
+    const { user } = useAuth();
     const { showToast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     if (!venta) return null;
 
-    const handleAnular = () => {
-        venta.estado = "anulada";
-        addToHistory(venta, "ANULACIÓN", "Venta anulada");
-        addActivity("ANULAR", "ventas", venta.numero);
-        setVentas([...ventas]);
-        showToast("Venta anulada", "success", "Anulación");
-        onSuccess();
-        onClose();
+    const handleAnular = async () => {
+        const userId = user?.id;
+        if (!userId) {
+            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
+            await cateringServiceApi.anular(venta.id);
+
+            await refreshData();
+
+            await addActivity("ANULAR", "ventas", `${venta.numero} anulada`);
+            await addToHistory(venta, "ANULACIÓN", "Venta anulada");
+
+            showToast(`Venta ${venta.numero} anulada correctamente`, "success", "Anulación");
+            onSuccess();
+            onClose();
+        } catch (error) {
+            console.error('[CateringCancelModal] Error al anular venta:', error);
+            showToast('Error al anular la venta', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const modalFooter = (
         <>
             <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
-            <button className="dc-btn danger" onClick={handleAnular}>Sí, Anular Venta</button>
+            <button className="dc-btn danger" onClick={handleAnular} disabled={isSubmitting}>
+                {isSubmitting ? 'Anulando...' : 'Sí, Anular Venta'}
+            </button>
         </>
     );
 

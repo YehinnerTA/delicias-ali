@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
-import { useCateringSales } from '../../../../context/CateringContext';
+import { useCateringService } from '../../../../context/CateringContext';
+import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useToast } from '../../../../hooks/base/useToast';
-import { VentaCatering, ServicioCatering, MaterialVenta } from '../../../../features/types/catering';
+import { VentaCatering } from '../../../../features/types/catering';
 import { generarPDFNotaCredito } from '../../../../services/pdf/pdfService';
 
 interface CateringReturnModalProps {
@@ -13,48 +14,56 @@ interface CateringReturnModalProps {
 }
 
 interface ProductoDevolucion {
+    detalleId: number;
     id: number;
     nombre: string;
     precio: number;
     cantidad: number;
     cantidadDevuelta: number;
     maxDevolver: number;
-    tipo: 'servicio' | 'material';
     servicioId?: number;
     servicioNombre?: string;
 }
 
-interface ServicioDevolucion {
-    servicioId: number;
-    servicioNombre: string;
-    productos: ProductoDevolucion[];
+interface MaterialDevolucion {
+    id: number;
+    nombre: string;
+    precio: number;
+    cantidad: number;
+    cantidadDevuelta: number;
+    maxDevolver: number;
 }
 
 export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
-    const { ventas, setVentas, addActivity, addToHistory } = useCateringSales();
+    const { addActivity, addToHistory, refreshData } = useCateringService();
+    const { user } = useAuth();
     const { showToast } = useToast();
 
     const [productosDevolucion, setProductosDevolucion] = useState<ProductoDevolucion[]>([]);
-    const [materialesDevolucion, setMaterialesDevolucion] = useState<ProductoDevolucion[]>([]);
+    const [materialesDevolucion, setMaterialesDevolucion] = useState<MaterialDevolucion[]>([]);
     const [motivo, setMotivo] = useState('Producto defectuoso');
     const [notaCreditoNumero, setNotaCreditoNumero] = useState('');
     const [faseAbierta, setFaseAbierta] = useState(true);
     const [tipoDevolucion, setTipoDevolucion] = useState<'servicios' | 'materiales'>('servicios');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (venta && isOpen) {
-            // Inicializar productos de servicios
             const nuevosProductosDev: ProductoDevolucion[] = [];
             venta.servicios?.forEach(serv => {
                 serv.productos.forEach(p => {
+                    const detalleId = p.detalleId;
+                    if (!detalleId) {
+                        console.warn(`Producto ${p.nombre} no tiene detalleId`);
+                    }
                     nuevosProductosDev.push({
+                        detalleId: detalleId || 0,
                         id: p.id,
                         nombre: p.nombre,
                         precio: p.precio,
                         cantidad: p.cantidad,
                         cantidadDevuelta: 0,
                         maxDevolver: p.cantidad,
-                        tipo: 'servicio',
                         servicioId: serv.id,
                         servicioNombre: serv.tipoNombre
                     });
@@ -62,8 +71,7 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
             });
             setProductosDevolucion(nuevosProductosDev);
 
-            // Inicializar materiales
-            const nuevosMaterialesDev: ProductoDevolucion[] = [];
+            const nuevosMaterialesDev: MaterialDevolucion[] = [];
             venta.materiales?.forEach(m => {
                 nuevosMaterialesDev.push({
                     id: m.id,
@@ -71,13 +79,13 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
                     precio: m.precio,
                     cantidad: m.cantidad,
                     cantidadDevuelta: 0,
-                    maxDevolver: m.cantidad,
-                    tipo: 'material'
+                    maxDevolver: m.cantidad
                 });
             });
             setMaterialesDevolucion(nuevosMaterialesDev);
 
-            setNotaCreditoNumero(`NC-${venta.numero}-${(venta.devoluciones?.length || 0) + 1}`);
+            const devCount = (venta.devoluciones?.length || 0) + 1;
+            setNotaCreditoNumero(`NC-${venta.numero}-${devCount}`);
             setMotivo('Producto defectuoso');
             setTipoDevolucion('servicios');
         }
@@ -87,17 +95,17 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
         setFaseAbierta(!faseAbierta);
     };
 
-    const actualizarCantidadDevuelta = (id: number, cantidad: number, tipo: 'servicio' | 'material') => {
+    const actualizarCantidadDevuelta = (detalleId: number, cantidad: number, tipo: 'servicio' | 'material') => {
         if (tipo === 'servicio') {
             setProductosDevolucion(prev =>
                 prev.map(p =>
-                    p.id === id ? { ...p, cantidadDevuelta: Math.min(cantidad, p.maxDevolver) } : p
+                    p.detalleId === detalleId ? { ...p, cantidadDevuelta: Math.min(Math.max(0, cantidad), p.maxDevolver) } : p
                 )
             );
         } else {
             setMaterialesDevolucion(prev =>
                 prev.map(m =>
-                    m.id === id ? { ...m, cantidadDevuelta: Math.min(cantidad, m.maxDevolver) } : m
+                    m.id === detalleId ? { ...m, cantidadDevuelta: Math.min(Math.max(0, cantidad), m.maxDevolver) } : m
                 )
             );
         }
@@ -109,7 +117,7 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
         return totalProductos + totalMateriales;
     };
 
-    const procesarDevolucion = () => {
+    const procesarDevolucion = async () => {
         if (!venta) return;
 
         const productosDevueltos = productosDevolucion.filter(p => p.cantidadDevuelta > 0);
@@ -120,108 +128,78 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
             return;
         }
 
-        const montoTotal = calcularTotalDevolucion();
-
-        // Crear la devolución
-        const nuevaDevolucion = {
-            fecha: new Date().toLocaleString(),
-            productos: productosDevueltos.map(p => ({
-                id: p.id,
-                nombre: p.nombre,
-                precio: p.precio,
-                cantidad: p.cantidadDevuelta,
-                servicioId: p.servicioId,
-                servicioNombre: p.servicioNombre
-            })),
-            materiales: materialesDevueltos.map(m => ({
-                id: m.id,
-                nombre: m.nombre,
-                precio: m.precio,
-                cantidad: m.cantidadDevuelta
-            })),
-            monto: montoTotal,
-            motivo,
-            notaCredito: notaCreditoNumero,
-            usuario: "Ana Martínez"
-        };
-
-        if (!venta.devoluciones) venta.devoluciones = [];
-        venta.devoluciones.push(nuevaDevolucion);
-
-        // Actualizar stock de productos en servicios
-        venta.servicios = venta.servicios.map(serv => {
-            const nuevosProductos = serv.productos.map(p => {
-                const devuelto = productosDevueltos.find(d => d.id === p.id && d.servicioId === serv.id);
-                if (devuelto) {
-                    return { ...p, cantidad: p.cantidad - devuelto.cantidadDevuelta };
-                }
-                return p;
-            }).filter(p => p.cantidad > 0);
-            return { ...serv, productos: nuevosProductos };
-        }).filter(serv => serv.productos.length > 0);
-
-        // Actualizar materiales
-        venta.materiales = venta.materiales.map(m => {
-            const devuelto = materialesDevueltos.find(d => d.id === m.id);
-            if (devuelto) {
-                return { ...m, cantidad: m.cantidad - devuelto.cantidadDevuelta };
-            }
-            return m;
-        }).filter(m => m.cantidad > 0);
-
-        // Actualizar estado de la venta
-        if (venta.servicios.length === 0 && venta.materiales.length === 0) {
-            venta.estado = "devolucion-total";
-        } else {
-            venta.estado = "devolucion-parcial";
+        const userId = user?.id;
+        if (!userId) {
+            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+            return;
         }
 
-        // Recalcular totales
-        venta.subtotal = venta.servicios.reduce((s, serv) =>
-            s + serv.productos.reduce((sum, p) => sum + p.cantidad * p.precio, 0), 0)
-            + venta.materiales.reduce((s, m) => s + m.cantidad * m.precio, 0);
-        venta.igv = venta.subtotal * 0.18;
-        venta.total = venta.subtotal + venta.igv;
+        const montoTotal = calcularTotalDevolucion();
 
-        addToHistory(venta, "DEVOLUCIÓN", `Monto: S/ ${montoTotal} - Motivo: ${motivo} - NC: ${notaCreditoNumero}`);
-        addActivity("DEVOLUCIÓN", "ventas", `${venta.numero} - S/ ${montoTotal} - NC: ${notaCreditoNumero}`);
-        generarPDFNotaCredito(venta as any, nuevaDevolucion as any, montoTotal, notaCreditoNumero);
-        setVentas([...ventas]);
-        showToast(`Devolución procesada. Nota Crédito: ${notaCreditoNumero}`, "success", "Devolución");
-        onSuccess();
-        onClose();
+        setIsSubmitting(true);
+        try {
+            const payload: any = {
+                productos_devueltos: productosDevueltos.map(p => ({
+                    id_item: p.detalleId,
+                    cantidad: p.cantidadDevuelta
+                })),
+                materiales_devueltos: materialesDevueltos.map(m => ({
+                    id_item: m.id,
+                    cantidad: m.cantidadDevuelta
+                })),
+                motivo,
+                nota_credito: notaCreditoNumero,
+                usuario_id: userId
+            };
+
+            const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
+            const resultado = await cateringServiceApi.devolver(venta.id, payload);
+
+            await refreshData();
+
+            await addActivity("DEVOLUCIÓN", "ventas", `${venta.numero} - S/ ${montoTotal} - NC: ${notaCreditoNumero}`);
+            await addToHistory(venta, "DEVOLUCIÓN", `Monto: S/ ${montoTotal} - Motivo: ${motivo} - NC: ${notaCreditoNumero}`);
+
+            generarPDFNotaCredito(venta as any, {
+                fecha: new Date().toLocaleString(),
+                productos: productosDevueltos.map(p => ({
+                    id: p.id,
+                    nombre: p.nombre,
+                    precio: p.precio,
+                    cantidad: p.cantidadDevuelta
+                })),
+                monto: montoTotal,
+                motivo,
+                notaCredito: notaCreditoNumero,
+                usuario: user?.nombre_completo || 'Usuario'
+            }, montoTotal, notaCreditoNumero);
+
+            showToast(`Devolución procesada. Nota Crédito: ${notaCreditoNumero}`, "success", "Devolución");
+            onSuccess();
+            onClose();
+        } catch (error) {
+            console.error('[CateringReturnModal] Error al procesar devolución:', error);
+            showToast('Error al procesar la devolución', 'error', 'Error');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const totalDevolucion = calcularTotalDevolucion();
     const devolucionesPrevias = venta?.devoluciones || [];
 
-    // Agrupar productos por servicio para mejor visualización
-    const productosPorServicio: ServicioDevolucion[] = [];
-    productosDevolucion.forEach(p => {
-        if (p.servicioId) {
-            let grupo = productosPorServicio.find(g => g.servicioId === p.servicioId);
-            if (!grupo) {
-                grupo = {
-                    servicioId: p.servicioId,
-                    servicioNombre: p.servicioNombre || 'Servicio',
-                    productos: []
-                };
-                productosPorServicio.push(grupo);
-            }
-            grupo.productos.push(p);
-        }
-    });
-
     const modalFooter = (
         <>
             <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
-            <button className="dc-btn success" onClick={procesarDevolucion}>Procesar Devolución</button>
+            <button className="dc-btn success" onClick={procesarDevolucion} disabled={isSubmitting}>
+                {isSubmitting ? 'Procesando...' : 'Procesar Devolución'}
+            </button>
         </>
     );
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Devolución / Nota de Crédito - Catering" icon="fa-exchange-alt" footer={modalFooter}>
-            {/* Información de la Venta */}
+            {/* ... (el resto del render es igual al que tienes, pero usando las variables correctas) ... */}
             <div className="dc-info-card">
                 <h4><i className="fa fa-info-circle"></i> Información de la Venta</h4>
                 <div className="dc-info-grid">
@@ -235,14 +213,11 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
                     </div>
                     <div className="dc-info-item">
                         <div className="dc-info-label">Total actual</div>
-                        <div className="dc-info-value">
-                            S/ {venta?.total.toFixed(2)}
-                        </div>
+                        <div className="dc-info-value">S/ {venta?.total.toFixed(2)}</div>
                     </div>
                 </div>
             </div>
 
-            {/* Devoluciones previas */}
             {devolucionesPrevias.length > 0 && (
                 <div className="notas-credito">
                     <h4>Devoluciones previas</h4>
@@ -259,7 +234,6 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
                 </div>
             )}
 
-            {/* Tabs para seleccionar tipo de devolución */}
             <div className="dc-tabs">
                 <button
                     className={`dc-tab-btn ${tipoDevolucion === 'servicios' ? 'active' : ''}`}
@@ -275,42 +249,33 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
                 </button>
             </div>
 
-            {/* Panel de Servicios */}
             {tipoDevolucion === 'servicios' && (
                 <div className="fase">
                     <div className="fase-header" onClick={toggleFase}>
                         <span><i className="fas fa-boxes"></i> Seleccione productos a devolver</span>
                         <i className={`fas fa-chevron-${faseAbierta ? 'down' : 'right'}`}></i>
                     </div>
-
                     {faseAbierta && (
                         <div className="fase-body">
-                            {productosPorServicio.length === 0 ? (
+                            {productosDevolucion.length === 0 ? (
                                 <div className="empty-servicios">No hay productos en los servicios</div>
                             ) : (
-                                productosPorServicio.map(grupo => (
-                                    <div key={grupo.servicioId} className="servicio-card">
-                                        <div className="service-divider">
-                                            <strong className="service-name">{grupo.servicioNombre}</strong>
+                                productosDevolucion.map(p => (
+                                    <div key={p.detalleId} className="detalle-producto-item">
+                                        <div><strong className="dc-info-label">{p.nombre}: </strong>S/ {p.precio.toFixed(2)}</div>
+                                        <div><strong className="dc-info-label">Stock: </strong>{p.maxDevolver} unidades</div>
+                                        <div><strong className="dc-info-label">Valor: </strong>S/ {(p.maxDevolver * p.precio).toFixed(2)}</div>
+                                        <div><strong className="dc-info-label">Devolver:</strong>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max={p.maxDevolver}
+                                                value={p.cantidadDevuelta}
+                                                onChange={(e) => actualizarCantidadDevuelta(p.detalleId, parseInt(e.target.value) || 0, 'servicio')}
+                                                className="cantidad-input"
+                                            /> de {p.maxDevolver}
                                         </div>
-                                        {grupo.productos.map(p => (
-                                            <div key={p.id} className="detalle-producto-item">
-                                                <div><strong className="dc-info-label">{p.nombre}: </strong>S/ {p.precio.toFixed(2)}</div>
-                                                <div><strong className="dc-info-label">Stock: </strong>{p.maxDevolver} unidades</div>
-                                                <div><strong className="dc-info-label">Valor: </strong>S/ {(p.maxDevolver * p.precio).toFixed(2)}</div>
-                                                <div><strong className="dc-info-label">Devolver:</strong>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        max={p.maxDevolver}
-                                                        value={p.cantidadDevuelta}
-                                                        onChange={(e) => actualizarCantidadDevuelta(p.id, parseInt(e.target.value) || 0, 'servicio')}
-                                                        className="cantidad-input"
-                                                    /> de {p.maxDevolver}
-                                                </div>
-                                                <div className="producto-devolucion-monto">Monto a devolver: <strong className='dc-eliminar'>S/ {(p.cantidadDevuelta * p.precio).toFixed(2)}</strong></div>
-                                            </div>
-                                        ))}
+                                        <div className="producto-devolucion-monto">Monto a devolver: <strong className='dc-eliminar'>S/ {(p.cantidadDevuelta * p.precio).toFixed(2)}</strong></div>
                                     </div>
                                 ))
                             )}
@@ -319,14 +284,12 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
                 </div>
             )}
 
-            {/* Panel de Materiales */}
             {tipoDevolucion === 'materiales' && (
                 <div className="fase">
                     <div className="fase-header" onClick={toggleFase}>
                         <span><i className="fas fa-chair"></i> Seleccione materiales a devolver</span>
                         <i className={`fas fa-chevron-${faseAbierta ? 'down' : 'right'}`}></i>
                     </div>
-
                     {faseAbierta && (
                         <div className="fase-body">
                             {materialesDevolucion.length === 0 ? (
@@ -356,7 +319,6 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
                 </div>
             )}
 
-            {/* Resumen de devolución */}
             <div className="resumen-devolucion">
                 <div><strong>TOTAL A DEVOLVER:</strong> <strong className="dc-eliminar">S/ {totalDevolucion.toFixed(2)}</strong></div>
                 <div className="dc-form-grid notas-credito">
