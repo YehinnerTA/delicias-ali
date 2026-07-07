@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Modal } from '../Modal';
 import { useCateringService } from '../../../../context/CateringContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
+import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
 import { useToast } from '../../../../hooks/base/useToast';
 import { VentaCatering } from '../../../../features/types/catering';
 
@@ -15,12 +16,18 @@ interface CateringCancelModalProps {
 export const CateringCancelModal: React.FC<CateringCancelModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
     const { addActivity, addToHistory, refreshData } = useCateringService();
     const { user } = useAuth();
+    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
+    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
     const { showToast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     if (!venta) return null;
 
     const handleAnular = async () => {
+        if (!id_empresa) {
+            showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
+            return;
+        }
         const userId = user?.id;
         if (!userId) {
             showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
@@ -30,7 +37,7 @@ export const CateringCancelModal: React.FC<CateringCancelModalProps> = ({ isOpen
         setIsSubmitting(true);
         try {
             const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
-            await cateringServiceApi.anular(venta.id);
+            await cateringServiceApi.anular(venta.id, id_empresa); // ← PASAMOS id_empresa
 
             await refreshData();
 

@@ -71,7 +71,7 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     useEffect(() => {
         loadData();
-    }, [selectedCompany]); // Recargar al cambiar de empresa
+    }, [selectedCompany]);
 
     const addActivity = async (accion: string, modulo: string, detalle: string) => {
         try {

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { VentaCatering, ActivityLog, CateringFilters } from '../features/types/catering';
+import { VentaCatering, CateringFilters } from '../features/types/catering';
+import { ActivityLog } from '../features/types/hist_act';
 import { useAuth } from '../features/auth/context/AuthContext';
+import { useCompany } from '../features/company/context/CompanyContext'; // ← AGREGADO
 import { cateringServiceApi } from '../services/api/cateringServiceApi';
 import { actividadApi } from '../services/api/actividadApi';
 import { historialApi } from '../services/api/historialApi';
@@ -26,6 +28,9 @@ const CateringServiceContext = createContext<CateringServiceContextType | undefi
 
 export const CateringServiceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user } = useAuth();
+    const { getSelectedCompanyId, selectedCompany } = useCompany(); // ← AGREGADO
+    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
+
     const [ventas, setVentas] = useState<VentaCatering[]>([]);
     const [serviciosDisponibles, setServiciosDisponibles] = useState({});
     const [catalogoMateriales, setCatalogoMateriales] = useState([]);
@@ -41,11 +46,21 @@ export const CateringServiceProvider: React.FC<{ children: ReactNode }> = ({ chi
     };
 
     const loadData = async () => {
+        // Si no hay empresa, limpiar datos y terminar
+        if (!id_empresa) {
+            setVentas([]);
+            setServiciosDisponibles({});
+            setCatalogoMateriales([]);
+            setActivityLogs([]);
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
         try {
             const [ventasData, catalogosData, activityData] = await Promise.all([
-                cateringServiceApi.getAll(),
-                cateringServiceApi.getCatalogos(),
+                cateringServiceApi.getAll(id_empresa), // ← PASAMOS id_empresa
+                cateringServiceApi.getCatalogos(), // Los catálogos son globales
                 actividadApi.getAll()
             ]);
 
@@ -75,7 +90,7 @@ export const CateringServiceProvider: React.FC<{ children: ReactNode }> = ({ chi
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [selectedCompany]); // ← RECARGAR AL CAMBIAR DE EMPRESA
 
     const addActivity = async (accion: string, modulo: string, detalle: string) => {
         try {
@@ -119,8 +134,12 @@ export const CateringServiceProvider: React.FC<{ children: ReactNode }> = ({ chi
     };
 
     const getNextNumeroVenta = async (): Promise<string> => {
+        if (!id_empresa) {
+            const nextNumber = ventas.length + 1;
+            return `V-${String(nextNumber).padStart(6, '0')}`;
+        }
         try {
-            return await cateringServiceApi.getNextNumero();
+            return await cateringServiceApi.getNextNumero(id_empresa); // ← PASAMOS id_empresa
         } catch (error) {
             console.error('[CateringServiceContext] Error al obtener próximo número:', error);
             const nextNumber = ventas.length + 1;

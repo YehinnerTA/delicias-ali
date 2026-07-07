@@ -3,6 +3,11 @@ import { executeQuery, executeMutation, executeQuerySingle } from '../config/dat
 
 export const getVentasCatering = async (req: Request, res: Response) => {
     try {
+        const id_empresa = req.query.id_empresa ? Number(req.query.id_empresa) : null;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
         const rows = await executeQuery<any[]>(`
             SELECT 
                 v.*,
@@ -14,14 +19,15 @@ export const getVentasCatering = async (req: Request, res: Response) => {
             JOIN personas p ON v.id_cliente = p.id
             JOIN usuarios u ON v.id_usuario = u.id
             WHERE v.id IN (SELECT id_venta FROM catering_eventos)
+              AND v.id_empresa = ?
             ORDER BY v.id DESC
-        `);
+        `, [id_empresa]);
 
         const ventasConDetalles = await Promise.all(
             rows.map(async (venta: any) => {
                 const evento = await executeQuerySingle<any>(
-                    `SELECT * FROM catering_eventos WHERE id_venta = ?`,
-                    [venta.id]
+                    `SELECT * FROM catering_eventos WHERE id_venta = ? AND id_empresa = ?`,
+                    [venta.id, id_empresa]
                 );
 
                 const servicios = await executeQuery<any[]>(`
@@ -32,8 +38,8 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                         sv.subtotal_servicio
                     FROM catering_service_ventas sv
                     JOIN catering_service_tipos st ON sv.id_tipo_servicio = st.id
-                    WHERE sv.id_venta = ?
-                `, [venta.id]);
+                    WHERE sv.id_venta = ? AND sv.id_empresa = ?
+                `, [venta.id, id_empresa]);
 
                 const serviciosConProductos = await Promise.all(
                     servicios.map(async (serv: any) => {
@@ -46,8 +52,8 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                                 sd.precio_unitario AS precio
                             FROM catering_service_detalle sd
                             JOIN catering_service_productos_carta pc ON sd.id_producto_carta = pc.id
-                            WHERE sd.id_service_venta = ?
-                        `, [serv.service_id]);
+                            WHERE sd.id_service_venta = ? AND sd.id_empresa = ?
+                        `, [serv.service_id, id_empresa]);
 
                         return {
                             id: serv.service_id,
@@ -73,8 +79,8 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                         mv.precio_unitario AS precio
                     FROM catering_materiales_venta mv
                     JOIN catering_materiales_catalogo mc ON mv.id_material_catalogo = mc.id
-                    WHERE mv.id_venta = ?
-                `, [venta.id]);
+                    WHERE mv.id_venta = ? AND mv.id_empresa = ?
+                `, [venta.id, id_empresa]);
 
                 const devoluciones = await executeQuery<any[]>(`
                     SELECT 
@@ -82,11 +88,12 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                         u.usuario AS usuario_nombre
                     FROM catering_devoluciones d
                     JOIN usuarios u ON d.id_usuario = u.id
-                    WHERE d.id_venta = ?
-                `, [venta.id]);
+                    WHERE d.id_venta = ? AND d.id_empresa = ?
+                `, [venta.id, id_empresa]);
 
                 return {
                     ...venta,
+                    id_empresa: venta.id_empresa,
                     cliente: `${venta.cliente_nombre || ''} ${venta.cliente_apellido || ''}`.trim(),
                     clienteDoc: venta.cliente_documento,
                     eventoData: evento ? {
@@ -130,6 +137,10 @@ export const getVentasCatering = async (req: Request, res: Response) => {
 export const getVentaCateringById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const id_empresa = req.query.id_empresa ? Number(req.query.id_empresa) : null;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
 
         const venta = await executeQuerySingle<any>(`
             SELECT 
@@ -141,16 +152,16 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
             FROM ventas v
             JOIN personas p ON v.id_cliente = p.id
             JOIN usuarios u ON v.id_usuario = u.id
-            WHERE v.id = ?
-        `, [id]);
+            WHERE v.id = ? AND v.id_empresa = ?
+        `, [id, id_empresa]);
 
         if (!venta) {
             return res.status(404).json({ message: 'Venta no encontrada' });
         }
 
         const evento = await executeQuerySingle<any>(
-            `SELECT * FROM catering_eventos WHERE id_venta = ?`,
-            [id]
+            `SELECT * FROM catering_eventos WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         const servicios = await executeQuery<any[]>(`
@@ -161,8 +172,8 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
                 sv.subtotal_servicio
             FROM catering_service_ventas sv
             JOIN catering_service_tipos st ON sv.id_tipo_servicio = st.id
-            WHERE sv.id_venta = ?
-        `, [id]);
+            WHERE sv.id_venta = ? AND sv.id_empresa = ?
+        `, [id, id_empresa]);
 
         const serviciosConProductos = await Promise.all(
             servicios.map(async (serv: any) => {
@@ -175,8 +186,8 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
                         sd.precio_unitario AS precio
                     FROM catering_service_detalle sd
                     JOIN catering_service_productos_carta pc ON sd.id_producto_carta = pc.id
-                    WHERE sd.id_service_venta = ?
-                `, [serv.service_id]);
+                    WHERE sd.id_service_venta = ? AND sd.id_empresa = ?
+                `, [serv.service_id, id_empresa]);
 
                 return {
                     id: serv.service_id,
@@ -202,8 +213,8 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
                 mv.precio_unitario AS precio
             FROM catering_materiales_venta mv
             JOIN catering_materiales_catalogo mc ON mv.id_material_catalogo = mc.id
-            WHERE mv.id_venta = ?
-        `, [id]);
+            WHERE mv.id_venta = ? AND mv.id_empresa = ?
+        `, [id, id_empresa]);
 
         const devoluciones = await executeQuery<any[]>(`
             SELECT 
@@ -211,11 +222,12 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
                 u.usuario AS usuario_nombre
             FROM catering_devoluciones d
             JOIN usuarios u ON d.id_usuario = u.id
-            WHERE d.id_venta = ?
-        `, [id]);
+            WHERE d.id_venta = ? AND d.id_empresa = ?
+        `, [id, id_empresa]);
 
         const result = {
             ...venta,
+            id_empresa: venta.id_empresa,
             cliente: `${venta.cliente_nombre || ''} ${venta.cliente_apellido || ''}`.trim(),
             clienteDoc: venta.cliente_documento,
             eventoData: evento ? {
@@ -256,12 +268,18 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
 
 export const getNextNumeroVentaCatering = async (req: Request, res: Response) => {
     try {
+        const id_empresa = req.query.id_empresa ? Number(req.query.id_empresa) : null;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
         const result = await executeQuerySingle<any>(`
             SELECT numero AS last_numero 
             FROM ventas 
+            WHERE id_empresa = ?
             ORDER BY id DESC 
             LIMIT 1
-        `);
+        `, [id_empresa]);
 
         let nextNumber = 1;
         if (result && result.last_numero) {
@@ -281,6 +299,7 @@ export const getNextNumeroVentaCatering = async (req: Request, res: Response) =>
 
 export const getCatalogosCatering = async (req: Request, res: Response) => {
     try {
+        // Estos catálogos son globales (sin id_empresa), no filtramos
         const tiposServicio = await executeQuery<any[]>(`
             SELECT id, nombre, clave FROM catering_service_tipos
         `);
@@ -327,6 +346,7 @@ export const getCatalogosCatering = async (req: Request, res: Response) => {
 export const createVentaCatering = async (req: Request, res: Response) => {
     try {
         const {
+            id_empresa,
             cliente_documento,
             cliente_nombre,
             cliente_apellido,
@@ -343,13 +363,16 @@ export const createVentaCatering = async (req: Request, res: Response) => {
             usuario_id
         } = req.body;
 
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
         if (!cliente_documento || !usuario_id) {
             return res.status(400).json({ message: 'Faltan campos obligatorios: cliente_documento, usuario_id' });
         }
 
         let cliente = await executeQuerySingle<any>(
-            `SELECT * FROM personas WHERE numero_documento = ?`,
-            [cliente_documento]
+            `SELECT * FROM personas WHERE numero_documento = ? AND id_empresa = ?`,
+            [cliente_documento, id_empresa]
         );
 
         if (!cliente) {
@@ -357,11 +380,11 @@ export const createVentaCatering = async (req: Request, res: Response) => {
             const tipoPersona = cliente_documento.length === 8 ? 'cliente_natural' : 'cliente_juridico';
 
             const empresa = await executeQuerySingle<any>(
-                `SELECT id FROM empresas LIMIT 1`
+                `SELECT id FROM empresas WHERE id = ?`,
+                [id_empresa]
             );
-
             if (!empresa) {
-                return res.status(400).json({ message: 'No hay empresas registradas' });
+                return res.status(400).json({ message: 'Empresa no encontrada' });
             }
 
             const result = await executeMutation(
@@ -369,7 +392,7 @@ export const createVentaCatering = async (req: Request, res: Response) => {
                     (id_empresa, tipo_persona, tipo_documento, numero_documento, nombre, apellido, email, celular) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    empresa.id,
+                    id_empresa,
                     tipoPersona,
                     tipoDocumento,
                     cliente_documento,
@@ -389,9 +412,10 @@ export const createVentaCatering = async (req: Request, res: Response) => {
         const numeroResult = await executeQuerySingle<any>(`
             SELECT numero AS last_numero 
             FROM ventas 
+            WHERE id_empresa = ?
             ORDER BY id DESC 
             LIMIT 1
-        `);
+        `, [id_empresa]);
 
         let nextNumber = 1;
         if (numeroResult && numeroResult.last_numero) {
@@ -404,9 +428,10 @@ export const createVentaCatering = async (req: Request, res: Response) => {
 
         const ventaResult = await executeMutation(
             `INSERT INTO ventas 
-                (numero, fecha, id_cliente, id_usuario, subtotal, descuento, igv, total, metodo_pago, estado) 
-             VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, 'completada')`,
+                (id_empresa, numero, fecha, id_cliente, id_usuario, subtotal, descuento, igv, total, metodo_pago, estado) 
+             VALUES (?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, 'completada')`,
             [
+                id_empresa,
                 numero,
                 cliente.id,
                 usuario_id,
@@ -421,9 +446,10 @@ export const createVentaCatering = async (req: Request, res: Response) => {
         const ventaId = ventaResult.insertId;
 
         await executeMutation(
-            `INSERT INTO catering_eventos (id_venta, fecha_evento, horario, personas, tipo_desayuno)
-             VALUES (?, ?, ?, ?, ?)`,
+            `INSERT INTO catering_eventos (id_empresa, id_venta, fecha_evento, horario, personas, tipo_desayuno)
+             VALUES (?, ?, ?, ?, ?, ?)`,
             [
+                id_empresa,
                 ventaId,
                 eventoData?.fecha || new Date().toISOString().split('T')[0],
                 eventoData?.horario || '12:00:00',
@@ -440,9 +466,10 @@ export const createVentaCatering = async (req: Request, res: Response) => {
             if (!tipoServicio) continue;
 
             const serviceResult = await executeMutation(
-                `INSERT INTO catering_service_ventas (id_venta, id_tipo_servicio, subtotal_servicio)
-                 VALUES (?, ?, ?)`,
+                `INSERT INTO catering_service_ventas (id_empresa, id_venta, id_tipo_servicio, subtotal_servicio)
+                 VALUES (?, ?, ?, ?)`,
                 [
+                    id_empresa,
                     ventaId,
                     tipoServicio.id,
                     serv.productos.reduce((sum: number, p: any) => sum + p.cantidad * p.precio, 0)
@@ -453,9 +480,10 @@ export const createVentaCatering = async (req: Request, res: Response) => {
             for (const prod of serv.productos) {
                 await executeMutation(
                     `INSERT INTO catering_service_detalle 
-                        (id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal) 
-                     VALUES (?, ?, ?, ?, ?)`,
+                        (id_empresa, id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal) 
+                     VALUES (?, ?, ?, ?, ?, ?)`,
                     [
+                        id_empresa,
                         serviceId,
                         prod.id,
                         prod.cantidad,
@@ -469,9 +497,10 @@ export const createVentaCatering = async (req: Request, res: Response) => {
         for (const mat of materiales) {
             await executeMutation(
                 `INSERT INTO catering_materiales_venta 
-                    (id_venta, id_material_catalogo, cantidad, precio_unitario, subtotal) 
-                 VALUES (?, ?, ?, ?, ?)`,
+                    (id_empresa, id_venta, id_material_catalogo, cantidad, precio_unitario, subtotal) 
+                 VALUES (?, ?, ?, ?, ?, ?)`,
                 [
+                    id_empresa,
                     ventaId,
                     mat.id,
                     mat.cantidad,
@@ -482,12 +511,13 @@ export const createVentaCatering = async (req: Request, res: Response) => {
         }
 
         const nuevaVenta = await executeQuerySingle<any>(
-            `SELECT * FROM ventas WHERE id = ?`,
-            [ventaId]
+            `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
+            [ventaId, id_empresa]
         );
 
         res.status(201).json({
             ...nuevaVenta,
+            id_empresa: nuevaVenta.id_empresa,
             cliente: `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim(),
             clienteDoc: cliente.numero_documento,
             servicios,
@@ -504,50 +534,57 @@ export const createVentaCatering = async (req: Request, res: Response) => {
 export const updateVentaCatering = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { servicios, materiales, eventoData, subtotal, igv, total, metodo_pago } = req.body;
+        const { id_empresa, servicios, materiales, eventoData, subtotal, igv, total, metodo_pago } = req.body;
+
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
 
         const ventaExistente = await executeQuerySingle<any>(
-            `SELECT * FROM ventas WHERE id = ?`,
-            [id]
+            `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
         if (!ventaExistente) {
             return res.status(404).json({ message: 'Venta no encontrada' });
         }
 
         await executeMutation(
-            `UPDATE ventas SET subtotal = ?, igv = ?, total = ?, metodo_pago = ? WHERE id = ?`,
-            [subtotal || 0, igv || 0, total || 0, metodo_pago || 'EFECTIVO', id]
+            `UPDATE ventas SET subtotal = ?, igv = ?, total = ?, metodo_pago = ? WHERE id = ? AND id_empresa = ?`,
+            [subtotal || 0, igv || 0, total || 0, metodo_pago || 'EFECTIVO', id, id_empresa]
         );
 
         if (eventoData) {
             await executeMutation(
                 `UPDATE catering_eventos SET fecha_evento = ?, horario = ?, personas = ?, tipo_desayuno = ?
-                 WHERE id_venta = ?`,
+                 WHERE id_venta = ? AND id_empresa = ?`,
                 [
                     eventoData.fecha,
                     eventoData.horario,
                     eventoData.personas,
                     eventoData.tipoDesayuno,
-                    id
+                    id,
+                    id_empresa
                 ]
             );
         }
 
+        // Eliminar servicios antiguos (con filtro de empresa)
         const serviciosAntiguos = await executeQuery<any[]>(
-            `SELECT id FROM catering_service_ventas WHERE id_venta = ?`,
-            [id]
+            `SELECT id FROM catering_service_ventas WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
         for (const serv of serviciosAntiguos) {
             await executeMutation(
-                `DELETE FROM catering_service_detalle WHERE id_service_venta = ?`,
-                [(serv as any).id]
+                `DELETE FROM catering_service_detalle WHERE id_service_venta = ? AND id_empresa = ?`,
+                [(serv as any).id, id_empresa]
             );
         }
         await executeMutation(
-            `DELETE FROM catering_service_ventas WHERE id_venta = ?`,
-            [id]
+            `DELETE FROM catering_service_ventas WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
+        // Insertar nuevos servicios
         for (const serv of servicios) {
             const tipoServicio = await executeQuerySingle<any>(
                 `SELECT id FROM catering_service_tipos WHERE clave = ?`,
@@ -556,9 +593,10 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
             if (!tipoServicio) continue;
 
             const serviceResult = await executeMutation(
-                `INSERT INTO catering_service_ventas (id_venta, id_tipo_servicio, subtotal_servicio)
-                 VALUES (?, ?, ?)`,
+                `INSERT INTO catering_service_ventas (id_empresa, id_venta, id_tipo_servicio, subtotal_servicio)
+                 VALUES (?, ?, ?, ?)`,
                 [
+                    id_empresa,
                     id,
                     tipoServicio.id,
                     serv.productos.reduce((sum: number, p: any) => sum + p.cantidad * p.precio, 0)
@@ -569,9 +607,10 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
             for (const prod of serv.productos) {
                 await executeMutation(
                     `INSERT INTO catering_service_detalle 
-                        (id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal) 
-                     VALUES (?, ?, ?, ?, ?)`,
+                        (id_empresa, id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal) 
+                     VALUES (?, ?, ?, ?, ?, ?)`,
                     [
+                        id_empresa,
                         serviceId,
                         prod.id,
                         prod.cantidad,
@@ -582,16 +621,18 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
             }
         }
 
+        // Eliminar materiales antiguos
         await executeMutation(
-            `DELETE FROM catering_materiales_venta WHERE id_venta = ?`,
-            [id]
+            `DELETE FROM catering_materiales_venta WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
         for (const mat of materiales) {
             await executeMutation(
                 `INSERT INTO catering_materiales_venta 
-                    (id_venta, id_material_catalogo, cantidad, precio_unitario, subtotal) 
-                 VALUES (?, ?, ?, ?, ?)`,
+                    (id_empresa, id_venta, id_material_catalogo, cantidad, precio_unitario, subtotal) 
+                 VALUES (?, ?, ?, ?, ?, ?)`,
                 [
+                    id_empresa,
                     id,
                     mat.id,
                     mat.cantidad,
@@ -602,19 +643,19 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
         }
 
         const ventaActualizada = await executeQuerySingle<any>(
-            `SELECT * FROM ventas WHERE id = ?`,
-            [id]
+            `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
         const nuevoEvento = await executeQuerySingle<any>(
-            `SELECT * FROM catering_eventos WHERE id_venta = ?`,
-            [id]
+            `SELECT * FROM catering_eventos WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
         const nuevosServicios = await executeQuery<any[]>(`
             SELECT sv.id, st.clave AS tipoKey, st.nombre AS tipoNombre, sv.subtotal_servicio
             FROM catering_service_ventas sv
             JOIN catering_service_tipos st ON sv.id_tipo_servicio = st.id
-            WHERE sv.id_venta = ?
-        `, [id]);
+            WHERE sv.id_venta = ? AND sv.id_empresa = ?
+        `, [id, id_empresa]);
 
         const serviciosConProductos = await Promise.all(
             nuevosServicios.map(async (serv: any) => {
@@ -622,8 +663,8 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
                     SELECT pc.id, pc.nombre, sd.cantidad, sd.precio_unitario AS precio
                     FROM catering_service_detalle sd
                     JOIN catering_service_productos_carta pc ON sd.id_producto_carta = pc.id
-                    WHERE sd.id_service_venta = ?
-                `, [serv.id]);
+                    WHERE sd.id_service_venta = ? AND sd.id_empresa = ?
+                `, [serv.id, id_empresa]);
 
                 return {
                     id: serv.id,
@@ -643,11 +684,12 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
             SELECT mc.id, mc.nombre, mv.cantidad, mv.precio_unitario AS precio
             FROM catering_materiales_venta mv
             JOIN catering_materiales_catalogo mc ON mv.id_material_catalogo = mc.id
-            WHERE mv.id_venta = ?
-        `, [id]);
+            WHERE mv.id_venta = ? AND mv.id_empresa = ?
+        `, [id, id_empresa]);
 
         res.json({
             ...ventaActualizada,
+            id_empresa: ventaActualizada.id_empresa,
             eventoData: nuevoEvento ? {
                 fecha: nuevoEvento.fecha_evento,
                 horario: nuevoEvento.horario,
@@ -675,10 +717,14 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
 export const anularVentaCatering = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const id_empresa = req.body.id_empresa ? Number(req.body.id_empresa) : null;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
 
         const venta = await executeQuerySingle<any>(
-            `SELECT * FROM ventas WHERE id = ?`,
-            [id]
+            `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         if (!venta) {
@@ -690,8 +736,8 @@ export const anularVentaCatering = async (req: Request, res: Response) => {
         }
 
         await executeMutation(
-            `UPDATE ventas SET estado = 'anulada' WHERE id = ?`,
-            [id]
+            `UPDATE ventas SET estado = 'anulada' WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         res.json({ message: 'Venta de catering anulada correctamente' });
@@ -704,7 +750,11 @@ export const anularVentaCatering = async (req: Request, res: Response) => {
 export const registrarDevolucionCatering = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { productos_devueltos, materiales_devueltos, motivo, nota_credito, usuario_id } = req.body;
+        const { id_empresa, productos_devueltos, materiales_devueltos, motivo, nota_credito, usuario_id } = req.body;
+
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
 
         if ((!productos_devueltos || productos_devueltos.length === 0) &&
             (!materiales_devueltos || materiales_devueltos.length === 0) || !usuario_id) {
@@ -712,8 +762,8 @@ export const registrarDevolucionCatering = async (req: Request, res: Response) =
         }
 
         const venta = await executeQuerySingle<any>(
-            `SELECT * FROM ventas WHERE id = ?`,
-            [id]
+            `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         if (!venta) {
@@ -728,9 +778,10 @@ export const registrarDevolucionCatering = async (req: Request, res: Response) =
 
         const devolucionResult = await executeMutation(
             `INSERT INTO catering_devoluciones 
-                (id_venta, fecha, id_usuario, motivo, nota_credito, monto) 
-             VALUES (?, NOW(), ?, ?, ?, ?)`,
+                (id_empresa, id_venta, fecha, id_usuario, motivo, nota_credito, monto) 
+             VALUES (?, ?, NOW(), ?, ?, ?, ?)`,
             [
+                id_empresa,
                 id,
                 usuario_id,
                 motivo || 'Devolución',
@@ -744,8 +795,8 @@ export const registrarDevolucionCatering = async (req: Request, res: Response) =
         if (productos_devueltos && productos_devueltos.length > 0) {
             for (const prod of productos_devueltos) {
                 const detalle = await executeQuerySingle<any>(
-                    `SELECT * FROM catering_service_detalle WHERE id = ?`,
-                    [prod.id_item]
+                    `SELECT * FROM catering_service_detalle WHERE id = ? AND id_empresa = ?`,
+                    [prod.id_item, id_empresa]
                 );
 
                 if (!detalle) continue;
@@ -755,16 +806,17 @@ export const registrarDevolucionCatering = async (req: Request, res: Response) =
 
                 if (detalle.cantidad >= prod.cantidad) {
                     await executeMutation(
-                        `UPDATE catering_service_detalle SET cantidad = cantidad - ? WHERE id = ?`,
-                        [prod.cantidad, prod.id_item]
+                        `UPDATE catering_service_detalle SET cantidad = cantidad - ? WHERE id = ? AND id_empresa = ?`,
+                        [prod.cantidad, prod.id_item, id_empresa]
                     );
                 }
 
                 await executeMutation(
                     `INSERT INTO catering_detalle_devolucion 
-                        (id_devolucion, tipo_item, id_item, cantidad, monto) 
-                     VALUES (?, 'servicio', ?, ?, ?)`,
+                        (id_empresa, id_devolucion, tipo_item, id_item, cantidad, monto) 
+                     VALUES (?, ?, 'servicio', ?, ?, ?)`,
                     [
+                        id_empresa,
                         devolucionId,
                         prod.id_item,
                         prod.cantidad,
@@ -777,8 +829,8 @@ export const registrarDevolucionCatering = async (req: Request, res: Response) =
         if (materiales_devueltos && materiales_devueltos.length > 0) {
             for (const mat of materiales_devueltos) {
                 const materialVenta = await executeQuerySingle<any>(
-                    `SELECT * FROM catering_materiales_venta WHERE id = ?`,
-                    [mat.id_item]
+                    `SELECT * FROM catering_materiales_venta WHERE id = ? AND id_empresa = ?`,
+                    [mat.id_item, id_empresa]
                 ) as any;
 
                 if (!materialVenta) continue;
@@ -788,16 +840,17 @@ export const registrarDevolucionCatering = async (req: Request, res: Response) =
 
                 if (materialVenta.cantidad >= mat.cantidad) {
                     await executeMutation(
-                        `UPDATE catering_materiales_venta SET cantidad = cantidad - ? WHERE id = ?`,
-                        [mat.cantidad, mat.id_item]
+                        `UPDATE catering_materiales_venta SET cantidad = cantidad - ? WHERE id = ? AND id_empresa = ?`,
+                        [mat.cantidad, mat.id_item, id_empresa]
                     );
                 }
 
                 await executeMutation(
                     `INSERT INTO catering_detalle_devolucion 
-                        (id_devolucion, tipo_item, id_item, cantidad, monto) 
-                     VALUES (?, 'material', ?, ?, ?)`,
+                        (id_empresa, id_devolucion, tipo_item, id_item, cantidad, monto) 
+                     VALUES (?, ?, 'material', ?, ?, ?)`,
                     [
+                        id_empresa,
                         devolucionId,
                         mat.id_item,
                         mat.cantidad,
@@ -808,32 +861,32 @@ export const registrarDevolucionCatering = async (req: Request, res: Response) =
         }
 
         await executeMutation(
-            `UPDATE catering_devoluciones SET monto = ? WHERE id = ?`,
-            [montoTotal, devolucionId]
+            `UPDATE catering_devoluciones SET monto = ? WHERE id = ? AND id_empresa = ?`,
+            [montoTotal, devolucionId, id_empresa]
         );
 
         await executeMutation(
             `UPDATE ventas SET subtotal = subtotal - ?, igv = igv - (? * 0.18), total = total - (? * 1.18)
-             WHERE id = ?`,
-            [montoTotal, montoTotal, montoTotal, id]
+             WHERE id = ? AND id_empresa = ?`,
+            [montoTotal, montoTotal, montoTotal, id, id_empresa]
         );
 
         const detallesRestantesServicios = await executeQuery<any[]>(
             `SELECT SUM(cantidad) AS total FROM catering_service_detalle 
-             WHERE id_service_venta IN (SELECT id FROM catering_service_ventas WHERE id_venta = ?)`,
-            [id]
+             WHERE id_service_venta IN (SELECT id FROM catering_service_ventas WHERE id_venta = ? AND id_empresa = ?)`,
+            [id, id_empresa]
         );
         const detallesRestantesMateriales = await executeQuery<any[]>(
-            `SELECT SUM(cantidad) AS total FROM catering_materiales_venta WHERE id_venta = ?`,
-            [id]
+            `SELECT SUM(cantidad) AS total FROM catering_materiales_venta WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
         const totalRestante = ((detallesRestantesServicios[0] as any)?.total || 0) +
             ((detallesRestantesMateriales[0] as any)?.total || 0);
 
         const nuevoEstado = totalRestante > 0 ? 'devolucion-parcial' : 'devolucion-total';
         await executeMutation(
-            `UPDATE ventas SET estado = ? WHERE id = ?`,
-            [nuevoEstado, id]
+            `UPDATE ventas SET estado = ? WHERE id = ? AND id_empresa = ?`,
+            [nuevoEstado, id, id_empresa]
         );
 
         res.json({

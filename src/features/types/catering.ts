@@ -1,9 +1,4 @@
-export interface HistorialEntry {
-    fecha: string;
-    usuario: string;
-    accion: string;
-    descripcion: string;
-}
+import { HistorialEntry } from './hist_act';
 
 export interface ProductoCarta {
     id: number;
@@ -13,6 +8,7 @@ export interface ProductoCarta {
 
 export interface ServicioCatering {
     id: number;
+    id_empresa: number;
     tipoKey: string;
     tipoNombre: string;
     productos: ProductoVenta[];
@@ -42,6 +38,7 @@ export interface EventoData {
 
 export interface VentaCatering {
     id: number;
+    id_empresa: number;
     numero: string;
     fecha: string;
     fechaObj: Date;
@@ -58,14 +55,6 @@ export interface VentaCatering {
     estado: 'completada' | 'anulada' | 'devolucion-parcial' | 'devolucion-total';
     devoluciones: any[];
     historial: HistorialEntry[];
-}
-
-export interface ActivityLog {
-    timestamp: string;
-    accion: string;
-    modulo: string;
-    detalle: string;
-    usuario: string;
 }
 
 export interface CateringFilters {

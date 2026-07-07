@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useCateringService } from '../../../../context/CateringContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
+import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
 import { useToast } from '../../../../hooks/base/useToast';
 import { VentaCatering } from '../../../../features/types/catering';
 import { generarPDFNotaCredito } from '../../../../services/pdf/pdfService';
@@ -37,6 +38,8 @@ interface MaterialDevolucion {
 export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
     const { addActivity, addToHistory, refreshData } = useCateringService();
     const { user } = useAuth();
+    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
+    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
     const { showToast } = useToast();
 
     const [productosDevolucion, setProductosDevolucion] = useState<ProductoDevolucion[]>([]);
@@ -119,6 +122,10 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
 
     const procesarDevolucion = async () => {
         if (!venta) return;
+        if (!id_empresa) {
+            showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
+            return;
+        }
 
         const productosDevueltos = productosDevolucion.filter(p => p.cantidadDevuelta > 0);
         const materialesDevueltos = materialesDevolucion.filter(m => m.cantidadDevuelta > 0);
@@ -138,7 +145,8 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
 
         setIsSubmitting(true);
         try {
-            const payload: any = {
+            const payload = {
+                id_empresa, // ← AGREGADO (el controlador lo espera en el body)
                 productos_devueltos: productosDevueltos.map(p => ({
                     id_item: p.detalleId,
                     cantidad: p.cantidadDevuelta
@@ -153,7 +161,7 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
             };
 
             const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
-            const resultado = await cateringServiceApi.devolver(venta.id, payload);
+            const resultado = await cateringServiceApi.devolver(venta.id, id_empresa, payload); // ← PASAMOS id_empresa
 
             await refreshData();
 
@@ -199,7 +207,6 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Devolución / Nota de Crédito - Catering" icon="fa-exchange-alt" footer={modalFooter}>
-            {/* ... (el resto del render es igual al que tienes, pero usando las variables correctas) ... */}
             <div className="dc-info-card">
                 <h4><i className="fa fa-info-circle"></i> Información de la Venta</h4>
                 <div className="dc-info-grid">

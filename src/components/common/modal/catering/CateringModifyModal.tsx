@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useCateringService } from '../../../../context/CateringContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
+import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
 import { useToast } from '../../../../hooks/base/useToast';
 import { VentaCatering, ServicioCatering, MaterialVenta, ProductoVenta, ProductoCarta, CANTIDAD_MINIMA_PRODUCTOS } from '../../../../features/types/catering';
 
@@ -15,6 +16,8 @@ interface CateringModifyModalProps {
 export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
     const { serviciosDisponibles, catalogoMateriales, addActivity, addToHistory, refreshData } = useCateringService();
     const { user } = useAuth();
+    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
+    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
     const { showToast } = useToast();
 
     const [servicios, setServicios] = useState<ServicioCatering[]>([]);
@@ -47,6 +50,7 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
 
         const nuevoServicio: ServicioCatering = {
             id: Date.now(),
+            id_empresa: id_empresa, // ← AGREGADO
             tipoKey: tipoKey,
             tipoNombre: servicioInfo.nombre,
             productos: []
@@ -171,6 +175,10 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
 
     const guardarCambios = async () => {
         if (!venta) return;
+        if (!id_empresa) {
+            showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
+            return;
+        }
         if (servicios.length === 0 && materiales.length === 0) {
             showToast("Agregue al menos un servicio o material", "warning", "Campos incompletos");
             return;
@@ -189,9 +197,11 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
         setIsSubmitting(true);
         try {
             const payload = {
+                id_empresa, // ← AGREGADO (aunque la función update lo recibe por separado, se incluye en el payload por consistencia)
                 cliente: clienteNombre,
                 clienteDoc: clienteDoc,
                 servicios: servicios.map(serv => ({
+                    id_empresa: serv.id_empresa, // ← AGREGADO
                     tipoKey: serv.tipoKey,
                     productos: serv.productos.map(p => ({
                         id: p.id,
@@ -220,7 +230,7 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
             };
 
             const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
-            await cateringServiceApi.update(venta.id, payload);
+            await cateringServiceApi.update(venta.id, id_empresa, payload); // ← PASAMOS id_empresa
 
             await refreshData();
 

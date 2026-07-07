@@ -4,6 +4,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const mapVentaCatering = (data: any): VentaCatering => ({
     id: data.id,
+    id_empresa: data.id_empresa, // ← AGREGADO
     numero: data.numero,
     fecha: data.fecha,
     fechaObj: new Date(data.fecha),
@@ -11,6 +12,7 @@ const mapVentaCatering = (data: any): VentaCatering => ({
     clienteDoc: data.clienteDoc || '',
     servicios: (data.servicios || []).map((s: any) => ({
         id: s.id,
+        id_empresa: s.id_empresa, // ← AGREGADO
         tipoKey: s.tipoKey,
         tipoNombre: s.tipoNombre,
         productos: (s.productos || []).map((p: any) => ({
@@ -40,38 +42,40 @@ const mapVentaCatering = (data: any): VentaCatering => ({
 });
 
 export const cateringServiceApi = {
-    getAll: async (): Promise<VentaCatering[]> => {
-        const res = await fetch(`${API_URL}/catering-service`);
+    getAll: async (idEmpresa: number): Promise<VentaCatering[]> => {
+        const res = await fetch(`${API_URL}/catering-service?id_empresa=${idEmpresa}`);
         if (!res.ok) throw new Error('Error al obtener ventas de catering');
         const data = await res.json();
         return data.map(mapVentaCatering);
     },
 
-    getById: async (id: number): Promise<VentaCatering> => {
-        const res = await fetch(`${API_URL}/catering-service/${id}`);
+    getById: async (id: number, idEmpresa: number): Promise<VentaCatering> => {
+        const res = await fetch(`${API_URL}/catering-service/${id}?id_empresa=${idEmpresa}`);
         if (!res.ok) throw new Error('Error al obtener venta de catering');
         const data = await res.json();
         return mapVentaCatering(data);
     },
 
-    getNextNumero: async (): Promise<string> => {
-        const res = await fetch(`${API_URL}/catering-service/next-numero`);
+    getNextNumero: async (idEmpresa: number): Promise<string> => {
+        const res = await fetch(`${API_URL}/catering-service/next-numero?id_empresa=${idEmpresa}`);
         if (!res.ok) throw new Error('Error al generar número de venta');
         const data = await res.json();
         return data.numero;
     },
 
     getCatalogos: async (): Promise<any> => {
+        // Los catálogos son globales, no requieren id_empresa
         const res = await fetch(`${API_URL}/catering-service/catalogos`);
         if (!res.ok) throw new Error('Error al obtener catálogos de catering');
         return await res.json();
     },
 
-    create: async (ventaData: any): Promise<VentaCatering> => {
+    create: async (idEmpresa: number, ventaData: any): Promise<VentaCatering> => {
+        const payload = { ...ventaData, id_empresa: idEmpresa };
         const res = await fetch(`${API_URL}/catering-service`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(ventaData)
+            body: JSON.stringify(payload)
         });
         if (!res.ok) {
             const error = await res.json();
@@ -81,11 +85,12 @@ export const cateringServiceApi = {
         return mapVentaCatering(data);
     },
 
-    update: async (id: number, ventaData: any): Promise<VentaCatering> => {
+    update: async (id: number, idEmpresa: number, ventaData: any): Promise<VentaCatering> => {
+        const payload = { ...ventaData, id_empresa: idEmpresa };
         const res = await fetch(`${API_URL}/catering-service/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(ventaData)
+            body: JSON.stringify(payload)
         });
         if (!res.ok) {
             const error = await res.json();
@@ -95,18 +100,21 @@ export const cateringServiceApi = {
         return mapVentaCatering(data);
     },
 
-    anular: async (id: number): Promise<void> => {
+    anular: async (id: number, idEmpresa: number): Promise<void> => {
         const res = await fetch(`${API_URL}/catering-service/${id}/anular`, {
-            method: 'PUT'
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_empresa: idEmpresa })
         });
         if (!res.ok) throw new Error('Error al anular venta de catering');
     },
 
-    devolver: async (id: number, data: any): Promise<any> => {
+    devolver: async (id: number, idEmpresa: number, data: any): Promise<any> => {
+        const payload = { ...data, id_empresa: idEmpresa };
         const res = await fetch(`${API_URL}/catering-service/${id}/devolver`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify(payload)
         });
         if (!res.ok) {
             const error = await res.json();

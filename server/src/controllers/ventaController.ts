@@ -344,7 +344,6 @@ export const createVenta = async (req: Request, res: Response) => {
             const tipoDocumento = cliente_documento.length === 8 ? 'DNI' : 'RUC';
             const tipoPersona = cliente_documento.length === 8 ? 'cliente_natural' : 'cliente_juridico';
 
-            // Verificar que la empresa exista
             const empresa = await executeQuerySingle<any>(
                 `SELECT id FROM empresas WHERE id = ?`,
                 [id_empresa]
@@ -652,7 +651,6 @@ export const updateVenta = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'id_empresa es requerido' });
         }
 
-        // 1. Verificar que la venta existe y pertenece a la empresa
         const ventaExistente = await executeQuerySingle<any>(
             `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
             [id, id_empresa]
@@ -661,13 +659,11 @@ export const updateVenta = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Venta no encontrada' });
         }
 
-        // 2. Obtener detalles antiguos
         const detallesAntiguos = await executeQuery<any[]>(
             `SELECT * FROM detalle_venta WHERE id_venta = ? AND id_empresa = ?`,
             [id, id_empresa]
         );
 
-        // 3. Restaurar stock de todos los detalles antiguos
         for (const detalle of detallesAntiguos) {
             await executeMutation(
                 `UPDATE lotes SET stock = stock + ? WHERE id = ? AND id_empresa = ?`,
@@ -675,9 +671,7 @@ export const updateVenta = async (req: Request, res: Response) => {
             );
         }
 
-        // 4. Procesar los nuevos productos: reducir stock e insertar/actualizar detalles
         for (const prod of productos) {
-            // Validar que el lote existe y pertenece a la empresa
             if (!prod.id_lote) {
                 throw new Error(`Lote no especificado para el producto ${prod.nombre}`);
             }
@@ -692,20 +686,17 @@ export const updateVenta = async (req: Request, res: Response) => {
                 throw new Error(`Stock insuficiente para ${prod.nombre}`);
             }
 
-            // Reducir stock
             await executeMutation(
                 `UPDATE lotes SET stock = stock - ? WHERE id = ? AND id_empresa = ?`,
                 [prod.cantidad, prod.id_lote, id_empresa]
             );
 
-            // Buscar si ya existe un detalle con este id_lote en la venta
             const detalleExistente = await executeQuerySingle<any>(
                 `SELECT id FROM detalle_venta WHERE id_venta = ? AND id_lote = ? AND id_empresa = ?`,
                 [id, prod.id_lote, id_empresa]
             );
 
             if (detalleExistente) {
-                // Actualizar el detalle existente
                 await executeMutation(
                     `UPDATE detalle_venta 
                      SET cantidad = ?, precio_unitario = ?, subtotal = ?, nombre_producto = ?
@@ -713,7 +704,6 @@ export const updateVenta = async (req: Request, res: Response) => {
                     [prod.cantidad, prod.precio, prod.cantidad * prod.precio, prod.nombre, detalleExistente.id, id_empresa]
                 );
             } else {
-                // Insertar nuevo detalle
                 await executeMutation(
                     `INSERT INTO detalle_venta 
                         (id_empresa, id_venta, id_lote, nombre_producto, precio_unitario, cantidad, subtotal) 
@@ -731,7 +721,6 @@ export const updateVenta = async (req: Request, res: Response) => {
             }
         }
 
-        // 5. Eliminar los detalles antiguos que ya no están en la nueva lista (solo si no tienen devoluciones)
         const idsNuevos = productos.map((p: any) => p.id_lote).filter((id: any) => id !== undefined);
         if (idsNuevos.length > 0) {
             const detallesAEliminar = await executeQuery<any[]>(
@@ -755,13 +744,11 @@ export const updateVenta = async (req: Request, res: Response) => {
             }
         }
 
-        // 6. Actualizar cabecera de la venta
         await executeMutation(
             `UPDATE ventas SET subtotal = ?, igv = ?, total = ? WHERE id = ? AND id_empresa = ?`,
             [subtotal || 0, igv || 0, total || 0, id, id_empresa]
         );
 
-        // 7. Obtener venta actualizada con sus detalles
         const ventaActualizada = await executeQuerySingle<any>(
             `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
             [id, id_empresa]

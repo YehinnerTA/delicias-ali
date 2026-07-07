@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { VentaCatering } from '../../../../features/types/catering';
+import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
 import { recetaApi } from '../../../../services/api/recetaApi';
 import { useToast } from '../../../../hooks/base/useToast';
 
@@ -19,6 +20,8 @@ interface IngredienteRecetaBD {
 
 export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOpen, onClose, venta }) => {
     const { showToast } = useToast();
+    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
+    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
     const [recetasCargadas, setRecetasCargadas] = useState<Map<string, IngredienteRecetaBD[]>>(new Map());
     const [isLoading, setIsLoading] = useState(false);
 
@@ -30,6 +33,10 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
 
     const cargarRecetas = async () => {
         if (!venta) return;
+        if (!id_empresa) {
+            showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
+            return;
+        }
         setIsLoading(true);
         const map = new Map<string, IngredienteRecetaBD[]>();
         try {
@@ -39,7 +46,8 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
             });
 
             for (const nombre of productos) {
-                const receta = await recetaApi.getByProductoNombre(nombre);
+                // ← PASAMOS id_empresa a la función
+                const receta = await recetaApi.getByProductoNombre(nombre, id_empresa);
                 if (receta && receta.ingredientes.length > 0) {
                     map.set(nombre, receta.ingredientes.map(ing => ({
                         nombre: ing.nombre,

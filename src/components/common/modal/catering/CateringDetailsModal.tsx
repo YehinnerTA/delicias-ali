@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
-import { VentaCatering, HistorialEntry } from '../../../../features/types/catering';
+import { VentaCatering } from '../../../../features/types/catering';
+import { HistorialEntry } from '../../../../features/types/hist_act';
 import { historialApi } from '../../../../services/api/historialApi';
 import { useToast } from '../../../../hooks/base/useToast';
 

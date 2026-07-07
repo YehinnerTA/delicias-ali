@@ -22,7 +22,6 @@ const empresaFilters: FilterField[] = [
     }
 ];
 
-// Campos para el formulario de creación
 const empresaFormFields = [
     { id: 'ruc', label: 'RUC (11 dígitos)', type: 'text', placeholder: '20123456789', required: true },
     { id: 'nombre', label: 'Nombre / Razón Social', type: 'text', placeholder: 'Ej: Distribuciones del Valle S.A.C.', required: true }
@@ -40,7 +39,6 @@ export const EmpresasSection: React.FC = () => {
     const [filteredData, setFilteredData] = useState<Empresa[]>(empresas);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Estado para controlar el modal de creación
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     useEffect(() => {
@@ -68,13 +66,11 @@ export const EmpresasSection: React.FC = () => {
         }
     ];
 
-    // --- ABRIR MODAL DE CREACIÓN ---
     const openCreateModal = () => {
         setFormValues({ ruc: '', nombre: '' });
         setIsCreateModalOpen(true);
     };
 
-    // --- CREAR ---
     const handleAddEmpresa = async () => {
         if (!formValues.ruc || !formValues.nombre) {
             showToast('RUC y nombre son requeridos', 'warning', 'Campos incompletos');
@@ -100,7 +96,6 @@ export const EmpresasSection: React.FC = () => {
 
             showToast(`Empresa "${formValues.nombre}" creada exitosamente`, "success", "Empresa registrada");
 
-            // Cerrar modal y resetear formulario
             setIsCreateModalOpen(false);
             setFormValues({ ruc: '', nombre: '' });
         } catch (error) {
@@ -111,7 +106,6 @@ export const EmpresasSection: React.FC = () => {
         }
     };
 
-    // --- VER ---
     const handleView = async (empresa: Empresa) => {
         try {
             const historial = await historialApi.getByEntity('empresas', empresa.id_empresa);
@@ -169,7 +163,6 @@ export const EmpresasSection: React.FC = () => {
         }
     };
 
-    // --- EDITAR ---
     const handleEdit = (empresa: Empresa) => {
         const handleSave = async () => {
             const newNombre = (document.getElementById('edit_nombre') as HTMLInputElement)?.value;
@@ -241,7 +234,6 @@ export const EmpresasSection: React.FC = () => {
         setModalOpen(true);
     };
 
-    // --- ELIMINAR ---
     const handleDelete = (empresa: Empresa) => {
         const handleConfirm = async () => {
             setIsSubmitting(true);

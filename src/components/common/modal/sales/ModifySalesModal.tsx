@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useVentas } from '../../../../context/SalesContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
-import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
+import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { Venta, ProductoVenta, CatalogoProducto } from '../../../../features/types/sales';
 
@@ -16,8 +16,8 @@ interface ModifySalesModalProps {
 export const ModifySalesModal: React.FC<ModifySalesModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
     const { ventas, setVentas, catalogoProductos, addActivity, addToHistory, refreshData } = useVentas();
     const { user } = useAuth();
-    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
-    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
+    const { getSelectedCompanyId } = useCompany();
+    const id_empresa = getSelectedCompanyId() ?? 0;
     const { showToast } = useToast();
 
     const [productos, setProductos] = useState<ProductoVenta[]>([]);
@@ -169,7 +169,7 @@ export const ModifySalesModal: React.FC<ModifySalesModalProps> = ({ isOpen, onCl
         setIsSubmitting(true);
         try {
             const payload = {
-                id_empresa, // ← AGREGADO
+                id_empresa,
                 cliente: clienteNombre,
                 clienteDoc: clienteDoc,
                 productos: productos.map(p => ({

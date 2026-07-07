@@ -20,7 +20,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
     const id_empresa = getSelectedCompanyId() ?? 0;
     const { showToast } = useToast();
 
-    // Estado inicial con id_empresa
     const getInitialVenta = (): VentaTemporal => ({
         id_empresa,
         cliente: { nombre: "", documento: "" },
@@ -71,7 +70,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
             if (docInput) docInput.value = '';
             if (nombreInput) nombreInput.value = '';
             if (montoInput) montoInput.value = '';
-            // Reiniciar con id_empresa actual
             setCurrentVenta({
                 id_empresa,
                 cliente: { nombre: "", documento: "" },
@@ -422,7 +420,6 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
             generarPDF(nuevaVenta, tipoComprobante);
             showToast(`Venta ${nuevaVenta.numero} registrada y comprobante generado`, "success", "Venta registrada");
 
-            // Reiniciar con id_empresa
             setCurrentVenta({
                 id_empresa,
                 cliente: { nombre: "", documento: "" },

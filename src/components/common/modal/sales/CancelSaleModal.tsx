@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal } from '../Modal';
 import { useVentas } from '../../../../context/SalesContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
-import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
+import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { Venta } from '../../../../features/types/sales';
 
@@ -16,8 +16,8 @@ interface AnularVentaModalProps {
 export const AnularVentaModal: React.FC<AnularVentaModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
     const { addActivity, addToHistory, refreshData } = useVentas();
     const { user } = useAuth();
-    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
-    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
+    const { getSelectedCompanyId } = useCompany();
+    const id_empresa = getSelectedCompanyId() ?? 0;
     const { showToast } = useToast();
     const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -39,7 +39,7 @@ export const AnularVentaModal: React.FC<AnularVentaModalProps> = ({ isOpen, onCl
         setIsSubmitting(true);
         try {
             const { ventaApi } = await import('../../../../services/api/ventaApi');
-            await ventaApi.anular(venta.id, id_empresa); // ← PASAMOS id_empresa
+            await ventaApi.anular(venta.id, id_empresa);
 
             await refreshData();
 

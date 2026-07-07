@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useCateringService } from '../../../../context/CateringContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
+import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
 import { useToast } from '../../../../hooks/base/useToast';
-import { VentaCatering, ServicioCatering, MaterialVenta, ProductoVenta, ProductoCarta, CANTIDAD_MINIMA_PRODUCTOS } from '../../../../features/types/catering';
+import { ServicioCatering, MaterialVenta, ProductoVenta, ProductoCarta, CANTIDAD_MINIMA_PRODUCTOS } from '../../../../features/types/catering';
 import { generarVistaPreviaHTML, generarPDF } from '../../../../services/pdf/pdfService';
 
 interface NewCateringModalProps {
@@ -13,6 +14,7 @@ interface NewCateringModalProps {
 }
 
 interface VentaTemporal {
+    id_empresa: number; // ← AGREGADO
     cliente: { nombre: string; documento: string };
     servicios: ServicioCatering[];
     materiales: MaterialVenta[];
@@ -32,9 +34,12 @@ interface VentaTemporal {
 export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onClose, onSuccess }) => {
     const { serviciosDisponibles, catalogoMateriales, addActivity, addToHistory, getNextNumeroVenta, refreshData } = useCateringService();
     const { user } = useAuth();
+    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
+    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
     const { showToast } = useToast();
 
     const [currentVenta, setCurrentVenta] = useState<VentaTemporal>({
+        id_empresa, // ← AGREGADO
         cliente: { nombre: "", documento: "" },
         servicios: [],
         materiales: [],
@@ -99,6 +104,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
 
         const nuevoServicio: ServicioCatering = {
             id: Date.now(),
+            id_empresa: id_empresa, // ← AGREGADO
             tipoKey: tipoKey,
             tipoNombre: servicioInfo.nombre,
             productos: []
@@ -342,6 +348,11 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
     };
 
     const registrarVenta = async () => {
+        if (!id_empresa) {
+            showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
+            return;
+        }
+
         const clienteNombre = (document.getElementById('clienteNombre') as HTMLInputElement)?.value.trim();
         const clienteDoc = (document.getElementById('clienteDoc') as HTMLInputElement)?.value || "";
 
@@ -367,7 +378,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
 
         setIsSubmitting(true);
         try {
-            const numero = await getNextNumeroVenta();
+            const numero = await getNextNumeroVenta(); // Ya recibe id_empresa desde el contexto
 
             const payload = {
                 cliente_documento: clienteDoc,
@@ -376,6 +387,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                 cliente_email: '',
                 cliente_celular: '',
                 servicios: currentVenta.servicios.map(serv => ({
+                    id_empresa: serv.id_empresa, // ← AGREGADO
                     tipoKey: serv.tipoKey,
                     productos: serv.productos.map(p => ({
                         id: p.id,
@@ -405,7 +417,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
             };
 
             const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
-            const nuevaVenta = await cateringServiceApi.create(payload);
+            const nuevaVenta = await cateringServiceApi.create(id_empresa, payload); // ← PASAMOS id_empresa
 
             await refreshData();
 
@@ -426,6 +438,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
     };
 
     const ventaPreview = {
+        id_empresa, // ← AGREGADO
         cliente: (document.getElementById('clienteNombre') as HTMLInputElement)?.value || "Cliente",
         servicios: currentVenta.servicios,
         materiales: currentVenta.materiales,

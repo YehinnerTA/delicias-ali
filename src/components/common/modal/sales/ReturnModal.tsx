@@ -114,11 +114,9 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
 
         const montoTotal = calcularTotalDevolucion();
 
-        // Distribuir la cantidad devuelta entre los detalles disponibles
         const productosParaAPI: { id_detalle_venta: number; cantidad: number }[] = [];
         productosDevueltos.forEach(grupo => {
             let cantidadRestante = grupo.cantidadDevuelta;
-            // Ordenar los detalles por cantidad (opcional: para usar primero los que tienen más stock)
             const detallesOrdenados = [...grupo.detalles].sort((a, b) => b.cantidad - a.cantidad);
             for (const det of detallesOrdenados) {
                 if (cantidadRestante <= 0) break;
@@ -129,7 +127,6 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
                 });
                 cantidadRestante -= tomar;
             }
-            // Si después de recorrer todos los detalles aún queda cantidad, es un error (no debería pasar)
             if (cantidadRestante > 0) {
                 throw new Error(`No hay suficiente stock en los detalles para devolver ${grupo.cantidadDevuelta} de ${grupo.nombre}`);
             }

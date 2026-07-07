@@ -4,7 +4,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const mapCatalogoProducto = (data: any): CatalogoProducto => ({
     id: data.id,
-    id_empresa: data.id_empresa, // ← AGREGADO
+    id_empresa: data.id_empresa,
     nombre: data.nombre,
     precio: parseFloat(data.precio),
     stock: data.stock,
@@ -22,7 +22,7 @@ const mapProductoVenta = (data: any): ProductoVenta => ({
 
 const mapVenta = (data: any): Venta => ({
     id: data.id,
-    id_empresa: data.id_empresa, // ← AGREGADO
+    id_empresa: data.id_empresa,
     numero: data.numero,
     fecha: data.fecha,
     fechaObj: new Date(data.fecha),
