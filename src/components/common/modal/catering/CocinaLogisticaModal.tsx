@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { VentaCatering } from '../../../../features/types/catering';
-import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
+import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { recetaApi } from '../../../../services/api/recetaApi';
 import { useToast } from '../../../../hooks/base/useToast';
 
@@ -20,8 +20,8 @@ interface IngredienteRecetaBD {
 
 export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOpen, onClose, venta }) => {
     const { showToast } = useToast();
-    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
-    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
+    const { getSelectedCompanyId } = useCompany();
+    const id_empresa = getSelectedCompanyId() ?? 0;
     const [recetasCargadas, setRecetasCargadas] = useState<Map<string, IngredienteRecetaBD[]>>(new Map());
     const [isLoading, setIsLoading] = useState(false);
 
@@ -46,7 +46,6 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
             });
 
             for (const nombre of productos) {
-                // ← PASAMOS id_empresa a la función
                 const receta = await recetaApi.getByProductoNombre(nombre, id_empresa);
                 if (receta && receta.ingredientes.length > 0) {
                     map.set(nombre, receta.ingredientes.map(ing => ({
@@ -106,63 +105,65 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
             </div>
 
             {/* Servicios y sus insumos */}
+            {/* Servicios e insumos agrupados por servicio */}
             {venta.servicios && venta.servicios.length > 0 && (
                 <>
-                    {venta.servicios.map((serv, servIdx) => (
-                        <div key={servIdx} className="service-divider">
-                            <div className="service-label-header">
-                                <span className='service-name'>{serv.tipoNombre}</span>
-                            </div>
+                    {isLoading ? (
+                        <div style={{ textAlign: 'center', padding: '1rem' }}>
+                            <i className="fas fa-spinner fa-spin"></i> Cargando recetas...
                         </div>
-                    ))}
-
-                    <div className="dc-info-card">
-                        <h4><i className="fas fa-utensils"></i> INSUMOS</h4>
-                        {isLoading ? (
-                            <div style={{ textAlign: 'center', padding: '1rem' }}>
-                                <i className="fas fa-spinner fa-spin"></i> Cargando recetas...
-                            </div>
-                        ) : (
-                            venta.servicios.map((serv, servIdx) => (
-                                <div key={servIdx}>
-                                    {serv.productos.map((p, prodIdx) => {
-                                        const ingredientes = recetasCargadas.get(p.nombre) || [];
-                                        return (
-                                            <div key={prodIdx} className="insumo-item">
-                                                <div className="insumo-header">
-                                                    <strong>▸ Producto: {p.nombre} (Cantidad: {p.cantidad})</strong>
-                                                </div>
-                                                <div className="insumo-ingredientes">
-                                                    {ingredientes.map((ing, ingIdx) => {
-                                                        const total = ing.cantidadPorUnidad * p.cantidad;
-                                                        return (
-                                                            <div key={ingIdx} className="insumo-ingrediente">
-                                                                <span><strong>• {ing.nombre}</strong> — {total.toFixed(2)} {ing.unidad}</span>
-                                                                <div className="insumo-proveedores">
-                                                                    {ing.proveedores && ing.proveedores.length > 0 ? (
-                                                                        ing.proveedores.map((prov, provIdx) => {
-                                                                            const telefono = prov.match(/\d{9}/)?.[0] || '';
-                                                                            return (
-                                                                                <button key={provIdx} className="dc-btn dc-btn-whatsapp info" onClick={() => handleEnviarWhatsApp(telefono, ing.nombre, total)}>
-                                                                                    <i className="fab fa-whatsapp"></i> {prov.substring(0, 15)}
-                                                                                </button>
-                                                                            );
-                                                                        })
-                                                                    ) : (
-                                                                        <span>Sin proveedor</span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                    ) : (
+                        venta.servicios.map((serv, servIdx) => (
+                            <div key={servIdx} className="dc-container">
+                                <div className="service-divider">
+                                    <div className="service-label-header">
+                                        <span className="service-name">{serv.tipoNombre}</span>
+                                    </div>
                                 </div>
-                            ))
-                        )}
-                    </div>
+                                <br />
+                                {serv.productos.map((p, prodIdx) => {
+                                    const ingredientes = recetasCargadas.get(p.nombre) || [];
+                                    return (
+                                        <div key={prodIdx} className="service-body">
+                                            <div className="insumo-header">
+                                                <strong>▸ Producto: {p.nombre} (Cantidad: {p.cantidad})</strong>
+                                            </div>
+                                            <div className="insumo-ingredientes">
+                                                {ingredientes.map((ing, ingIdx) => {
+                                                    const total = ing.cantidadPorUnidad * p.cantidad;
+                                                    return (
+                                                        <div key={ingIdx} className="insumo-ingrediente">
+                                                            <span>
+                                                                <strong>• {ing.nombre}</strong> — {total.toFixed(2)} {ing.unidad}
+                                                            </span>
+                                                            <div className="insumo-proveedores">
+                                                                {ing.proveedores && ing.proveedores.length > 0 ? (
+                                                                    ing.proveedores.map((prov, provIdx) => {
+                                                                        const telefono = prov.match(/\d{9}/)?.[0] || '';
+                                                                        return (
+                                                                            <button
+                                                                                key={provIdx}
+                                                                                className="dc-btn dc-btn-whatsapp info"
+                                                                                onClick={() => handleEnviarWhatsApp(telefono, ing.nombre, total)}
+                                                                            >
+                                                                                <i className="fab fa-whatsapp"></i> {prov.substring(0, 15)}
+                                                                            </button>
+                                                                        );
+                                                                    })
+                                                                ) : (
+                                                                    <span>Sin proveedor</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ))
+                    )}
                 </>
             )}
 
