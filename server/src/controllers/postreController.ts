@@ -144,7 +144,6 @@ export const updatePostre = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'id_empresa es requerido' });
         }
 
-        // Verificar que el postre pertenece a la empresa
         const exists = await executeQuerySingle(
             'SELECT id FROM postres WHERE id = ? AND id_empresa = ?',
             [id, id_empresa]
@@ -175,7 +174,6 @@ export const deletePostre = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'id_empresa es requerido' });
         }
 
-        // Verificar que el postre pertenece a la empresa
         const exists = await executeQuerySingle(
             'SELECT id FROM postres WHERE id = ? AND id_empresa = ?',
             [id, id_empresa]

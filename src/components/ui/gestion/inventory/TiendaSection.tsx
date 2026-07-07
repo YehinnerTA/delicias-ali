@@ -52,7 +52,7 @@ export const PasteleriaSection: React.FC = () => {
         activityLogs
     } = useInventory();
     const { user } = useAuth();
-    const { getSelectedCompanyId } = useCompany(); // ✅ Cambio aquí
+    const { getSelectedCompanyId } = useCompany();
     const { toasts, showToast, removeToast } = useToast();
 
     const [formValues, setFormValues] = useState({ nombre: '', precio: '0', stock: '0', diasVenc: '7' });

@@ -70,10 +70,8 @@ export const CateringSection: React.FC = () => {
 
     const [filterValues, setFilterValues] = useState<Record<string, string>>(filtersToRecord(cateringFilters));
 
-    // 🔥 Obtener empresa actual
     const empresaId = getSelectedCompanyId();
 
-    // 🔥 Cargar datos cuando cambie la empresa
     useEffect(() => {
         if (empresaId) {
             cargarDatos(empresaId);
@@ -126,7 +124,6 @@ export const CateringSection: React.FC = () => {
         { key: 'ultimaEdicion', header: 'Última edición' }
     ];
 
-    // --- CREAR ---
     const handleAddItem = async () => {
         if (!formValues.nombre) {
             showToast('Nombre requerido', 'warning', 'Campos incompletos');
@@ -166,7 +163,6 @@ export const CateringSection: React.FC = () => {
         }
     };
 
-    // --- VER (con historial completo desde API) ---
     const handleView = async (item: CateringItem) => {
         try {
             const historial = await historialApi.getByEntity('catering_items', item.id);
@@ -226,7 +222,6 @@ export const CateringSection: React.FC = () => {
         }
     };
 
-    // --- EDITAR ---
     const handleEdit = (item: CateringItem) => {
         const oldStock = item.stock;
 
@@ -290,7 +285,6 @@ export const CateringSection: React.FC = () => {
         setModalOpen(true);
     };
 
-    // --- ELIMINAR ---
     const handleDelete = (item: CateringItem) => {
         const handleConfirm = async () => {
             const empresaId = getSelectedCompanyId();

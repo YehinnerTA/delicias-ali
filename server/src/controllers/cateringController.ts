@@ -1,9 +1,6 @@
 import { Request, Response } from 'express';
 import { executeQuery, executeMutation, executeQuerySingle } from '../config/database';
 
-// ============================================
-// OBTENER INSUMOS POR EMPRESA
-// ============================================
 export const getCateringItems = async (req: Request, res: Response) => {
     try {
         const { id_empresa } = req.query;
@@ -28,9 +25,6 @@ export const getCateringItems = async (req: Request, res: Response) => {
     }
 };
 
-// ============================================
-// OBTENER INSUMO POR ID (con validación de empresa)
-// ============================================
 export const getCateringItemById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -59,9 +53,6 @@ export const getCateringItemById = async (req: Request, res: Response) => {
     }
 };
 
-// ============================================
-// CREAR INSUMO (con id_empresa)
-// ============================================
 export const createCateringItem = async (req: Request, res: Response) => {
     try {
         const { nombre, stock, tipo, usuario_id, id_empresa } = req.body;
@@ -70,7 +61,6 @@ export const createCateringItem = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Faltan campos obligatorios: nombre, tipo, usuario_id, id_empresa' });
         }
 
-        // Obtener el id_persona asociado al usuario
         const personaRow = await executeQuerySingle<{ id_persona: number }>(
             `SELECT id_persona FROM usuarios WHERE id = ?`,
             [usuario_id]
@@ -98,9 +88,6 @@ export const createCateringItem = async (req: Request, res: Response) => {
     }
 };
 
-// ============================================
-// ACTUALIZAR INSUMO (con validación de empresa)
-// ============================================
 export const updateCateringItem = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -110,7 +97,6 @@ export const updateCateringItem = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'id_empresa es requerido' });
         }
 
-        // Verificar que el insumo pertenece a la empresa
         const exists = await executeQuerySingle(
             'SELECT id FROM catering_items WHERE id = ? AND id_empresa = ?',
             [id, id_empresa]
@@ -147,9 +133,6 @@ export const updateCateringItem = async (req: Request, res: Response) => {
     }
 };
 
-// ============================================
-// ELIMINAR INSUMO (con validación de empresa)
-// ============================================
 export const deleteCateringItem = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -159,7 +142,6 @@ export const deleteCateringItem = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'id_empresa es requerido' });
         }
 
-        // Verificar que el insumo pertenece a la empresa
         const exists = await executeQuerySingle(
             'SELECT id FROM catering_items WHERE id = ? AND id_empresa = ?',
             [id, id_empresa]

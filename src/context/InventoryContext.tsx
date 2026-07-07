@@ -61,7 +61,6 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
     const [isLoading, setIsLoading] = useState(true);
     const [empresaId, setEmpresaId] = useState<number | null>(null);
 
-    // Obtener empresa actual
     useEffect(() => {
         const id = getSelectedCompanyId();
         setEmpresaId(id);
@@ -114,7 +113,6 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
         }
     };
 
-    // Cargar datos cuando cambie la empresa
     useEffect(() => {
         if (empresaId !== null) {
             loadData(empresaId);

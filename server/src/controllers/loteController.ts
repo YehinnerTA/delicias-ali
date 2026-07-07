@@ -1,9 +1,6 @@
 import { Request, Response } from 'express';
 import { executeQuery, executeMutation, executeQuerySingle } from '../config/database';
 
-// ============================================
-// OBTENER LOTES POR EMPRESA
-// ============================================
 export const getLotes = async (req: Request, res: Response) => {
     try {
         const { id_empresa } = req.query;
@@ -28,9 +25,6 @@ export const getLotes = async (req: Request, res: Response) => {
     }
 };
 
-// ============================================
-// OBTENER LOTES POR POSTRE (con validación de empresa)
-// ============================================
 export const getLotesByPostre = async (req: Request, res: Response) => {
     try {
         const { postreId } = req.params;
@@ -56,9 +50,6 @@ export const getLotesByPostre = async (req: Request, res: Response) => {
     }
 };
 
-// ============================================
-// CREAR LOTE (con id_empresa)
-// ============================================
 export const createLote = async (req: Request, res: Response) => {
     try {
         const { postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, usuario_id, id_empresa } = req.body;
@@ -101,9 +92,6 @@ export const createLote = async (req: Request, res: Response) => {
     }
 };
 
-// ============================================
-// ACTUALIZAR LOTE (con validación de empresa)
-// ============================================
 export const updateLote = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -137,9 +125,6 @@ export const updateLote = async (req: Request, res: Response) => {
     }
 };
 
-// ============================================
-// ELIMINAR LOTE (con validación de empresa)
-// ============================================
 export const deleteLote = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
