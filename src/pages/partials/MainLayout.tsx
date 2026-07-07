@@ -9,7 +9,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return (
         <>
             <Header />
-            <main style={{ flex: 1 }}>
+            <main>
                 {children}
             </main>
         </>
