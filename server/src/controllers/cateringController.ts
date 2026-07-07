@@ -1,8 +1,16 @@
 import { Request, Response } from 'express';
 import { executeQuery, executeMutation, executeQuerySingle } from '../config/database';
 
+// ============================================
+// OBTENER INSUMOS POR EMPRESA
+// ============================================
 export const getCateringItems = async (req: Request, res: Response) => {
     try {
+        const { id_empresa } = req.query;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
         const rows = await executeQuery<any[]>(`
             SELECT 
                 ci.*,
@@ -10,8 +18,9 @@ export const getCateringItems = async (req: Request, res: Response) => {
                 p.apellido AS registrado_por_apellido
             FROM catering_items ci
             JOIN personas p ON ci.registrado_por = p.id
+            WHERE ci.id_empresa = ?
             ORDER BY ci.id DESC
-        `);
+        `, [id_empresa]);
         res.json(rows);
     } catch (error) {
         console.error('[getCateringItems] Error:', error);
@@ -19,9 +28,17 @@ export const getCateringItems = async (req: Request, res: Response) => {
     }
 };
 
+// ============================================
+// OBTENER INSUMO POR ID (con validación de empresa)
+// ============================================
 export const getCateringItemById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const { id_empresa } = req.query;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
         const row = await executeQuerySingle<any>(`
             SELECT 
                 ci.*,
@@ -29,8 +46,12 @@ export const getCateringItemById = async (req: Request, res: Response) => {
                 p.apellido AS registrado_por_apellido
             FROM catering_items ci
             JOIN personas p ON ci.registrado_por = p.id
-            WHERE ci.id = ?
-        `, [id]);
+            WHERE ci.id = ? AND ci.id_empresa = ?
+        `, [id, id_empresa]);
+
+        if (!row) {
+            return res.status(404).json({ message: 'Insumo no encontrado en esta empresa' });
+        }
         res.json(row);
     } catch (error) {
         console.error('[getCateringItemById] Error:', error);
@@ -38,12 +59,15 @@ export const getCateringItemById = async (req: Request, res: Response) => {
     }
 };
 
+// ============================================
+// CREAR INSUMO (con id_empresa)
+// ============================================
 export const createCateringItem = async (req: Request, res: Response) => {
     try {
-        const { nombre, stock, tipo, usuario_id } = req.body;
+        const { nombre, stock, tipo, usuario_id, id_empresa } = req.body;
 
-        if (!nombre || !tipo || !usuario_id) {
-            return res.status(400).json({ message: 'Faltan campos obligatorios: nombre, tipo, usuario_id' });
+        if (!nombre || !tipo || !usuario_id || !id_empresa) {
+            return res.status(400).json({ message: 'Faltan campos obligatorios: nombre, tipo, usuario_id, id_empresa' });
         }
 
         // Obtener el id_persona asociado al usuario
@@ -59,11 +83,14 @@ export const createCateringItem = async (req: Request, res: Response) => {
         const registrado_por = personaRow.id_persona;
 
         const result = await executeMutation(
-            `INSERT INTO catering_items (nombre, stock, tipo, registrado_por) VALUES (?, ?, ?, ?)`,
-            [nombre, stock || 0, tipo, registrado_por]
+            `INSERT INTO catering_items (id_empresa, nombre, stock, tipo, registrado_por) VALUES (?, ?, ?, ?, ?)`,
+            [id_empresa, nombre, stock || 0, tipo, registrado_por]
         );
 
-        const newRow = await executeQuerySingle('SELECT * FROM catering_items WHERE id = ?', [result.insertId]);
+        const newRow = await executeQuerySingle(
+            'SELECT * FROM catering_items WHERE id = ? AND id_empresa = ?',
+            [result.insertId, id_empresa]
+        );
         res.status(201).json(newRow);
     } catch (error) {
         console.error('[createCateringItem] Error:', error);
@@ -71,12 +98,27 @@ export const createCateringItem = async (req: Request, res: Response) => {
     }
 };
 
+// ============================================
+// ACTUALIZAR INSUMO (con validación de empresa)
+// ============================================
 export const updateCateringItem = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { nombre, stock, tipo } = req.body;
+        const { nombre, stock, tipo, id_empresa } = req.body;
 
-        // Construir dinámicamente la consulta
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        // Verificar que el insumo pertenece a la empresa
+        const exists = await executeQuerySingle(
+            'SELECT id FROM catering_items WHERE id = ? AND id_empresa = ?',
+            [id, id_empresa]
+        );
+        if (!exists) {
+            return res.status(404).json({ message: 'Insumo no encontrado en esta empresa' });
+        }
+
         const updates: string[] = [];
         const values: any[] = [];
 
@@ -89,11 +131,15 @@ export const updateCateringItem = async (req: Request, res: Response) => {
         }
 
         values.push(id);
-        const query = `UPDATE catering_items SET ${updates.join(', ')} WHERE id = ?`;
+        values.push(id_empresa);
+        const query = `UPDATE catering_items SET ${updates.join(', ')} WHERE id = ? AND id_empresa = ?`;
 
         await executeMutation(query, values);
 
-        const updated = await executeQuerySingle('SELECT * FROM catering_items WHERE id = ?', [id]);
+        const updated = await executeQuerySingle(
+            'SELECT * FROM catering_items WHERE id = ? AND id_empresa = ?',
+            [id, id_empresa]
+        );
         res.json(updated);
     } catch (error) {
         console.error('[updateCateringItem] Error:', error);
@@ -101,10 +147,31 @@ export const updateCateringItem = async (req: Request, res: Response) => {
     }
 };
 
+// ============================================
+// ELIMINAR INSUMO (con validación de empresa)
+// ============================================
 export const deleteCateringItem = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        await executeMutation('DELETE FROM catering_items WHERE id = ?', [id]);
+        const { id_empresa } = req.body;
+
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        // Verificar que el insumo pertenece a la empresa
+        const exists = await executeQuerySingle(
+            'SELECT id FROM catering_items WHERE id = ? AND id_empresa = ?',
+            [id, id_empresa]
+        );
+        if (!exists) {
+            return res.status(404).json({ message: 'Insumo no encontrado en esta empresa' });
+        }
+
+        await executeMutation(
+            'DELETE FROM catering_items WHERE id = ? AND id_empresa = ?',
+            [id, id_empresa]
+        );
         res.status(204).send();
     } catch (error) {
         console.error('[deleteCateringItem] Error:', error);

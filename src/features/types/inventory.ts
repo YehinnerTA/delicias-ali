@@ -2,6 +2,7 @@ import { HistorialEntry } from './hist_act';
 
 export interface CateringItem {
     id: number;
+    id_empresa: number;
     nombre: string;
     stock: number;
     tipo: 'materia prima' | 'utensilio';
@@ -12,6 +13,7 @@ export interface CateringItem {
 
 export interface Lote {
     id: number;
+    id_empresa: number;
     postre_id: number;
     stock: number;
     fechaVencimiento: string;
@@ -24,6 +26,7 @@ export interface Lote {
 
 export interface Postre {
     id: number;
+    id_empresa: number;
     nombre: string;
     precio: number;
     lotes: Lote[];

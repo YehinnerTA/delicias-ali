@@ -4,9 +4,9 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const mapLoteToFrontend = (l: any): Lote => ({
     id: l.id,
+    id_empresa: l.id_empresa,           // ← NUEVO
     postre_id: l.postre_id,
     stock: parseInt(l.stock) || 0,
-    precio: parseFloat(l.precio) || 0,
     fechaVencimiento: l.fecha_vencimiento,
     diasDuracion: parseInt(l.dias_duracion) || 0,
     fechaRegistro: l.fecha_registro,
@@ -16,8 +16,9 @@ const mapLoteToFrontend = (l: any): Lote => ({
 });
 
 export const loteApi = {
+    // ✅ Crear lote (envía id_empresa en el payload)
     create: async (
-        lote: Omit<Lote, 'id' | 'historial' | 'registradoPor' | 'ultimaEdicion'> & { usuario_id: number }
+        lote: Omit<Lote, 'id' | 'historial' | 'registradoPor' | 'ultimaEdicion'> & { usuario_id: number; id_empresa: number }
     ): Promise<Lote> => {
         const res = await fetch(`${API_URL}/lotes`, {
             method: 'POST',
@@ -25,11 +26,11 @@ export const loteApi = {
             body: JSON.stringify({
                 postre_id: lote.postre_id,
                 stock: lote.stock,
-                precio: lote.precio,
                 fecha_vencimiento: lote.fechaVencimiento,
                 dias_duracion: lote.diasDuracion,
                 fecha_registro: lote.fechaRegistro || new Date().toISOString().split('T')[0],
-                usuario_id: lote.usuario_id
+                usuario_id: lote.usuario_id,
+                id_empresa: lote.id_empresa           // ← NUEVO
             })
         });
         if (!res.ok) throw new Error('Error al crear lote');
@@ -37,15 +38,16 @@ export const loteApi = {
         return mapLoteToFrontend(data);
     },
 
+    // ✅ Actualizar lote (ya incluye id_empresa en el body)
     update: async (id: number, lote: Partial<Lote>): Promise<Lote> => {
         const res = await fetch(`${API_URL}/lotes/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 stock: lote.stock,
-                precio: lote.precio,
                 fecha_vencimiento: lote.fechaVencimiento,
-                dias_duracion: lote.diasDuracion
+                dias_duracion: lote.diasDuracion,
+                id_empresa: lote.id_empresa           // ← NUEVO
             })
         });
         if (!res.ok) throw new Error('Error al actualizar lote');
@@ -53,8 +55,11 @@ export const loteApi = {
         return mapLoteToFrontend(data);
     },
 
-    delete: async (id: number): Promise<void> => {
-        const res = await fetch(`${API_URL}/lotes/${id}`, { method: 'DELETE' });
+    // ✅ Eliminar lote (envía id_empresa como query param)
+    delete: async (id: number, id_empresa: number): Promise<void> => {
+        const res = await fetch(`${API_URL}/lotes/${id}?id_empresa=${id_empresa}`, {
+            method: 'DELETE'
+        });
         if (!res.ok) throw new Error('Error al eliminar lote');
     }
 };

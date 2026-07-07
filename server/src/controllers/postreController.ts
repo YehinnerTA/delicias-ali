@@ -3,7 +3,13 @@ import { executeQuery, executeMutation, executeQuerySingle } from '../config/dat
 
 export const getPostres = async (req: Request, res: Response) => {
     try {
-        const rows = await executeQuery<any>(`
+        const { id_empresa } = req.query;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        const rows = await executeQuery<any>(
+            `
             SELECT 
                 p.*,
                 GROUP_CONCAT(
@@ -19,9 +25,12 @@ export const getPostres = async (req: Request, res: Response) => {
                 ) AS lotes
             FROM postres p
             LEFT JOIN lotes l ON p.id = l.postre_id
+            WHERE p.id_empresa = ?
             GROUP BY p.id
             ORDER BY p.id DESC
-        `);
+        `,
+            [id_empresa]
+        );
 
         const result = rows.map((row: any) => ({
             ...row,
@@ -38,6 +47,11 @@ export const getPostres = async (req: Request, res: Response) => {
 export const getPostreById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const { id_empresa } = req.query;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
         const row = await executeQuerySingle<any>(
             `
             SELECT 
@@ -55,10 +69,10 @@ export const getPostreById = async (req: Request, res: Response) => {
                 ) AS lotes
             FROM postres p
             LEFT JOIN lotes l ON p.id = l.postre_id
-            WHERE p.id = ?
+            WHERE p.id = ? AND p.id_empresa = ?
             GROUP BY p.id
         `,
-            [id]
+            [id, id_empresa]
         );
 
         if (row) {
@@ -74,10 +88,10 @@ export const getPostreById = async (req: Request, res: Response) => {
 
 export const createPostre = async (req: Request, res: Response) => {
     try {
-        const { nombre, precio, lotes, usuario_id } = req.body;
+        const { nombre, precio, lotes, usuario_id, id_empresa } = req.body;
 
-        if (!nombre || !usuario_id) {
-            return res.status(400).json({ message: 'Nombre y usuario_id son obligatorios' });
+        if (!nombre || !usuario_id || !id_empresa) {
+            return res.status(400).json({ message: 'Nombre, usuario_id y id_empresa son obligatorios' });
         }
 
         const personaRow = await executeQuerySingle<{ id_persona: number }>(
@@ -90,17 +104,18 @@ export const createPostre = async (req: Request, res: Response) => {
         const registrado_por = personaRow.id_persona;
 
         const result = await executeMutation(
-            `INSERT INTO postres (nombre, precio) VALUES (?, ?)`,
-            [nombre, precio || 0]
+            `INSERT INTO postres (id_empresa, nombre, precio) VALUES (?, ?, ?)`,
+            [id_empresa, nombre, precio || 0]
         );
         const postreId = result.insertId;
 
         if (lotes && Array.isArray(lotes) && lotes.length > 0) {
             for (const lote of lotes) {
                 await executeMutation(
-                    `INSERT INTO lotes (postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) 
-                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     [
+                        id_empresa,
                         postreId,
                         lote.stock || 0,
                         lote.fecha_vencimiento,
@@ -123,14 +138,27 @@ export const createPostre = async (req: Request, res: Response) => {
 export const updatePostre = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { nombre } = req.body;
+        const { nombre, id_empresa } = req.body;
+
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        // Verificar que el postre pertenece a la empresa
+        const exists = await executeQuerySingle(
+            'SELECT id FROM postres WHERE id = ? AND id_empresa = ?',
+            [id, id_empresa]
+        );
+        if (!exists) {
+            return res.status(404).json({ message: 'Postre no encontrado en esta empresa' });
+        }
 
         await executeMutation(
-            `UPDATE postres SET nombre = ? WHERE id = ?`,
-            [nombre, id]
+            `UPDATE postres SET nombre = ? WHERE id = ? AND id_empresa = ?`,
+            [nombre, id, id_empresa]
         );
 
-        const updated = await executeQuerySingle('SELECT * FROM postres WHERE id = ?', [id]);
+        const updated = await executeQuerySingle('SELECT * FROM postres WHERE id = ? AND id_empresa = ?', [id, id_empresa]);
         res.json(updated);
     } catch (error) {
         console.error('[updatePostre] Error:', error);
@@ -141,7 +169,25 @@ export const updatePostre = async (req: Request, res: Response) => {
 export const deletePostre = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        await executeMutation('DELETE FROM postres WHERE id = ?', [id]);
+        const { id_empresa } = req.query;
+
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        // Verificar que el postre pertenece a la empresa
+        const exists = await executeQuerySingle(
+            'SELECT id FROM postres WHERE id = ? AND id_empresa = ?',
+            [id, id_empresa]
+        );
+        if (!exists) {
+            return res.status(404).json({ message: 'Postre no encontrado en esta empresa' });
+        }
+
+        await executeMutation(
+            'DELETE FROM postres WHERE id = ? AND id_empresa = ?',
+            [id, id_empresa]
+        );
         res.status(204).send();
     } catch (error) {
         console.error('[deletePostre] Error:', error);

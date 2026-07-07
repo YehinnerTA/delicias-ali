@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from '../features/auth/context/AuthContext';
+import { useCompany } from '../features/company/context/CompanyContext';
 import { CateringItem, Postre, ModuloInventario, CateringFilters, PostreFilters } from '../features/types/inventory';
 import { ActivityLog } from '../features/types/hist_act';
 import { cateringItemApi } from '../services/api/cateringApi';
@@ -51,12 +52,20 @@ const loadFromLocalStorage = () => {
 
 export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user } = useAuth();
+    const { getSelectedCompanyId } = useCompany();
     const [cateringItems, setCateringItems] = useState<CateringItem[]>([]);
     const [postresItems, setPostresItems] = useState<Postre[]>([]);
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
     const [cateringFilters, setCateringFilters] = useState<CateringFilters>({ nombre: '', tipo: '', stockMin: '' });
     const [postreFilters, setPostreFilters] = useState<PostreFilters>({ nombre: '', estado: '' });
     const [isLoading, setIsLoading] = useState(true);
+    const [empresaId, setEmpresaId] = useState<number | null>(null);
+
+    // Obtener empresa actual
+    useEffect(() => {
+        const id = getSelectedCompanyId();
+        setEmpresaId(id);
+    }, [getSelectedCompanyId]);
 
     const calcularFechaVencimiento = (dias: number): string => {
         if (!dias || dias <= 0) return new Date().toISOString().split('T')[0];
@@ -79,30 +88,23 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
         return 'Sistema';
     };
 
-    const loadData = async () => {
+    const loadData = async (id_empresa: number) => {
         setIsLoading(true);
         try {
             const [catData, posData, actData] = await Promise.all([
-                cateringItemApi.getAll(),
-                postreApi.getAll(),
+                cateringItemApi.getAll(id_empresa),
+                postreApi.getAll(id_empresa),
                 actividadApi.getAll()
             ]);
 
-            if (catData.length > 0 || posData.length > 0) {
-                setCateringItems(catData);
-                setPostresItems(posData);
-                setActivityLogs(actData);
-                localStorage.setItem("cateringInv", JSON.stringify(catData));
-                localStorage.setItem("postresLotes", JSON.stringify(posData));
-                localStorage.setItem("inventoryAct", JSON.stringify(actData));
-            } else {
-                const localData = loadFromLocalStorage();
-                setCateringItems(localData.cateringItems);
-                setPostresItems(localData.postresItems);
-                setActivityLogs(localData.activityLogs);
-            }
+            setCateringItems(catData);
+            setPostresItems(posData);
+            setActivityLogs(actData);
+            localStorage.setItem("cateringInv", JSON.stringify(catData));
+            localStorage.setItem("postresLotes", JSON.stringify(posData));
+            localStorage.setItem("inventoryAct", JSON.stringify(actData));
         } catch (error) {
-            console.error('[InventoryContext] Error cargando desde API, usando localStorage:', error);
+            console.error('[InventoryContext] Error cargando desde API:', error);
             const localData = loadFromLocalStorage();
             setCateringItems(localData.cateringItems);
             setPostresItems(localData.postresItems);
@@ -112,9 +114,12 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
         }
     };
 
+    // Cargar datos cuando cambie la empresa
     useEffect(() => {
-        loadData();
-    }, []);
+        if (empresaId !== null) {
+            loadData(empresaId);
+        }
+    }, [empresaId]);
 
     const addActivity = async (accion: string, modulo: ModuloInventario, detalle: string) => {
         try {
@@ -184,7 +189,9 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
     };
 
     const refreshData = async () => {
-        await loadData();
+        if (empresaId !== null) {
+            await loadData(empresaId);
+        }
     };
 
     return (

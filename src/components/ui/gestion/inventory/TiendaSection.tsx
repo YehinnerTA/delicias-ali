@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useInventory } from '../../../../context/InventoryContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
+import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { Toast } from '../../../common/Toast';
 import { Modal } from '../../../common/modal/Modal';
 import { DataTable, Column } from '../../../common/DataTable';
@@ -51,6 +52,7 @@ export const PasteleriaSection: React.FC = () => {
         activityLogs
     } = useInventory();
     const { user } = useAuth();
+    const { getSelectedCompanyId } = useCompany(); // ✅ Cambio aquí
     const { toasts, showToast, removeToast } = useToast();
 
     const [formValues, setFormValues] = useState({ nombre: '', precio: '0', stock: '0', diasVenc: '7' });
@@ -148,8 +150,9 @@ export const PasteleriaSection: React.FC = () => {
         }
 
         const userId = user?.id;
-        if (!userId) {
-            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+        const empresaId = getSelectedCompanyId();
+        if (!userId || !empresaId) {
+            showToast('No se pudo identificar al usuario o empresa', 'error', 'Error de autenticación');
             return;
         }
 
@@ -167,10 +170,11 @@ export const PasteleriaSection: React.FC = () => {
                 nombre: formValues.nombre,
                 precio: parseFloat(formValues.precio),
                 lotes: [nuevoLote],
-                usuario_id: userId
+                usuario_id: userId,
+                id_empresa: empresaId
             });
 
-            const todosLosPostres = await postreApi.getAll();
+            const todosLosPostres = await postreApi.getAll(empresaId);
             setPostresItems(todosLosPostres);
 
             await addActivity('INSERT', 'tienda', `Nuevo postre "${formValues.nombre}" con lote (${formValues.stock} und, ${formValues.diasVenc} días de duración)`);
@@ -312,8 +316,9 @@ export const PasteleriaSection: React.FC = () => {
             }
 
             const userId = user?.id;
-            if (!userId) {
-                showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+            const empresaId = getSelectedCompanyId();
+            if (!userId || !empresaId) {
+                showToast('No se pudo identificar al usuario o empresa', 'error', 'Error de autenticación');
                 return;
             }
 
@@ -326,7 +331,8 @@ export const PasteleriaSection: React.FC = () => {
                     fechaVencimiento: fechaVencimiento,
                     diasDuracion: diasN,
                     fechaRegistro: new Date().toISOString().split('T')[0],
-                    usuario_id: userId
+                    usuario_id: userId,
+                    id_empresa: empresaId
                 });
 
                 const updatedPostres = postresItems.map(p =>
@@ -380,9 +386,15 @@ export const PasteleriaSection: React.FC = () => {
 
     const handleDelete = (postre: Postre) => {
         const handleConfirm = async () => {
+            const empresaId = getSelectedCompanyId();
+            if (!empresaId) {
+                showToast('No se pudo identificar la empresa', 'error', 'Error de autenticación');
+                return;
+            }
+
             setIsSubmitting(true);
             try {
-                await postreApi.delete(postre.id);
+                await postreApi.delete(postre.id, empresaId);
                 setPostresItems(postresItems.filter(p => p.id !== postre.id));
                 await addActivity('ELIMINAR', 'tienda', `Eliminado "${postre.nombre}"`);
                 showToast(`"${postre.nombre}" ha sido eliminado correctamente`, "success", "Eliminado");

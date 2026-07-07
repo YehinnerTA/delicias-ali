@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useInventory } from '../../../../context/InventoryContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
+import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { Toast } from '../../../common/Toast';
 import { Modal } from '../../../common/modal/Modal';
 import { DataTable, Column } from '../../../common/DataTable';
@@ -58,6 +59,7 @@ export const CateringSection: React.FC = () => {
         activityLogs
     } = useInventory();
     const { user } = useAuth();
+    const { getSelectedCompanyId, selectedCompany } = useCompany();
     const { toasts, showToast, removeToast } = useToast();
 
     const [formValues, setFormValues] = useState({ nombre: '', stock: '0', tipo: 'materia prima' });
@@ -67,6 +69,26 @@ export const CateringSection: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [filterValues, setFilterValues] = useState<Record<string, string>>(filtersToRecord(cateringFilters));
+
+    // 🔥 Obtener empresa actual
+    const empresaId = getSelectedCompanyId();
+
+    // 🔥 Cargar datos cuando cambie la empresa
+    useEffect(() => {
+        if (empresaId) {
+            cargarDatos(empresaId);
+        }
+    }, [empresaId]);
+
+    const cargarDatos = async (id_empresa: number) => {
+        try {
+            const items = await cateringItemApi.getAll(id_empresa);
+            setCateringItems(items);
+        } catch (error) {
+            console.error('[CateringSection] Error cargando datos:', error);
+            showToast('Error al cargar insumos', 'error', 'Error');
+        }
+    };
 
     useEffect(() => {
         setFilterValues(filtersToRecord(cateringFilters));
@@ -112,8 +134,9 @@ export const CateringSection: React.FC = () => {
         }
 
         const userId = user?.id;
-        if (!userId) {
-            showToast('No se pudo identificar al usuario', 'error', 'Error de autenticación');
+        const empresaId = getSelectedCompanyId();
+        if (!userId || !empresaId) {
+            showToast('No se pudo identificar al usuario o empresa', 'error', 'Error de autenticación');
             return;
         }
 
@@ -123,7 +146,8 @@ export const CateringSection: React.FC = () => {
                 nombre: formValues.nombre,
                 stock: parseInt(formValues.stock) || 0,
                 tipo: formValues.tipo as 'materia prima' | 'utensilio',
-                usuario_id: userId
+                usuario_id: userId,
+                id_empresa: empresaId
             };
 
             const newItem = await cateringItemApi.create(payload);
@@ -145,7 +169,6 @@ export const CateringSection: React.FC = () => {
     // --- VER (con historial completo desde API) ---
     const handleView = async (item: CateringItem) => {
         try {
-            // ✅ Cargar historial completo desde la API
             const historial = await historialApi.getByEntity('catering_items', item.id);
             const itemConHistorial = { ...item, historial };
 
@@ -270,9 +293,15 @@ export const CateringSection: React.FC = () => {
     // --- ELIMINAR ---
     const handleDelete = (item: CateringItem) => {
         const handleConfirm = async () => {
+            const empresaId = getSelectedCompanyId();
+            if (!empresaId) {
+                showToast('No se pudo identificar la empresa', 'error', 'Error de autenticación');
+                return;
+            }
+
             setIsSubmitting(true);
             try {
-                await cateringItemApi.delete(item.id);
+                await cateringItemApi.delete(item.id, empresaId);
                 setCateringItems(cateringItems.filter((i: CateringItem) => i.id !== item.id));
                 await addActivity('ELIMINAR', 'catering', `Eliminado "${item.nombre}"`);
                 showToast(`"${item.nombre}" ha sido eliminado correctamente`, 'success', 'Eliminado');
