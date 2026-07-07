@@ -14,7 +14,6 @@ export const login = async (req: Request, res: Response) => {
     try {
         const { email, password, rememberMe } = req.body;
 
-        // Validar campos
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -22,7 +21,6 @@ export const login = async (req: Request, res: Response) => {
             });
         }
 
-        // Buscar usuario por email (JOIN con personas)
         const user = await executeQuerySingle<any>(
             `SELECT 
                 u.id,
@@ -47,7 +45,6 @@ export const login = async (req: Request, res: Response) => {
             });
         }
 
-        // Verificar contraseña
         const passwordHash = await executeQuerySingle<{ hash: string }>(
             `SELECT SHA2(CONCAT(?, SHA2(?, 256)), 256) as hash`,
             [password, ENCRYPTION_KEY]
@@ -60,10 +57,9 @@ export const login = async (req: Request, res: Response) => {
             });
         }
 
-        // Obtener empresas del usuario
         const empresas = await executeQuery<any>(
             `SELECT 
-                e.id,
+                e.id AS id_empresa,
                 e.ruc,
                 e.nombre,
                 ue.es_predeterminada
@@ -80,7 +76,6 @@ export const login = async (req: Request, res: Response) => {
             });
         }
 
-        // Crear token JWT
         const expiresIn = rememberMe ? '30d' : JWT_EXPIRES_IN;
         const token = jwt.sign(
             {
@@ -92,7 +87,6 @@ export const login = async (req: Request, res: Response) => {
             { expiresIn: expiresIn as jwt.SignOptions['expiresIn'] }
         );
 
-        // Respuesta exitosa
         res.json({
             success: true,
             message: 'Inicio de sesión exitoso',
@@ -104,7 +98,7 @@ export const login = async (req: Request, res: Response) => {
                 nombre_completo: user.nombre_completo,
                 firma: user.firma || null,
                 empresas: empresas.map((e: any) => ({
-                    id: e.id,
+                    id_empresa: e.id_empresa,
                     ruc: e.ruc,
                     nombre: e.nombre,
                     es_predeterminada: e.es_predeterminada === 1
@@ -162,7 +156,7 @@ export const verifyToken = async (req: Request, res: Response) => {
 
         const empresas = await executeQuery<any>(
             `SELECT 
-                e.id,
+                e.id AS id_empresa,
                 e.ruc,
                 e.nombre,
                 ue.es_predeterminada
@@ -181,7 +175,7 @@ export const verifyToken = async (req: Request, res: Response) => {
                 nombre_completo: user.nombre_completo,
                 firma: user.firma || null,
                 empresas: empresas.map((e: any) => ({
-                    id: e.id,
+                    id_empresa: e.id_empresa,
                     ruc: e.ruc,
                     nombre: e.nombre,
                     es_predeterminada: e.es_predeterminada === 1

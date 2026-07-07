@@ -18,12 +18,13 @@ const mapToFrontend = (data: any): Persona => ({
 });
 
 export const personaApi = {
-    getAll: async (): Promise<Persona[]> => {
-        const res = await fetch(`${API_URL}/personas`);
+    getAll: async (id_empresa: number): Promise<Persona[]> => {
+        const res = await fetch(`${API_URL}/personas?id_empresa=${id_empresa}`);
         if (!res.ok) throw new Error('Error al obtener personas');
         const data = await res.json();
         return data.map(mapToFrontend);
     },
+
     create: async (persona: Omit<Persona, 'id_persona' | 'historial'>): Promise<Persona> => {
         const res = await fetch(`${API_URL}/personas`, {
             method: 'POST',
@@ -34,6 +35,7 @@ export const personaApi = {
         const data = await res.json();
         return mapToFrontend(data);
     },
+
     update: async (id: number, persona: Partial<Persona>): Promise<Persona> => {
         const res = await fetch(`${API_URL}/personas/${id}`, {
             method: 'PUT',
@@ -44,8 +46,11 @@ export const personaApi = {
         const data = await res.json();
         return mapToFrontend(data);
     },
-    delete: async (id: number): Promise<void> => {
-        const res = await fetch(`${API_URL}/personas/${id}`, { method: 'DELETE' });
+
+    delete: async (id: number, id_empresa: number): Promise<void> => {
+        const res = await fetch(`${API_URL}/personas/${id}?id_empresa=${id_empresa}`, {
+            method: 'DELETE'
+        });
         if (!res.ok) throw new Error('Error al eliminar persona');
     }
 };

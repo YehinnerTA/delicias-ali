@@ -1,5 +1,5 @@
 export interface Empresa {
-    id: number;
+    id_empresa: number;
     ruc: string;
     nombre: string;
     es_predeterminada: boolean;

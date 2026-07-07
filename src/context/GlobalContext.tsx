@@ -8,6 +8,7 @@ import { usuarioApi } from '../services/api/usuarioApi';
 import { actividadApi } from '../services/api/actividadApi';
 import { historialApi } from '../services/api/historialApi';
 import { useAuth } from '../features/auth/context/AuthContext';
+import { useCompany } from '../features/company/context/CompanyContext';
 
 interface GlobalContextType {
     empresas: Empresa[];
@@ -53,6 +54,7 @@ const loadFromLocalStorage = () => {
 
 export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user } = useAuth();
+    const { selectedCompany, getSelectedCompanyId } = useCompany();
     const [empresas, setEmpresas] = useState<Empresa[]>([]);
     const [personas, setPersonas] = useState<Persona[]>([]);
     const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -62,9 +64,10 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const loadData = async () => {
         setIsLoading(true);
         try {
+            const idEmpresa = getSelectedCompanyId();
             const [empData, perData, usrData, actData] = await Promise.all([
                 empresaApi.getAll(),
-                personaApi.getAll(),
+                idEmpresa ? personaApi.getAll(idEmpresa) : Promise.resolve([]),
                 usuarioApi.getAll(),
                 actividadApi.getAll()
             ]);
@@ -100,7 +103,7 @@ export const GlobalProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [selectedCompany]);
 
     const getUsuarioActual = () => {
         if (user) {

@@ -7,6 +7,7 @@ interface CompanyContextType {
     setSelectedCompany: (ruc: string) => void;
     empresas: Empresa[];
     isLoading: boolean;
+    getSelectedCompanyId: () => number | null;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
@@ -18,7 +19,6 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     const empresas: Empresa[] = user?.empresas || [];
 
-    // Cargar empresa desde localStorage al iniciar
     useEffect(() => {
         const saved = localStorage.getItem('selectedCompany');
         if (saved && empresas.some(e => e.ruc === saved)) {
@@ -30,7 +30,6 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
         setIsLoading(false);
     }, [empresas]);
 
-    // Guardar en localStorage cuando cambie
     useEffect(() => {
         if (selectedCompany) {
             localStorage.setItem('selectedCompany', selectedCompany);
@@ -43,6 +42,12 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
     };
 
+    const getSelectedCompanyId = (): number | null => {
+        if (!selectedCompany) return null;
+        const empresa = empresas.find(e => e.ruc === selectedCompany);
+        return empresa ? empresa.id_empresa : null;
+    };
+
     return (
         <CompanyContext.Provider
             value={{
@@ -50,6 +55,7 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
                 setSelectedCompany: handleSetSelectedCompany,
                 empresas,
                 isLoading,
+                getSelectedCompanyId,
             }}
         >
             {children}

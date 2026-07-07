@@ -13,7 +13,6 @@ import { usuarioApi } from '../../../../services/api/usuarioApi';
 import { historialApi } from '../../../../services/api/historialApi';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
 
-// Filtros para la tabla de personas
 const personaFilters: FilterField[] = [
     { id: 'search', label: 'Nombre/Documento', type: 'text', placeholder: 'Nombre, email o documento' },
     {
@@ -32,7 +31,6 @@ const personaFilters: FilterField[] = [
     }
 ];
 
-// Campos del formulario de persona
 const personaFormFields = [
     { id: 'tipo', label: 'Tipo', type: 'select', options: TIPOS_PERSONA },
     {
@@ -50,7 +48,6 @@ const personaFormFields = [
     { id: 'id_empresa', label: 'Empresa', type: 'select', options: [] }
 ];
 
-// Campos del formulario de usuario (básicos)
 const usuarioFormFields = [
     { id: 'username', label: 'Username', type: 'text', placeholder: 'Nombre de usuario', required: true },
     {
@@ -64,7 +61,6 @@ const usuarioFormFields = [
     { id: 'password', label: 'Contraseña', type: 'password', placeholder: '********', required: true }
 ];
 
-// Tipo extendido para Usuario con historial
 type UsuarioConHistorial = Usuario & { historial: HistorialEntry[] };
 
 export const PersonasUsuariosSection: React.FC = () => {
@@ -83,20 +79,17 @@ export const PersonasUsuariosSection: React.FC = () => {
     const { user } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
-    // Estados de filtros
     const [filterValues, setFilterValues] = useState({ search: '', tipo: '', empresa: '', tieneUsuario: '' });
     const [filteredData, setFilteredData] = useState<Persona[]>(personas);
     const [empresaOptions, setEmpresaOptions] = useState<{ value: string; label: string }[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Estados para modales
     const [modalOpen, setModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
 
-    // Estado del formulario de persona
     const [formValues, setFormValues] = useState({
         tipo: 'proveedor',
         tipoDoc: 'DNI',
@@ -109,7 +102,6 @@ export const PersonasUsuariosSection: React.FC = () => {
         id_empresa: ''
     });
 
-    // Estado del formulario de usuario
     const [usuarioFormValues, setUsuarioFormValues] = useState<{
         username: string;
         id_rol: string;
@@ -122,37 +114,30 @@ export const PersonasUsuariosSection: React.FC = () => {
         empresasIds: []
     });
 
-    // Estado para el toggle "Crear/Editar usuario"
     const [crearUsuario, setCrearUsuario] = useState(false);
 
-    // Estado para la empresa seleccionada en el selector de asignación
     const [selectedEmpresaId, setSelectedEmpresaId] = useState<number | ''>('');
 
-    // Cargar opciones de empresas
     useEffect(() => {
         const options = empresas.filter(e => e.estado).map(e => ({
             value: String(e.id_empresa),
             label: e.empresa
         }));
         setEmpresaOptions(options);
-        // Actualizar opciones en el formulario
         const formFieldsCopy = [...personaFormFields];
         const empresaField = formFieldsCopy.find(f => f.id === 'id_empresa');
         if (empresaField) {
             empresaField.options = [{ value: '', label: 'Seleccione empresa' }, ...options];
         }
-        // Actualizar opciones del filtro de empresas
         const filterEmpresaField = personaFilters.find(f => f.id === 'empresa');
         if (filterEmpresaField) {
             filterEmpresaField.options = [{ value: '', label: 'Todas' }, ...options];
         }
-        // Setear la primera empresa como seleccionada por defecto si hay opciones
         if (options.length > 0) {
             setSelectedEmpresaId(parseInt(options[0].value));
         }
     }, [empresas]);
 
-    // Aplicar filtros
     useEffect(() => {
         let filtered = personas.filter(p => {
             const nombreCompleto = getNombrePersona(p).toLowerCase();
@@ -174,7 +159,6 @@ export const PersonasUsuariosSection: React.FC = () => {
         setFilteredData(filtered);
     }, [personas, usuarios, filterValues, getNombrePersona]);
 
-    // --- Columnas de la tabla ---
     const columns: Column<Persona>[] = [
         {
             key: 'tipo_persona',
@@ -216,7 +200,6 @@ export const PersonasUsuariosSection: React.FC = () => {
         }
     ];
 
-    // --- ABRIR MODAL DE CREACIÓN ---
     const openCreateModal = () => {
         setFormValues({
             tipo: 'proveedor',
@@ -242,7 +225,6 @@ export const PersonasUsuariosSection: React.FC = () => {
         setIsCreateModalOpen(true);
     };
 
-    // --- FUNCIONES PARA GESTIONAR EMPRESAS DEL USUARIO ---
     const handleAsignarEmpresa = () => {
         if (selectedEmpresaId === '') {
             showToast('Seleccione una empresa para asignar', 'warning', 'Campos incompletos');
@@ -268,7 +250,6 @@ export const PersonasUsuariosSection: React.FC = () => {
         showToast('Empresa removida', 'info', 'Remoción');
     };
 
-    // --- CREAR PERSONA (y usuario opcional) ---
     const handleCreate = async () => {
         if (!formValues.numDoc || !formValues.celular || !formValues.id_empresa) {
             showToast('Documento, celular y empresa son obligatorios', 'warning', 'Campos incompletos');
@@ -292,7 +273,6 @@ export const PersonasUsuariosSection: React.FC = () => {
 
         setIsSubmitting(true);
         try {
-            // 1. Crear la persona
             const personaPayload = {
                 id_empresa: parseInt(formValues.id_empresa),
                 tipo_persona: formValues.tipo as any,
@@ -313,7 +293,6 @@ export const PersonasUsuariosSection: React.FC = () => {
             await addActivity('INSERT', 'personas', `Nueva persona: ${nombreCompleto}`);
             await addToHistory(nuevaPersona, nombreCompleto, 'CREACIÓN', `Persona creada: ${nombreCompleto}`);
 
-            // 2. Si se eligió crear usuario, crearlo con sus empresas
             if (crearUsuario) {
                 const usuarioPayload = {
                     id_persona: nuevaPersona.id_persona,
@@ -366,7 +345,6 @@ export const PersonasUsuariosSection: React.FC = () => {
         }
     };
 
-    // --- VER DETALLE ---
     const handleView = async (persona: Persona) => {
         try {
             const historialPersona = await historialApi.getByEntity('personas', persona.id_persona);
@@ -379,7 +357,6 @@ export const PersonasUsuariosSection: React.FC = () => {
             if (usuario) {
                 const historialUsuario = await historialApi.getByEntity('usuarios', usuario.id_usuario);
                 usuarioConHistorial = { ...usuario, historial: historialUsuario } as UsuarioConHistorial;
-                // Obtener empresas del usuario desde el contexto global
                 const ids = (usuario as any).empresasIds || [];
                 empresasUsuario = empresas.filter(e => ids.includes(e.id_empresa));
             }
@@ -487,7 +464,6 @@ export const PersonasUsuariosSection: React.FC = () => {
         }
     };
 
-    // --- EDITAR ---
     const openEditModal = (persona: Persona) => {
         setSelectedPersona(persona);
         setFormValues({
@@ -519,7 +495,6 @@ export const PersonasUsuariosSection: React.FC = () => {
         setIsEditModalOpen(true);
     };
 
-    // --- GUARDAR EDICIÓN ---
     const handleUpdate = async () => {
         if (!selectedPersona) return;
 
@@ -554,7 +529,6 @@ export const PersonasUsuariosSection: React.FC = () => {
 
         setIsSubmitting(true);
         try {
-            // 1. Actualizar la persona
             const personaPayload: any = {
                 id_empresa: parseInt(formValues.id_empresa),
                 tipo_persona: selectedPersona.tipo_persona,
@@ -589,12 +563,10 @@ export const PersonasUsuariosSection: React.FC = () => {
                 await addToHistory(personaActualizada, nombreCompleto, 'MODIFICACIÓN', cambiosPersona.join(', '));
             }
 
-            // 2. Gestionar usuario y sus empresas
             const usuarioActual = usuarios.find(u => u.id_persona === selectedPersona.id_persona);
 
             if (crearUsuario) {
                 if (usuarioActual) {
-                    // Actualizar usuario existente
                     const usuarioPayload: any = {
                         id_persona: selectedPersona.id_persona,
                         username: usuarioFormValues.username,
@@ -623,7 +595,6 @@ export const PersonasUsuariosSection: React.FC = () => {
 
                     showToast(`Persona y usuario actualizados correctamente`, 'success', 'Actualizado');
                 } else {
-                    // Crear nuevo usuario
                     if (!usuarioFormValues.password) {
                         showToast('La contraseña es obligatoria para crear un usuario', 'warning', 'Campos incompletos');
                         setIsSubmitting(false);
@@ -672,13 +643,12 @@ export const PersonasUsuariosSection: React.FC = () => {
         }
     };
 
-    // --- ELIMINAR ---
     const handleDelete = (persona: Persona) => {
         const nombre = getNombrePersona(persona);
         const handleConfirm = async () => {
             setIsSubmitting(true);
             try {
-                await personaApi.delete(persona.id_persona);
+                await personaApi.delete(persona.id_persona, persona.id_empresa);
                 setPersonas(prev => prev.filter(p => p.id_persona !== persona.id_persona));
                 setUsuarios(prev => prev.filter(u => u.id_persona !== persona.id_persona));
                 await addActivity('ELIMINAR', 'personas', `Eliminado "${nombre}"`);
@@ -726,12 +696,10 @@ export const PersonasUsuariosSection: React.FC = () => {
         setModalOpen(true);
     };
 
-    // --- ACTIVITY LOGS ---
     const actividadLogs = activityLogs.filter(log =>
         log.modulo === 'personas' || log.modulo === 'usuarios' || log.modulo === 'personas-usuarios'
     ).slice(0, 5);
 
-    // --- RENDER ---
     return (
         <div data-tab="personas-usuarios">
             <div>
