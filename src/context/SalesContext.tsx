@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Venta, CatalogoProducto, VentasFilters } from '../features/types/sales';
 import { ActivityLog } from '../features/types/hist_act';
 import { useAuth } from '../features/auth/context/AuthContext';
+import { useCompany } from '../features/company/context/CompanyContext';
 import { ventaApi } from '../services/api/ventaApi';
 import { actividadApi } from '../services/api/actividadApi';
 import { historialApi } from '../services/api/historialApi';
@@ -25,6 +26,9 @@ const SalesContext = createContext<SalesContextType | undefined>(undefined);
 
 export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user } = useAuth();
+    const { getSelectedCompanyId, selectedCompany } = useCompany();
+    const id_empresa = getSelectedCompanyId() ?? 0;
+
     const [ventas, setVentas] = useState<Venta[]>([]);
     const [catalogoProductos, setCatalogoProductos] = useState<CatalogoProducto[]>([]);
     const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
@@ -39,11 +43,19 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
 
     const loadData = async () => {
+        if (!id_empresa) {
+            setVentas([]);
+            setCatalogoProductos([]);
+            setActivityLogs([]);
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
         try {
             const [ventasData, catalogoData, activityData] = await Promise.all([
-                ventaApi.getAll(),
-                ventaApi.getCatalogo(),
+                ventaApi.getAll(id_empresa),
+                ventaApi.getCatalogo(id_empresa),
                 actividadApi.getAll()
             ]);
 
@@ -59,7 +71,7 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [selectedCompany]); // Recargar al cambiar de empresa
 
     const addActivity = async (accion: string, modulo: string, detalle: string) => {
         try {
@@ -103,8 +115,12 @@ export const SalesProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
 
     const getNextNumeroVenta = async (): Promise<string> => {
+        if (!id_empresa) {
+            const nextNumber = ventas.length + 1;
+            return `V-${String(nextNumber).padStart(6, '0')}`;
+        }
         try {
-            return await ventaApi.getNextNumero();
+            return await ventaApi.getNextNumero(id_empresa);
         } catch (error) {
             console.error('[SalesContext] Error al obtener próximo número:', error);
             const nextNumber = ventas.length + 1;

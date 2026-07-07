@@ -25,6 +25,7 @@ export interface Devolucion {
 
 export interface Venta {
     id: number;
+    id_empresa: number;
     numero: string;
     fecha: string;
     fechaObj: Date;
@@ -44,6 +45,7 @@ export interface Venta {
 
 export interface CatalogoProducto {
     id: number;
+    id_empresa: number;
     nombre: string;
     precio: number;
     stock: number;
@@ -71,6 +73,7 @@ export interface MetodoPago {
 }
 
 export interface VentaTemporal {
+    id_empresa: number;
     cliente: { nombre: string; documento: string };
     productos: ProductoVenta[];
     componentes: ComponentesVenta;

@@ -4,6 +4,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const mapCatalogoProducto = (data: any): CatalogoProducto => ({
     id: data.id,
+    id_empresa: data.id_empresa, // ← AGREGADO
     nombre: data.nombre,
     precio: parseFloat(data.precio),
     stock: data.stock,
@@ -21,6 +22,7 @@ const mapProductoVenta = (data: any): ProductoVenta => ({
 
 const mapVenta = (data: any): Venta => ({
     id: data.id,
+    id_empresa: data.id_empresa, // ← AGREGADO
     numero: data.numero,
     fecha: data.fecha,
     fechaObj: new Date(data.fecha),
@@ -51,45 +53,46 @@ const mapVenta = (data: any): Venta => ({
 });
 
 export const ventaApi = {
-    getAll: async (): Promise<Venta[]> => {
-        const res = await fetch(`${API_URL}/ventas`);
+    getAll: async (idEmpresa: number): Promise<Venta[]> => {
+        const res = await fetch(`${API_URL}/ventas?id_empresa=${idEmpresa}`);
         if (!res.ok) throw new Error('Error al obtener ventas');
         const data = await res.json();
         return data.map(mapVenta);
     },
 
-    getById: async (id: number): Promise<Venta> => {
-        const res = await fetch(`${API_URL}/ventas/${id}`);
+    getById: async (id: number, idEmpresa: number): Promise<Venta> => {
+        const res = await fetch(`${API_URL}/ventas/${id}?id_empresa=${idEmpresa}`);
         if (!res.ok) throw new Error('Error al obtener venta');
         const data = await res.json();
         return mapVenta(data);
     },
 
-    getNextNumero: async (): Promise<string> => {
-        const res = await fetch(`${API_URL}/ventas/next-numero`);
+    getNextNumero: async (idEmpresa: number): Promise<string> => {
+        const res = await fetch(`${API_URL}/ventas/next-numero?id_empresa=${idEmpresa}`);
         if (!res.ok) throw new Error('Error al generar número de venta');
         const data = await res.json();
         return data.numero;
     },
 
-    getCatalogo: async (): Promise<CatalogoProducto[]> => {
-        const res = await fetch(`${API_URL}/ventas/catalogo/productos`);
+    getCatalogo: async (idEmpresa: number): Promise<CatalogoProducto[]> => {
+        const res = await fetch(`${API_URL}/ventas/catalogo/productos?id_empresa=${idEmpresa}`);
         if (!res.ok) throw new Error('Error al obtener catálogo');
         const data = await res.json();
         return data.map(mapCatalogoProducto);
     },
 
-    getClientes: async (): Promise<any[]> => {
-        const res = await fetch(`${API_URL}/ventas/clientes/lista`);
+    getClientes: async (idEmpresa: number): Promise<any[]> => {
+        const res = await fetch(`${API_URL}/ventas/clientes/lista?id_empresa=${idEmpresa}`);
         if (!res.ok) throw new Error('Error al obtener clientes');
         return await res.json();
     },
 
-    create: async (ventaData: any): Promise<Venta> => {
+    create: async (idEmpresa: number, ventaData: any): Promise<Venta> => {
+        const payload = { ...ventaData, id_empresa: idEmpresa };
         const res = await fetch(`${API_URL}/ventas`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(ventaData)
+            body: JSON.stringify(payload)
         });
         if (!res.ok) {
             const error = await res.json();
@@ -99,11 +102,12 @@ export const ventaApi = {
         return mapVenta(data);
     },
 
-    update: async (id: number, ventaData: any): Promise<Venta> => {
+    update: async (id: number, idEmpresa: number, ventaData: any): Promise<Venta> => {
+        const payload = { ...ventaData, id_empresa: idEmpresa };
         const res = await fetch(`${API_URL}/ventas/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(ventaData)
+            body: JSON.stringify(payload)
         });
         if (!res.ok) {
             const error = await res.json();
@@ -113,18 +117,21 @@ export const ventaApi = {
         return mapVenta(data);
     },
 
-    anular: async (id: number): Promise<void> => {
+    anular: async (id: number, idEmpresa: number): Promise<void> => {
         const res = await fetch(`${API_URL}/ventas/${id}/anular`, {
-            method: 'PUT'
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_empresa: idEmpresa })
         });
         if (!res.ok) throw new Error('Error al anular venta');
     },
 
-    devolver: async (id: number, data: any): Promise<any> => {
+    devolver: async (id: number, idEmpresa: number, data: any): Promise<any> => {
+        const payload = { ...data, id_empresa: idEmpresa };
         const res = await fetch(`${API_URL}/ventas/${id}/devolver`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify(payload)
         });
         if (!res.ok) {
             const error = await res.json();

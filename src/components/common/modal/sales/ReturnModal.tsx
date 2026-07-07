@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useVentas } from '../../../../context/SalesContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
+import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { Venta } from '../../../../features/types/sales';
 import { generarPDFNotaCredito } from '../../../../services/pdf/pdfService';
@@ -15,7 +16,7 @@ interface DevolucionModalProps {
 
 interface ProductoAgrupado {
     nombre: string;
-    detalleIds: number[];
+    detalles: { detalleId: number; cantidad: number; precio: number }[];
     precioPromedio: number;
     cantidadTotal: number;
     cantidadDevuelta: number;
@@ -25,6 +26,8 @@ interface ProductoAgrupado {
 export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
     const { addActivity, addToHistory, refreshData } = useVentas();
     const { user } = useAuth();
+    const { getSelectedCompanyId } = useCompany();
+    const id_empresa = getSelectedCompanyId() ?? 0;
     const { showToast } = useToast();
 
     const [productosAgrupados, setProductosAgrupados] = useState<ProductoAgrupado[]>([]);
@@ -36,19 +39,19 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
     useEffect(() => {
         if (venta && isOpen) {
             const map = new Map<string, {
-                detalleIds: number[],
-                precios: number[],
-                cantidades: number[]
+                detalles: { detalleId: number; cantidad: number; precio: number }[];
+                precios: number[];
+                cantidades: number[];
             }>();
 
             venta.productos.forEach(p => {
                 if (!p.detalleId) return;
                 const key = p.nombre;
                 if (!map.has(key)) {
-                    map.set(key, { detalleIds: [], precios: [], cantidades: [] });
+                    map.set(key, { detalles: [], precios: [], cantidades: [] });
                 }
                 const grupo = map.get(key)!;
-                grupo.detalleIds.push(p.detalleId);
+                grupo.detalles.push({ detalleId: p.detalleId, cantidad: p.cantidad, precio: p.precio });
                 grupo.precios.push(p.precio);
                 grupo.cantidades.push(p.cantidad);
             });
@@ -59,7 +62,7 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
                 const precioPromedio = value.precios.reduce((a, b) => a + b, 0) / value.precios.length;
                 agrupados.push({
                     nombre,
-                    detalleIds: value.detalleIds,
+                    detalles: value.detalles,
                     precioPromedio: Math.round(precioPromedio * 100) / 100,
                     cantidadTotal: totalCantidad,
                     cantidadDevuelta: 0,
@@ -92,6 +95,10 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
 
     const procesarDevolucion = async () => {
         if (!venta) return;
+        if (!id_empresa) {
+            showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
+            return;
+        }
 
         const productosDevueltos = productosAgrupados.filter(p => p.cantidadDevuelta > 0);
         if (productosDevueltos.length === 0) {
@@ -107,13 +114,25 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
 
         const montoTotal = calcularTotalDevolucion();
 
+        // Distribuir la cantidad devuelta entre los detalles disponibles
         const productosParaAPI: { id_detalle_venta: number; cantidad: number }[] = [];
         productosDevueltos.forEach(grupo => {
-            const primerDetalleId = grupo.detalleIds[0];
-            productosParaAPI.push({
-                id_detalle_venta: primerDetalleId,
-                cantidad: grupo.cantidadDevuelta
-            });
+            let cantidadRestante = grupo.cantidadDevuelta;
+            // Ordenar los detalles por cantidad (opcional: para usar primero los que tienen más stock)
+            const detallesOrdenados = [...grupo.detalles].sort((a, b) => b.cantidad - a.cantidad);
+            for (const det of detallesOrdenados) {
+                if (cantidadRestante <= 0) break;
+                const tomar = Math.min(cantidadRestante, det.cantidad);
+                productosParaAPI.push({
+                    id_detalle_venta: det.detalleId,
+                    cantidad: tomar
+                });
+                cantidadRestante -= tomar;
+            }
+            // Si después de recorrer todos los detalles aún queda cantidad, es un error (no debería pasar)
+            if (cantidadRestante > 0) {
+                throw new Error(`No hay suficiente stock en los detalles para devolver ${grupo.cantidadDevuelta} de ${grupo.nombre}`);
+            }
         });
 
         setIsSubmitting(true);
@@ -126,7 +145,7 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
             };
 
             const { ventaApi } = await import('../../../../services/api/ventaApi');
-            const resultado = await ventaApi.devolver(venta.id, payload);
+            await ventaApi.devolver(venta.id, id_empresa, payload);
 
             await refreshData();
 
@@ -152,7 +171,7 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
             onClose();
         } catch (error) {
             console.error('[DevolucionModal] Error al procesar devolución:', error);
-            showToast('Error al procesar la devolución', 'error', 'Error');
+            showToast(error instanceof Error ? error.message : 'Error al procesar la devolución', 'error', 'Error');
         } finally {
             setIsSubmitting(false);
         }

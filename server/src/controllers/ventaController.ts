@@ -3,6 +3,11 @@ import { executeQuery, executeMutation, executeQuerySingle } from '../config/dat
 
 export const getVentas = async (req: Request, res: Response) => {
     try {
+        const id_empresa = req.query.id_empresa ? Number(req.query.id_empresa) : null;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
         const rows = await executeQuery<any[]>(`
             SELECT 
                 v.*,
@@ -13,8 +18,9 @@ export const getVentas = async (req: Request, res: Response) => {
             FROM ventas v
             JOIN personas p ON v.id_cliente = p.id
             JOIN usuarios u ON v.id_usuario = u.id
+            WHERE v.id_empresa = ?
             ORDER BY v.id DESC
-        `);
+        `, [id_empresa]);
 
         const ventasConDetalles = await Promise.all(
             rows.map(async (venta: any) => {
@@ -30,8 +36,8 @@ export const getVentas = async (req: Request, res: Response) => {
                     FROM detalle_venta dv
                     JOIN lotes l ON dv.id_lote = l.id
                     JOIN postres p ON l.postre_id = p.id
-                    WHERE dv.id_venta = ?
-                `, [venta.id]);
+                    WHERE dv.id_venta = ? AND dv.id_empresa = ?
+                `, [venta.id, id_empresa]);
 
                 const devoluciones = await executeQuery<any[]>(`
                     SELECT 
@@ -49,12 +55,13 @@ export const getVentas = async (req: Request, res: Response) => {
                     JOIN usuarios u ON d.id_usuario = u.id
                     LEFT JOIN detalle_devolucion dd ON d.id = dd.id_devolucion
                     LEFT JOIN detalle_venta dv ON dd.id_detalle_venta = dv.id
-                    WHERE d.id_venta = ?
+                    WHERE d.id_venta = ? AND d.id_empresa = ?
                     GROUP BY d.id
-                `, [venta.id]);
+                `, [venta.id, id_empresa]);
 
                 return {
                     ...venta,
+                    id_empresa: venta.id_empresa,
                     cliente: `${venta.cliente_nombre || ''} ${venta.cliente_apellido || ''}`.trim(),
                     clienteDoc: venta.cliente_documento,
                     productos: detalles.map((d: any) => ({
@@ -93,6 +100,10 @@ export const getVentas = async (req: Request, res: Response) => {
 export const getVentaById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const id_empresa = req.query.id_empresa ? Number(req.query.id_empresa) : null;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
 
         const venta = await executeQuerySingle<any>(`
             SELECT 
@@ -104,8 +115,8 @@ export const getVentaById = async (req: Request, res: Response) => {
             FROM ventas v
             JOIN personas p ON v.id_cliente = p.id
             JOIN usuarios u ON v.id_usuario = u.id
-            WHERE v.id = ?
-        `, [id]);
+            WHERE v.id = ? AND v.id_empresa = ?
+        `, [id, id_empresa]);
 
         if (!venta) {
             return res.status(404).json({ message: 'Venta no encontrada' });
@@ -123,8 +134,8 @@ export const getVentaById = async (req: Request, res: Response) => {
             FROM detalle_venta dv
             JOIN lotes l ON dv.id_lote = l.id
             JOIN postres p ON l.postre_id = p.id
-            WHERE dv.id_venta = ?
-        `, [id]);
+            WHERE dv.id_venta = ? AND dv.id_empresa = ?
+        `, [id, id_empresa]);
 
         const devoluciones = await executeQuery<any[]>(`
             SELECT 
@@ -142,12 +153,13 @@ export const getVentaById = async (req: Request, res: Response) => {
             JOIN usuarios u ON d.id_usuario = u.id
             LEFT JOIN detalle_devolucion dd ON d.id = dd.id_devolucion
             LEFT JOIN detalle_venta dv ON dd.id_detalle_venta = dv.id
-            WHERE d.id_venta = ?
+            WHERE d.id_venta = ? AND d.id_empresa = ?
             GROUP BY d.id
-        `, [id]);
+        `, [id, id_empresa]);
 
         const result = {
             ...venta,
+            id_empresa: venta.id_empresa,
             cliente: `${venta.cliente_nombre || ''} ${venta.cliente_apellido || ''}`.trim(),
             clienteDoc: venta.cliente_documento,
             productos: detalles.map((d: any) => ({
@@ -183,12 +195,18 @@ export const getVentaById = async (req: Request, res: Response) => {
 
 export const getNextNumeroVenta = async (req: Request, res: Response) => {
     try {
+        const id_empresa = req.query.id_empresa ? Number(req.query.id_empresa) : null;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
         const result = await executeQuerySingle<any>(`
             SELECT numero AS last_numero 
             FROM ventas 
+            WHERE id_empresa = ?
             ORDER BY id DESC 
             LIMIT 1
-        `);
+        `, [id_empresa]);
 
         let nextNumber = 1;
         if (result && result.last_numero) {
@@ -208,6 +226,11 @@ export const getNextNumeroVenta = async (req: Request, res: Response) => {
 
 export const getCatalogoProductos = async (req: Request, res: Response) => {
     try {
+        const id_empresa = req.query.id_empresa ? Number(req.query.id_empresa) : null;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
         const rows = await executeQuery<any[]>(`
             SELECT 
                 l.id AS lote_id,
@@ -221,11 +244,13 @@ export const getCatalogoProductos = async (req: Request, res: Response) => {
             JOIN postres p ON l.postre_id = p.id
             WHERE l.stock > 0 
               AND l.fecha_vencimiento >= CURDATE()
+              AND l.id_empresa = ?
             ORDER BY p.nombre, l.fecha_vencimiento
-        `);
+        `, [id_empresa]);
 
         const result = rows.map((row: any) => ({
             id: row.lote_id,
+            id_empresa: row.id_empresa,
             postreId: row.postre_id,
             nombre: row.nombre,
             precio: parseFloat(row.precio),
@@ -243,9 +268,15 @@ export const getCatalogoProductos = async (req: Request, res: Response) => {
 
 export const getClientes = async (req: Request, res: Response) => {
     try {
+        const id_empresa = req.query.id_empresa ? Number(req.query.id_empresa) : null;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
         const rows = await executeQuery<any[]>(`
             SELECT 
                 id,
+                id_empresa,
                 numero_documento,
                 nombre,
                 apellido,
@@ -255,11 +286,13 @@ export const getClientes = async (req: Request, res: Response) => {
                 celular
             FROM personas
             WHERE tipo_persona IN ('cliente_natural', 'cliente_juridico')
+              AND id_empresa = ?
             ORDER BY nombre, apellido
-        `);
+        `, [id_empresa]);
 
         const result = rows.map((row: any) => ({
             id: row.id,
+            id_empresa: row.id_empresa,
             numeroDocumento: row.numero_documento,
             nombre: row.nombre || '',
             apellido: row.apellido || '',
@@ -280,6 +313,7 @@ export const getClientes = async (req: Request, res: Response) => {
 export const createVenta = async (req: Request, res: Response) => {
     try {
         const {
+            id_empresa,
             cliente_documento,
             cliente_nombre,
             cliente_apellido,
@@ -294,25 +328,29 @@ export const createVenta = async (req: Request, res: Response) => {
             usuario_id
         } = req.body;
 
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
         if (!cliente_documento || !productos || productos.length === 0 || !usuario_id) {
             return res.status(400).json({ message: 'Faltan campos obligatorios: cliente_documento, productos, usuario_id' });
         }
 
         let cliente = await executeQuerySingle<any>(
-            `SELECT * FROM personas WHERE numero_documento = ?`,
-            [cliente_documento]
+            `SELECT * FROM personas WHERE numero_documento = ? AND id_empresa = ?`,
+            [cliente_documento, id_empresa]
         );
 
         if (!cliente) {
             const tipoDocumento = cliente_documento.length === 8 ? 'DNI' : 'RUC';
             const tipoPersona = cliente_documento.length === 8 ? 'cliente_natural' : 'cliente_juridico';
 
+            // Verificar que la empresa exista
             const empresa = await executeQuerySingle<any>(
-                `SELECT id FROM empresas LIMIT 1`
+                `SELECT id FROM empresas WHERE id = ?`,
+                [id_empresa]
             );
-
             if (!empresa) {
-                return res.status(400).json({ message: 'No hay empresas registradas' });
+                return res.status(400).json({ message: 'Empresa no encontrada' });
             }
 
             const result = await executeMutation(
@@ -320,7 +358,7 @@ export const createVenta = async (req: Request, res: Response) => {
                     (id_empresa, tipo_persona, tipo_documento, numero_documento, nombre, apellido, email, celular) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    empresa.id,
+                    id_empresa,
                     tipoPersona,
                     tipoDocumento,
                     cliente_documento,
@@ -340,9 +378,10 @@ export const createVenta = async (req: Request, res: Response) => {
         const numeroResult = await executeQuerySingle<any>(`
             SELECT numero AS last_numero 
             FROM ventas 
+            WHERE id_empresa = ?
             ORDER BY id DESC 
             LIMIT 1
-        `);
+        `, [id_empresa]);
 
         let nextNumber = 1;
         if (numeroResult && numeroResult.last_numero) {
@@ -355,9 +394,10 @@ export const createVenta = async (req: Request, res: Response) => {
 
         const ventaResult = await executeMutation(
             `INSERT INTO ventas 
-                (numero, fecha, id_cliente, id_usuario, subtotal, descuento, igv, total, metodo_pago, estado) 
-             VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, 'completada')`,
+                (id_empresa, numero, fecha, id_cliente, id_usuario, subtotal, descuento, igv, total, metodo_pago, estado) 
+             VALUES (?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, 'completada')`,
             [
+                id_empresa,
                 numero,
                 cliente.id,
                 usuario_id,
@@ -373,8 +413,8 @@ export const createVenta = async (req: Request, res: Response) => {
 
         for (const prod of productos) {
             const lote = await executeQuerySingle<any>(
-                `SELECT stock FROM lotes WHERE id = ?`,
-                [prod.id_lote]
+                `SELECT stock FROM lotes WHERE id = ? AND id_empresa = ?`,
+                [prod.id_lote, id_empresa]
             );
 
             if (!lote || lote.stock < prod.cantidad) {
@@ -383,9 +423,10 @@ export const createVenta = async (req: Request, res: Response) => {
 
             await executeMutation(
                 `INSERT INTO detalle_venta 
-                    (id_venta, id_lote, nombre_producto, precio_unitario, cantidad, subtotal) 
-                 VALUES (?, ?, ?, ?, ?, ?)`,
+                    (id_empresa, id_venta, id_lote, nombre_producto, precio_unitario, cantidad, subtotal) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
                 [
+                    id_empresa,
                     ventaId,
                     prod.id_lote,
                     prod.nombre || '',
@@ -396,18 +437,19 @@ export const createVenta = async (req: Request, res: Response) => {
             );
 
             await executeMutation(
-                `UPDATE lotes SET stock = stock - ? WHERE id = ?`,
-                [prod.cantidad, prod.id_lote]
+                `UPDATE lotes SET stock = stock - ? WHERE id = ? AND id_empresa = ?`,
+                [prod.cantidad, prod.id_lote, id_empresa]
             );
         }
 
         const nuevaVenta = await executeQuerySingle<any>(
-            `SELECT * FROM ventas WHERE id = ?`,
-            [ventaId]
+            `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
+            [ventaId, id_empresa]
         );
 
         res.status(201).json({
             ...nuevaVenta,
+            id_empresa: nuevaVenta.id_empresa,
             cliente: `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim(),
             clienteDoc: cliente.numero_documento,
             productos: productos
@@ -422,10 +464,14 @@ export const createVenta = async (req: Request, res: Response) => {
 export const anularVenta = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const id_empresa = req.body.id_empresa ? Number(req.body.id_empresa) : null;
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
 
         const venta = await executeQuerySingle<any>(
-            `SELECT * FROM ventas WHERE id = ?`,
-            [id]
+            `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         if (!venta) {
@@ -437,20 +483,20 @@ export const anularVenta = async (req: Request, res: Response) => {
         }
 
         const detalles = await executeQuery<any[]>(
-            `SELECT * FROM detalle_venta WHERE id_venta = ?`,
-            [id]
+            `SELECT * FROM detalle_venta WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         for (const detalle of detalles) {
             await executeMutation(
-                `UPDATE lotes SET stock = stock + ? WHERE id = ?`,
-                [(detalle as any).cantidad, (detalle as any).id_lote]
+                `UPDATE lotes SET stock = stock + ? WHERE id = ? AND id_empresa = ?`,
+                [(detalle as any).cantidad, (detalle as any).id_lote, id_empresa]
             );
         }
 
         await executeMutation(
-            `UPDATE ventas SET estado = 'anulada' WHERE id = ?`,
-            [id]
+            `UPDATE ventas SET estado = 'anulada' WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         res.json({ message: 'Venta anulada correctamente' });
@@ -463,15 +509,18 @@ export const anularVenta = async (req: Request, res: Response) => {
 export const registrarDevolucion = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { productos_devueltos, motivo, nota_credito, usuario_id } = req.body;
+        const { id_empresa, productos_devueltos, motivo, nota_credito, usuario_id } = req.body;
 
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
         if (!productos_devueltos || productos_devueltos.length === 0 || !usuario_id) {
             return res.status(400).json({ message: 'Faltan campos obligatorios: productos_devueltos, usuario_id' });
         }
 
         const venta = await executeQuerySingle<any>(
-            `SELECT * FROM ventas WHERE id = ?`,
-            [id]
+            `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         if (!venta) {
@@ -487,8 +536,8 @@ export const registrarDevolucion = async (req: Request, res: Response) => {
 
         for (const prod of productos_devueltos) {
             const detalle = await executeQuerySingle<any>(
-                `SELECT * FROM detalle_venta WHERE id = ? AND id_venta = ?`,
-                [prod.id_detalle_venta, id]
+                `SELECT * FROM detalle_venta WHERE id = ? AND id_venta = ? AND id_empresa = ?`,
+                [prod.id_detalle_venta, id, id_empresa]
             );
 
             if (!detalle) {
@@ -508,9 +557,10 @@ export const registrarDevolucion = async (req: Request, res: Response) => {
 
         const devolucionResult = await executeMutation(
             `INSERT INTO devoluciones 
-                (id_venta, fecha, id_usuario, motivo, nota_credito, monto) 
-             VALUES (?, NOW(), ?, ?, ?, ?)`,
+                (id_empresa, id_venta, fecha, id_usuario, motivo, nota_credito, monto) 
+             VALUES (?, ?, NOW(), ?, ?, ?, ?)`,
             [
+                id_empresa,
                 id,
                 usuario_id,
                 motivo || 'Devolución',
@@ -524,9 +574,10 @@ export const registrarDevolucion = async (req: Request, res: Response) => {
         for (const dev of detallesDevueltos) {
             await executeMutation(
                 `INSERT INTO detalle_devolucion 
-                    (id_devolucion, id_detalle_venta, cantidad) 
-                 VALUES (?, ?, ?)`,
+                    (id_empresa, id_devolucion, id_detalle_venta, cantidad) 
+                 VALUES (?, ?, ?, ?)`,
                 [
+                    id_empresa,
                     devolucionId,
                     (dev as any).id,
                     (dev as any).cantidad_devuelta
@@ -534,26 +585,26 @@ export const registrarDevolucion = async (req: Request, res: Response) => {
             );
 
             await executeMutation(
-                `UPDATE lotes SET stock = stock + ? WHERE id = ?`,
-                [(dev as any).cantidad_devuelta, (dev as any).id_lote]
+                `UPDATE lotes SET stock = stock + ? WHERE id = ? AND id_empresa = ?`,
+                [(dev as any).cantidad_devuelta, (dev as any).id_lote, id_empresa]
             );
 
             await executeMutation(
-                `UPDATE detalle_venta SET cantidad = cantidad - ? WHERE id = ?`,
-                [(dev as any).cantidad_devuelta, (dev as any).id]
+                `UPDATE detalle_venta SET cantidad = cantidad - ? WHERE id = ? AND id_empresa = ?`,
+                [(dev as any).cantidad_devuelta, (dev as any).id, id_empresa]
             );
         }
 
         const detallesRestantes = await executeQuery<any[]>(
-            `SELECT SUM(cantidad) AS total FROM detalle_venta WHERE id_venta = ?`,
-            [id]
+            `SELECT SUM(cantidad) AS total FROM detalle_venta WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         const totalRestante = (detallesRestantes[0] as any)?.total || 0;
         const nuevoEstado = totalRestante > 0 ? 'devolucion-parcial' : 'devolucion-total';
         await executeMutation(
-            `UPDATE ventas SET estado = ? WHERE id = ?`,
-            [nuevoEstado, id]
+            `UPDATE ventas SET estado = ? WHERE id = ? AND id_empresa = ?`,
+            [nuevoEstado, id, id_empresa]
         );
 
         const nuevosTotales = await executeQuery<any[]>(
@@ -562,19 +613,20 @@ export const registrarDevolucion = async (req: Request, res: Response) => {
                 SUM(precio_unitario * cantidad) * 0.18 AS igv,
                 SUM(precio_unitario * cantidad) * 1.18 AS total
              FROM detalle_venta 
-             WHERE id_venta = ?`,
-            [id]
+             WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         const totales = (nuevosTotales[0] as any) || { subtotal: 0, igv: 0, total: 0 };
 
         await executeMutation(
-            `UPDATE ventas SET subtotal = ?, igv = ?, total = ? WHERE id = ?`,
+            `UPDATE ventas SET subtotal = ?, igv = ?, total = ? WHERE id = ? AND id_empresa = ?`,
             [
                 totales.subtotal || 0,
                 totales.igv || 0,
                 totales.total || 0,
-                id
+                id,
+                id_empresa
             ]
         );
 
@@ -594,12 +646,16 @@ export const registrarDevolucion = async (req: Request, res: Response) => {
 export const updateVenta = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { productos, subtotal, igv, total } = req.body;
+        const { id_empresa, productos, subtotal, igv, total } = req.body;
 
-        // 1. Verificar que la venta existe
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        // 1. Verificar que la venta existe y pertenece a la empresa
         const ventaExistente = await executeQuerySingle<any>(
-            `SELECT * FROM ventas WHERE id = ?`,
-            [id]
+            `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
         if (!ventaExistente) {
             return res.status(404).json({ message: 'Venta no encontrada' });
@@ -607,27 +663,27 @@ export const updateVenta = async (req: Request, res: Response) => {
 
         // 2. Obtener detalles antiguos
         const detallesAntiguos = await executeQuery<any[]>(
-            `SELECT * FROM detalle_venta WHERE id_venta = ?`,
-            [id]
+            `SELECT * FROM detalle_venta WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         // 3. Restaurar stock de todos los detalles antiguos
         for (const detalle of detallesAntiguos) {
             await executeMutation(
-                `UPDATE lotes SET stock = stock + ? WHERE id = ?`,
-                [(detalle as any).cantidad, (detalle as any).id_lote]
+                `UPDATE lotes SET stock = stock + ? WHERE id = ? AND id_empresa = ?`,
+                [(detalle as any).cantidad, (detalle as any).id_lote, id_empresa]
             );
         }
 
         // 4. Procesar los nuevos productos: reducir stock e insertar/actualizar detalles
         for (const prod of productos) {
-            // Validar que el lote existe
+            // Validar que el lote existe y pertenece a la empresa
             if (!prod.id_lote) {
                 throw new Error(`Lote no especificado para el producto ${prod.nombre}`);
             }
             const lote = await executeQuerySingle<any>(
-                `SELECT stock FROM lotes WHERE id = ?`,
-                [prod.id_lote]
+                `SELECT stock FROM lotes WHERE id = ? AND id_empresa = ?`,
+                [prod.id_lote, id_empresa]
             );
             if (!lote) {
                 throw new Error(`Lote ${prod.id_lote} no encontrado`);
@@ -638,14 +694,14 @@ export const updateVenta = async (req: Request, res: Response) => {
 
             // Reducir stock
             await executeMutation(
-                `UPDATE lotes SET stock = stock - ? WHERE id = ?`,
-                [prod.cantidad, prod.id_lote]
+                `UPDATE lotes SET stock = stock - ? WHERE id = ? AND id_empresa = ?`,
+                [prod.cantidad, prod.id_lote, id_empresa]
             );
 
             // Buscar si ya existe un detalle con este id_lote en la venta
             const detalleExistente = await executeQuerySingle<any>(
-                `SELECT id FROM detalle_venta WHERE id_venta = ? AND id_lote = ?`,
-                [id, prod.id_lote]
+                `SELECT id FROM detalle_venta WHERE id_venta = ? AND id_lote = ? AND id_empresa = ?`,
+                [id, prod.id_lote, id_empresa]
             );
 
             if (detalleExistente) {
@@ -653,16 +709,17 @@ export const updateVenta = async (req: Request, res: Response) => {
                 await executeMutation(
                     `UPDATE detalle_venta 
                      SET cantidad = ?, precio_unitario = ?, subtotal = ?, nombre_producto = ?
-                     WHERE id = ?`,
-                    [prod.cantidad, prod.precio, prod.cantidad * prod.precio, prod.nombre, detalleExistente.id]
+                     WHERE id = ? AND id_empresa = ?`,
+                    [prod.cantidad, prod.precio, prod.cantidad * prod.precio, prod.nombre, detalleExistente.id, id_empresa]
                 );
             } else {
                 // Insertar nuevo detalle
                 await executeMutation(
                     `INSERT INTO detalle_venta 
-                        (id_venta, id_lote, nombre_producto, precio_unitario, cantidad, subtotal) 
-                     VALUES (?, ?, ?, ?, ?, ?)`,
+                        (id_empresa, id_venta, id_lote, nombre_producto, precio_unitario, cantidad, subtotal) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     [
+                        id_empresa,
                         id,
                         prod.id_lote,
                         prod.nombre || '',
@@ -674,29 +731,25 @@ export const updateVenta = async (req: Request, res: Response) => {
             }
         }
 
-        // 5. Eliminar los detalles antiguos que ya no están en la nueva lista
-        // Obtener IDs de los nuevos productos (filtramos undefined)
+        // 5. Eliminar los detalles antiguos que ya no están en la nueva lista (solo si no tienen devoluciones)
         const idsNuevos = productos.map((p: any) => p.id_lote).filter((id: any) => id !== undefined);
         if (idsNuevos.length > 0) {
-            // Obtener IDs de detalles antiguos que no están en la nueva lista
             const detallesAEliminar = await executeQuery<any[]>(
                 `SELECT id FROM detalle_venta 
-                 WHERE id_venta = ? AND id_lote NOT IN (${idsNuevos.map(() => '?').join(',')})`,
-                [id, ...idsNuevos]
+                 WHERE id_venta = ? AND id_empresa = ? AND id_lote NOT IN (${idsNuevos.map(() => '?').join(',')})`,
+                [id, id_empresa, ...idsNuevos]
             );
             for (const det of detallesAEliminar) {
-                // Verificar si tiene devoluciones (opcional, para evitar errores)
                 const tieneDevolucion = await executeQuerySingle<any>(
-                    `SELECT id FROM detalle_devolucion WHERE id_detalle_venta = ?`,
-                    [(det as any).id]
+                    `SELECT id FROM detalle_devolucion WHERE id_detalle_venta = ? AND id_empresa = ?`,
+                    [(det as any).id, id_empresa]
                 );
                 if (!tieneDevolucion) {
                     await executeMutation(
-                        `DELETE FROM detalle_venta WHERE id = ?`,
-                        [(det as any).id]
+                        `DELETE FROM detalle_venta WHERE id = ? AND id_empresa = ?`,
+                        [(det as any).id, id_empresa]
                     );
                 } else {
-                    // Si tiene devolución, no se elimina (se puede loguear o lanzar error)
                     console.warn(`Detalle ${(det as any).id} tiene devoluciones, no se elimina.`);
                 }
             }
@@ -704,22 +757,23 @@ export const updateVenta = async (req: Request, res: Response) => {
 
         // 6. Actualizar cabecera de la venta
         await executeMutation(
-            `UPDATE ventas SET subtotal = ?, igv = ?, total = ? WHERE id = ?`,
-            [subtotal || 0, igv || 0, total || 0, id]
+            `UPDATE ventas SET subtotal = ?, igv = ?, total = ? WHERE id = ? AND id_empresa = ?`,
+            [subtotal || 0, igv || 0, total || 0, id, id_empresa]
         );
 
         // 7. Obtener venta actualizada con sus detalles
         const ventaActualizada = await executeQuerySingle<any>(
-            `SELECT * FROM ventas WHERE id = ?`,
-            [id]
+            `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
         const nuevosDetalles = await executeQuery<any[]>(
-            `SELECT * FROM detalle_venta WHERE id_venta = ?`,
-            [id]
+            `SELECT * FROM detalle_venta WHERE id_venta = ? AND id_empresa = ?`,
+            [id, id_empresa]
         );
 
         res.json({
             ...ventaActualizada,
+            id_empresa: ventaActualizada.id_empresa,
             productos: nuevosDetalles.map((d: any) => ({
                 id: d.id_lote,
                 nombre: d.nombre_producto,

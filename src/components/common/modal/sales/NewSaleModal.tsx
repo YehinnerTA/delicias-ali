@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useVentas } from '../../../../context/SalesContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
+import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { Venta, VentaTemporal, ProductoVenta, CatalogoProducto } from '../../../../features/types/sales';
 import { generarVistaPreviaHTML, generarPDF } from '../../../../services/pdf/pdfService';
@@ -15,9 +16,13 @@ interface NewSaleModalProps {
 export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onSuccess }) => {
     const { catalogoProductos, addActivity, addToHistory, refreshData } = useVentas();
     const { user } = useAuth();
+    const { getSelectedCompanyId } = useCompany();
+    const id_empresa = getSelectedCompanyId() ?? 0;
     const { showToast } = useToast();
 
-    const [currentVenta, setCurrentVenta] = useState<VentaTemporal>({
+    // Estado inicial con id_empresa
+    const getInitialVenta = (): VentaTemporal => ({
+        id_empresa,
         cliente: { nombre: "", documento: "" },
         productos: [],
         componentes: {
@@ -27,6 +32,8 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
         metodoPago: { tipo: 'efectivo', monto: 0, vuelto: 0 },
         subtotal: 0, igv: 0, total: 0
     });
+
+    const [currentVenta, setCurrentVenta] = useState<VentaTemporal>(getInitialVenta());
 
     const [tipoComprobante, setTipoComprobante] = useState<'ticket' | 'factura'>('ticket');
     const [fasesAbiertas, setFasesAbiertas] = useState<{ [key: number]: boolean }>({ 1: true, 2: false, 3: false, 4: false });
@@ -64,7 +71,9 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
             if (docInput) docInput.value = '';
             if (nombreInput) nombreInput.value = '';
             if (montoInput) montoInput.value = '';
+            // Reiniciar con id_empresa actual
             setCurrentVenta({
+                id_empresa,
                 cliente: { nombre: "", documento: "" },
                 productos: [],
                 componentes: {
@@ -85,9 +94,13 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
     }, [isOpen, catalogoProductos]);
 
     const cargarClientes = async () => {
+        if (!id_empresa) {
+            showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
+            return;
+        }
         try {
             const { ventaApi } = await import('../../../../services/api/ventaApi');
-            const data = await ventaApi.getClientes();
+            const data = await ventaApi.getClientes(id_empresa);
             setClientes(data);
         } catch (error) {
             console.error('[NewSaleModal] Error al cargar clientes:', error);
@@ -342,6 +355,11 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
     };
 
     const registrarVenta = async () => {
+        if (!id_empresa) {
+            showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
+            return;
+        }
+
         if (currentVenta.productos.length === 0) {
             showToast("Agregue al menos un producto", "warning", "Campos incompletos");
             return;
@@ -395,7 +413,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
             };
 
             const { ventaApi } = await import('../../../../services/api/ventaApi');
-            const nuevaVenta = await ventaApi.create(payload);
+            const nuevaVenta = await ventaApi.create(id_empresa, payload);
 
             await refreshData();
             await addActivity("VENTA", "ventas", `${nuevaVenta.numero} - S/ ${nuevaVenta.total}`);
@@ -404,7 +422,9 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
             generarPDF(nuevaVenta, tipoComprobante);
             showToast(`Venta ${nuevaVenta.numero} registrada y comprobante generado`, "success", "Venta registrada");
 
+            // Reiniciar con id_empresa
             setCurrentVenta({
+                id_empresa,
                 cliente: { nombre: "", documento: "" },
                 productos: [],
                 componentes: {
@@ -445,6 +465,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
     const ventaPreview: Venta = {
         ...currentVenta as any,
         id: 0,
+        id_empresa: id_empresa,
         numero: 'V-XXXXXX',
         fecha: new Date().toLocaleString(),
         fechaObj: new Date(),

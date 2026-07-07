@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useVentas } from '../../../../context/SalesContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
+import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
 import { useToast } from '../../../../hooks/base/useToast';
 import { Venta, ProductoVenta, CatalogoProducto } from '../../../../features/types/sales';
 
@@ -15,6 +16,8 @@ interface ModifySalesModalProps {
 export const ModifySalesModal: React.FC<ModifySalesModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
     const { ventas, setVentas, catalogoProductos, addActivity, addToHistory, refreshData } = useVentas();
     const { user } = useAuth();
+    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
+    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
     const { showToast } = useToast();
 
     const [productos, setProductos] = useState<ProductoVenta[]>([]);
@@ -144,6 +147,11 @@ export const ModifySalesModal: React.FC<ModifySalesModalProps> = ({ isOpen, onCl
 
     const guardarCambios = async () => {
         if (!venta) return;
+        if (!id_empresa) {
+            showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
+            return;
+        }
+
         if (productos.length === 0) {
             showToast("Agregue al menos un producto", "warning", "Campos incompletos");
             return;
@@ -161,6 +169,7 @@ export const ModifySalesModal: React.FC<ModifySalesModalProps> = ({ isOpen, onCl
         setIsSubmitting(true);
         try {
             const payload = {
+                id_empresa, // ← AGREGADO
                 cliente: clienteNombre,
                 clienteDoc: clienteDoc,
                 productos: productos.map(p => ({
@@ -176,7 +185,7 @@ export const ModifySalesModal: React.FC<ModifySalesModalProps> = ({ isOpen, onCl
             };
 
             const { ventaApi } = await import('../../../../services/api/ventaApi');
-            const ventaActualizada = await ventaApi.update(venta.id, payload);
+            const ventaActualizada = await ventaApi.update(venta.id, id_empresa, payload); // ← PASAMOS id_empresa
 
             await refreshData();
             await addActivity("EDITAR", "ventas", `${venta.numero} modificada - ${productosStr}`);
