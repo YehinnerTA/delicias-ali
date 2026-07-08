@@ -48,18 +48,18 @@ const personaFormFields = [
     { id: 'id_empresa', label: 'Empresa', type: 'select', options: [] }
 ];
 
-const usuarioFormFields = [
-    { id: 'username', label: 'Username', type: 'text', placeholder: 'Nombre de usuario', required: true },
-    {
-        id: 'id_rol', label: 'Rol', type: 'select', options: [
-            { value: '1', label: 'Administrador' },
-            { value: '2', label: 'Chef' },
-            { value: '3', label: 'Cajero' },
-            { value: '4', label: 'Logística' }
-        ]
-    },
-    { id: 'password', label: 'Contraseña', type: 'password', placeholder: '********', required: true }
-];
+const usuarioFormFields: {
+    id: string;
+    label: string;
+    type: string;
+    placeholder?: string;
+    required?: boolean;
+    options?: { value: string; label: string }[];
+}[] = [
+        { id: 'username', label: 'Username', type: 'text', placeholder: 'Nombre de usuario', required: true },
+        { id: 'id_rol', label: 'Rol', type: 'select', options: [] },
+        { id: 'password', label: 'Contraseña', type: 'password', placeholder: '********', required: true }
+    ];
 
 type UsuarioConHistorial = Usuario & { historial: HistorialEntry[] };
 
@@ -83,6 +83,9 @@ export const PersonasUsuariosSection: React.FC = () => {
     const [filteredData, setFilteredData] = useState<Persona[]>(personas);
     const [empresaOptions, setEmpresaOptions] = useState<{ value: string; label: string }[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const [rolesOptions, setRolesOptions] = useState<{ value: string; label: string }[]>([]);
+    const [rolesLoading, setRolesLoading] = useState(true);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
@@ -115,8 +118,39 @@ export const PersonasUsuariosSection: React.FC = () => {
     });
 
     const [crearUsuario, setCrearUsuario] = useState(false);
-
     const [selectedEmpresaId, setSelectedEmpresaId] = useState<number | ''>('');
+
+    useEffect(() => {
+        const loadRoles = async () => {
+            try {
+                const data = await usuarioApi.getRoles();
+                const options = data.map(r => ({
+                    value: String(r.id),
+                    label: r.nombre
+                }));
+                setRolesOptions(options);
+                const rolField = usuarioFormFields.find(f => f.id === 'id_rol');
+                if (rolField) {
+                    rolField.options = options;
+                }
+            } catch (error) {
+                console.error('[PersonasUsuariosSection] Error cargando roles:', error);
+                showToast('Error al cargar roles', 'error', 'Error');
+                const fallback = Object.entries(ROLES).map(([key, label]) => ({
+                    value: key,
+                    label
+                }));
+                setRolesOptions(fallback);
+                const rolField = usuarioFormFields.find(f => f.id === 'id_rol');
+                if (rolField) {
+                    rolField.options = fallback;
+                }
+            } finally {
+                setRolesLoading(false);
+            }
+        };
+        loadRoles();
+    }, []);
 
     useEffect(() => {
         const options = empresas.filter(e => e.estado).map(e => ({
@@ -214,7 +248,7 @@ export const PersonasUsuariosSection: React.FC = () => {
         });
         setUsuarioFormValues({
             username: '',
-            id_rol: '1',
+            id_rol: rolesOptions.length > 0 ? rolesOptions[0].value : '1',
             password: '',
             empresasIds: []
         });
@@ -488,7 +522,12 @@ export const PersonasUsuariosSection: React.FC = () => {
             });
             setCrearUsuario(true);
         } else {
-            setUsuarioFormValues({ username: '', id_rol: '1', password: '', empresasIds: [] });
+            setUsuarioFormValues({
+                username: '',
+                id_rol: rolesOptions.length > 0 ? rolesOptions[0].value : '1',
+                password: '',
+                empresasIds: []
+            });
             setCrearUsuario(false);
         }
 
@@ -747,7 +786,7 @@ export const PersonasUsuariosSection: React.FC = () => {
                     {modalContent?.children}
                 </Modal>
 
-                {/* Modal de creación */}
+                {/* ===== MODAL DE CREACIÓN ===== */}
                 <Modal
                     isOpen={isCreateModalOpen}
                     onClose={() => setIsCreateModalOpen(false)}
@@ -810,22 +849,41 @@ export const PersonasUsuariosSection: React.FC = () => {
                         </label>
                     </div>
 
-                    {/* Campos de usuario y gestión de empresas */}
                     {crearUsuario && (
                         <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #f0d6db' }}>
                             <div className="dc-form-grid" style={{ marginBottom: '1rem' }}>
-                                {usuarioFormFields.map((field) => (
-                                    <div key={field.id} className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
-                                        <label>{field.label}</label>
-                                        <input
-                                            type={field.type === 'password' ? 'password' : 'text'}
-                                            placeholder={field.placeholder}
-                                            value={(usuarioFormValues as any)[field.id] || ''}
-                                            onChange={(e) => setUsuarioFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
-                                            required={field.required}
-                                        />
-                                    </div>
-                                ))}
+                                {usuarioFormFields.map((field) => {
+
+                                    if (field.type === 'select') {
+                                        return (
+                                            <div key={field.id} className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                                <label>{field.label}</label>
+                                                <select
+                                                    value={(usuarioFormValues as any)[field.id] || ''}
+                                                    onChange={(e) => setUsuarioFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                                    required={field.required}
+                                                >
+                                                    {rolesOptions.map(opt => (
+                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div key={field.id} className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                            <label>{field.label}</label>
+                                            <input
+                                                type={field.type === 'password' ? 'password' : 'text'}
+                                                placeholder={field.placeholder}
+                                                value={(usuarioFormValues as any)[field.id] || ''}
+                                                onChange={(e) => setUsuarioFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                                required={field.required}
+                                            />
+                                        </div>
+                                    );
+                                })}
                             </div>
 
                             <div style={{ borderTop: '1px solid #f0d6db', paddingTop: '1rem', marginTop: '0.5rem' }}>
@@ -897,7 +955,7 @@ export const PersonasUsuariosSection: React.FC = () => {
                     )}
                 </Modal>
 
-                {/* Modal de edición */}
+                {/* ===== MODAL DE EDICIÓN ===== */}
                 <Modal
                     isOpen={isEditModalOpen}
                     onClose={() => {
@@ -972,6 +1030,24 @@ export const PersonasUsuariosSection: React.FC = () => {
                             <div className="dc-form-grid" style={{ marginBottom: '1rem' }}>
                                 {usuarioFormFields.map((field) => {
                                     const usuarioActual = usuarios.find(u => u.id_persona === selectedPersona?.id_persona);
+
+                                    if (field.type === 'select') {
+                                        return (
+                                            <div key={field.id} className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                                <label>{field.label}</label>
+                                                <select
+                                                    value={(usuarioFormValues as any)[field.id] || ''}
+                                                    onChange={(e) => setUsuarioFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                                    required={field.required}
+                                                >
+                                                    {rolesOptions.map(opt => (
+                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        );
+                                    }
+
                                     if (field.id === 'password' && usuarioActual) {
                                         return (
                                             <div key={field.id} className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>

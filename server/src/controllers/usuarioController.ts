@@ -164,3 +164,17 @@ export const deleteUsuario = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Error al eliminar usuario', error: error instanceof Error ? error.message : String(error) });
     }
 };
+
+export const getRoles = async (req: Request, res: Response) => {
+    try {
+        const rows = await executeQuery<any[]>(`
+            SELECT id, nombre, descripcion
+            FROM roles
+            ORDER BY id ASC
+        `);
+        res.json(rows);
+    } catch (error) {
+        console.error('[getRoles] Error:', error);
+        res.status(500).json({ message: 'Error al obtener roles', error: error instanceof Error ? error.message : String(error) });
+    }
+};

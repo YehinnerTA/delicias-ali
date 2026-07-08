@@ -21,6 +21,12 @@ export const usuarioApi = {
         return data.map(mapToFrontend);
     },
 
+    getRoles: async (): Promise<{ id: number; nombre: string; descripcion: string }[]> => {
+        const res = await fetch(`${API_URL}/usuarios/roles`);
+        if (!res.ok) throw new Error('Error al obtener roles');
+        return await res.json();
+    },
+
     create: async (
         usuario: Omit<Usuario, 'id_usuario' | 'historial' | 'password_hash'> & { password: string; empresasIds?: number[] }
     ): Promise<Usuario> => {
