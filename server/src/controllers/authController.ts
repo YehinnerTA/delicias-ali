@@ -28,6 +28,7 @@ export const login = async (req: Request, res: Response) => {
                 u.password_hash,
                 u.firma,
                 u.estado,
+                u.id_rol,
                 p.email,
                 p.nombre,
                 p.apellido,
@@ -96,6 +97,7 @@ export const login = async (req: Request, res: Response) => {
                 usuario: user.usuario,
                 email: user.email,
                 nombre_completo: user.nombre_completo,
+                id_rol: user.id_rol,
                 firma: user.firma || null,
                 empresas: empresas.map((e: any) => ({
                     id_empresa: e.id_empresa,
@@ -137,6 +139,7 @@ export const verifyToken = async (req: Request, res: Response) => {
                 u.id,
                 u.usuario,
                 u.firma,
+                u.id_rol,
                 p.email,
                 p.nombre,
                 p.apellido,
@@ -173,6 +176,7 @@ export const verifyToken = async (req: Request, res: Response) => {
                 usuario: user.usuario,
                 email: user.email,
                 nombre_completo: user.nombre_completo,
+                id_rol: user.id_rol,
                 firma: user.firma || null,
                 empresas: empresas.map((e: any) => ({
                     id_empresa: e.id_empresa,

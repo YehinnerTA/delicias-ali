@@ -16,6 +16,7 @@ export interface User {
     usuario: string;
     email: string;
     nombre_completo: string;
+    id_rol: number;
     empresas: Empresa[];
 }
 

@@ -3,8 +3,23 @@ import { useHistory } from 'react-router-dom';
 import { useAuth } from '../../auth/context/AuthContext';
 import { Notificacion } from '../types/index.header';
 import { useCompany } from '../../company/context/CompanyContext';
+const ROLE_PERMISSIONS: Record<number, string[]> = {
+    1: ['/home', '/person-management', '/sales-management', '/inventory-management', '/catering-management'], // Administrador
+    2: ['/home', '/inventory-management'],
+    3: ['/home', '/sales-management', '/catering-management'],
+    4: ['/home', '/inventory-management'],
+};
 
-// Notificaciones de ejemplo
+const DEFAULT_PERMISSIONS = ['/home'];
+
+const ALL_LINKS = [
+    { name: 'Inicio', path: '/home' },
+    { name: 'Usuario', path: '/person-management' },
+    { name: 'Ventas', path: '/sales-management' },
+    { name: 'Logística', path: '/inventory-management' },
+    { name: 'Cocina', path: '/catering-management' },
+];
+
 const NOTIFICACIONES_EJEMPLO: Notificacion[] = [
     { id: 1, area: 'Cocina', mensaje: 'Pedido #123 pendiente de preparación', fecha: '2024-01-15 10:30', leido: false },
     { id: 2, area: 'Cocina', mensaje: 'Se agotó el ingrediente "Harina de trigo"', fecha: '2024-01-15 09:15', leido: false },
@@ -17,41 +32,34 @@ const NOTIFICACIONES_EJEMPLO: Notificacion[] = [
     { id: 9, area: 'Ventas', mensaje: 'Nueva cotización generada para cliente corporativo', fecha: '2024-01-14 15:20', leido: false },
 ];
 
-const NAV_LINKS = [
-    { name: "Usuario", path: "/person-management" },
-    { name: "Ventas", path: "/sales-management" },
-    { name: "Logística", path: "/inventory-management" },
-    { name: "Cocina", path: "/catering-management" },
-    { name: "Recepción", path: "/home" },
-];
-
 export const useHeader = () => {
     const history = useHistory();
     const { user, logout, isAuthenticated } = useAuth();
 
-    // Estados de modales
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
     const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
 
-    // Estados de UI
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [scrollPosition, setScrollPosition] = useState(0);
     const { selectedCompany, setSelectedCompany, empresas } = useCompany();
     const [notificaciones, setNotificaciones] = useState<Notificacion[]>(NOTIFICACIONES_EJEMPLO);
 
-    // Refs
     const mobileMenuScrollRef = useRef<HTMLDivElement>(null);
     const hamburgerBtnRef = useRef<HTMLButtonElement>(null);
     const closeMenuBtnRef = useRef<HTMLButtonElement>(null);
 
-    // Datos del usuario
     const nombreUsuario = user?.nombre_completo || user?.usuario || 'Usuario';
 
-    // Contador de notificaciones no leídas
     const notificationCount = notificaciones.filter(n => !n.leido).length;
 
-    // Inicializar empresa predeterminada
+    const userRol = user?.id_rol;
+    const allowedPaths = userRol && ROLE_PERMISSIONS[userRol]
+        ? ROLE_PERMISSIONS[userRol]
+        : DEFAULT_PERMISSIONS;
+
+    const navLinks = ALL_LINKS.filter(link => allowedPaths.includes(link.path));
+
     useEffect(() => {
         if (empresas.length > 0 && !selectedCompany) {
             const defaultEmpresa = empresas.find(e => e.es_predeterminada);
@@ -59,18 +67,15 @@ export const useHeader = () => {
         }
     }, [empresas, selectedCompany]);
 
-    // Navegación
     const navigateTo = useCallback((path: string) => {
         history.push(path);
         if (isMenuOpen) closeMobileMenu();
     }, [history, isMenuOpen]);
 
-    // Cambio de empresa
     const handleCompanyChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedCompany(e.target.value);
     }, [setSelectedCompany]);
 
-    // Notificaciones
     const openNotificationModal = useCallback(() => {
         setIsNotificationModalOpen(true);
         if (isMenuOpen) closeMobileMenu();
@@ -88,13 +93,11 @@ export const useHeader = () => {
         );
     }, []);
 
-    // Perfil
     const openProfileModal = useCallback(() => {
         setIsProfileModalOpen(true);
         if (isMenuOpen) closeMobileMenu();
     }, [isMenuOpen]);
 
-    // Logout
     const openLogoutModal = useCallback(() => {
         setIsLogoutModalOpen(true);
         if (isMenuOpen) closeMobileMenu();
@@ -106,7 +109,6 @@ export const useHeader = () => {
         history.push('/login');
     }, [logout, history]);
 
-    // Navegación
     const handleNavigation = useCallback((path: string) => {
         navigateTo(path);
         if (isMenuOpen) closeMobileMenu();
@@ -116,7 +118,6 @@ export const useHeader = () => {
         navigateTo('/home');
     }, [navigateTo]);
 
-    // Menú móvil
     const openMobileMenu = useCallback(() => {
         const scrollPos = window.pageYOffset;
         setScrollPosition(scrollPos);
@@ -174,7 +175,6 @@ export const useHeader = () => {
         if (e.key === "Escape" && isMenuOpen) closeMobileMenu();
     }, [isMenuOpen, closeMobileMenu]);
 
-    // Efectos de eventos
     useEffect(() => {
         let resizeTimer: number | undefined;
 
@@ -205,7 +205,6 @@ export const useHeader = () => {
         };
     }, [handleResponsiveClose, handleKeyDown, handleWheel]);
 
-    // Datos para el componente
     const notificacionesPorArea = notificaciones.reduce((acc, notif) => {
         if (!acc[notif.area]) acc[notif.area] = [];
         acc[notif.area].push(notif);
@@ -222,7 +221,6 @@ export const useHeader = () => {
     }));
 
     return {
-        // Estados
         isMenuOpen,
         isProfileModalOpen,
         isLogoutModalOpen,
@@ -236,12 +234,10 @@ export const useHeader = () => {
         user,
         empresas,
         companyOptions,
-        navLinks: NAV_LINKS,
-        // Refs
+        navLinks,
         mobileMenuScrollRef,
         hamburgerBtnRef,
         closeMenuBtnRef,
-        // Funciones
         handleCompanyChange,
         openNotificationModal,
         marcarComoLeida,
