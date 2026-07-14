@@ -158,7 +158,7 @@ const DashboardContent: React.FC = () => {
 
     return (
         <MainLayout>
-            <div className="dashboard-container">
+            <div className="dc-catering-container">
                 <div className="dashboard-header">
                     <h2>🏠 Dashboard</h2>
                     {selectedCompany && (

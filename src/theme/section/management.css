@@ -2,10 +2,10 @@
    1. CONTENEDORES PRINCIPALES
    ============================================ */
 .dc-catering-container {
-    max-width: 1400px;
+    max-width: 100%;
     margin: 0 auto;
     padding: 1.5rem;
-    background: var(--color-white-light);
+
 }
 
 .dc-catering-header-card {

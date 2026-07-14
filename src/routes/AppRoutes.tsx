@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Switch, Route, useHistory } from 'react-router-dom';
+import { Switch, Route, useHistory, useLocation } from 'react-router-dom';
 import { useAuth } from '../features/auth/context/AuthContext';
 import { SplashLoader } from '../pages/security/SplashScreen';
 import { Login } from '../features/auth/components/Login';
@@ -13,6 +13,7 @@ import CateringManagement from '../pages/section/CateringManagement';
 export const AppRoutes: React.FC = () => {
     const { isAuthenticated, isLoading } = useAuth();
     const history = useHistory();
+    const location = useLocation();
     const [showSplash, setShowSplash] = useState(true);
 
     useEffect(() => {
@@ -24,42 +25,46 @@ export const AppRoutes: React.FC = () => {
         }
     }, []);
 
+    useEffect(() => {
+        if (isLoading || showSplash) return;
+        const currentPath = location.pathname;
+
+        const protectedPaths = [
+            '/home',
+            '/ruc-selector',
+            '/person-management',
+            '/inventory-management',
+            '/sales-management',
+            '/catering-management'
+        ];
+
+        if (isAuthenticated) {
+            if (currentPath === '/' || currentPath === '/login' || currentPath === '/SplashScreen') {
+                history.replace('/home');
+            }
+        } else {
+            if (protectedPaths.includes(currentPath)) {
+                history.replace('/');
+            }
+        }
+    }, [isAuthenticated, isLoading, showSplash, location.pathname, history]);
+
     if (isLoading) {
         return <SplashLoader />;
     }
 
-    if (isAuthenticated) {
-        const currentPath = window.location.pathname;
-        if (currentPath === '/' || currentPath === '/login' || currentPath === '/SplashScreen') {
-            history.replace('/home');
-        }
-    }
-
-    const protectedPaths = ['/home', '/ruc-selector', '/person-management', '/inventory-management', '/sales-management', '/catering-management'];
-    const currentPath = window.location.pathname;
-    if (!isAuthenticated && protectedPaths.includes(currentPath)) {
-        history.replace('/');
-    }
-
-    const handleSplashComplete = () => {
-        setShowSplash(false);
-        if (!isAuthenticated) {
-            history.replace('/');
-        }
-    };
-
     if (showSplash && !isAuthenticated) {
-        return <SplashLoader onComplete={handleSplashComplete} />;
+        return <SplashLoader onComplete={() => {
+            setShowSplash(false);
+        }} />;
     }
 
     return (
         <Switch>
-            {/* Rutas públicas */}
             <Route exact path="/" component={Login} />
             <Route path="/login" component={Login} />
             <Route path="/SplashScreen" component={SplashLoader} />
 
-            {/* Rutas protegidas (requieren autenticación) */}
             <Route path="/ruc-selector" component={RUCSelectorMenu} />
             <Route path="/home" component={Home} />
             <Route path="/person-management" component={PersonManagement} />
@@ -67,7 +72,6 @@ export const AppRoutes: React.FC = () => {
             <Route path="/sales-management" component={SalesManagement} />
             <Route path="/catering-management" component={CateringManagement} />
 
-            {/* Si no coincide ninguna ruta, redirigir según autenticación */}
             <Route path="*">
                 {isAuthenticated ? <Home /> : <Login />}
             </Route>
