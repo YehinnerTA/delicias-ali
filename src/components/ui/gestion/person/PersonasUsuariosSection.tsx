@@ -12,6 +12,7 @@ import { personaApi } from '../../../../services/api/personaApi';
 import { usuarioApi } from '../../../../services/api/usuarioApi';
 import { historialApi } from '../../../../services/api/historialApi';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
+import { useCompany } from '../../../../features/company/context/CompanyContext';
 
 const personaFilters: FilterField[] = [
     { id: 'search', label: 'Nombre/Documento', type: 'text', placeholder: 'Nombre, email o documento' },
@@ -44,8 +45,7 @@ const personaFormFields = [
     { id: 'apellido', label: 'Apellido', type: 'text', placeholder: 'Apellido' },
     { id: 'razonSocial', label: 'Razón Social', type: 'text', placeholder: 'Solo para cliente jurídico' },
     { id: 'email', label: 'Email', type: 'email', placeholder: 'correo@ejemplo.com' },
-    { id: 'celular', label: 'Celular', type: 'text', placeholder: '+51 987654321', required: true },
-    { id: 'id_empresa', label: 'Empresa', type: 'select', options: [] }
+    { id: 'celular', label: 'Celular', type: 'text', placeholder: '+51 987654321', required: true }
 ];
 
 const usuarioFormFields: {
@@ -78,6 +78,7 @@ export const PersonasUsuariosSection: React.FC = () => {
     } = useGlobal();
     const { user } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
+    const { getSelectedCompanyId } = useCompany();
 
     const [filterValues, setFilterValues] = useState({ search: '', tipo: '', empresa: '', tieneUsuario: '' });
     const [filteredData, setFilteredData] = useState<Persona[]>(personas);
@@ -101,8 +102,7 @@ export const PersonasUsuariosSection: React.FC = () => {
         apellido: '',
         razonSocial: '',
         email: '',
-        celular: '',
-        id_empresa: ''
+        celular: ''
     });
 
     const [usuarioFormValues, setUsuarioFormValues] = useState<{
@@ -158,11 +158,7 @@ export const PersonasUsuariosSection: React.FC = () => {
             label: e.empresa
         }));
         setEmpresaOptions(options);
-        const formFieldsCopy = [...personaFormFields];
-        const empresaField = formFieldsCopy.find(f => f.id === 'id_empresa');
-        if (empresaField) {
-            empresaField.options = [{ value: '', label: 'Seleccione empresa' }, ...options];
-        }
+
         const filterEmpresaField = personaFilters.find(f => f.id === 'empresa');
         if (filterEmpresaField) {
             filterEmpresaField.options = [{ value: '', label: 'Todas' }, ...options];
@@ -243,8 +239,7 @@ export const PersonasUsuariosSection: React.FC = () => {
             apellido: '',
             razonSocial: '',
             email: '',
-            celular: '',
-            id_empresa: ''
+            celular: ''
         });
         setUsuarioFormValues({
             username: '',
@@ -285,8 +280,14 @@ export const PersonasUsuariosSection: React.FC = () => {
     };
 
     const handleCreate = async () => {
-        if (!formValues.numDoc || !formValues.celular || !formValues.id_empresa) {
+        if (!formValues.numDoc || !formValues.celular) {
             showToast('Documento, celular y empresa son obligatorios', 'warning', 'Campos incompletos');
+            return;
+        }
+
+        const empresaId = getSelectedCompanyId();
+        if (!empresaId) {
+            showToast('No hay empresa seleccionada. Seleccione una empresa primero.', 'error', 'Error');
             return;
         }
 
@@ -308,7 +309,7 @@ export const PersonasUsuariosSection: React.FC = () => {
         setIsSubmitting(true);
         try {
             const personaPayload = {
-                id_empresa: parseInt(formValues.id_empresa),
+                id_empresa: empresaId,
                 tipo_persona: formValues.tipo as any,
                 tipo_documento: formValues.tipoDoc as any,
                 numero_documento: formValues.numDoc,
@@ -366,8 +367,7 @@ export const PersonasUsuariosSection: React.FC = () => {
                 apellido: '',
                 razonSocial: '',
                 email: '',
-                celular: '',
-                id_empresa: ''
+                celular: ''
             });
             setUsuarioFormValues({ username: '', id_rol: '1', password: '', empresasIds: [] });
             setCrearUsuario(false);
@@ -508,8 +508,7 @@ export const PersonasUsuariosSection: React.FC = () => {
             apellido: persona.apellido || '',
             razonSocial: persona.razon_social || '',
             email: persona.email || '',
-            celular: persona.celular,
-            id_empresa: String(persona.id_empresa)
+            celular: persona.celular
         });
 
         const usuario = usuarios.find(u => u.id_persona === persona.id_persona);
@@ -537,8 +536,14 @@ export const PersonasUsuariosSection: React.FC = () => {
     const handleUpdate = async () => {
         if (!selectedPersona) return;
 
-        if (!formValues.numDoc || !formValues.celular || !formValues.id_empresa) {
+        if (!formValues.numDoc || !formValues.celular) {
             showToast('Documento, celular y empresa son obligatorios', 'warning', 'Campos incompletos');
+            return;
+        }
+
+        const empresaId = getSelectedCompanyId();
+        if (!empresaId) {
+            showToast('No hay empresa seleccionada. Seleccione una empresa primero.', 'error', 'Error');
             return;
         }
 
@@ -569,7 +574,7 @@ export const PersonasUsuariosSection: React.FC = () => {
         setIsSubmitting(true);
         try {
             const personaPayload: any = {
-                id_empresa: parseInt(formValues.id_empresa),
+                id_empresa: empresaId,
                 tipo_persona: selectedPersona.tipo_persona,
                 tipo_documento: selectedPersona.tipo_documento,
                 numero_documento: selectedPersona.numero_documento,
@@ -594,9 +599,6 @@ export const PersonasUsuariosSection: React.FC = () => {
             if (formValues.apellido !== selectedPersona.apellido) cambiosPersona.push(`Apellido: "${selectedPersona.apellido}" → "${formValues.apellido}"`);
             if (formValues.email !== selectedPersona.email) cambiosPersona.push(`Email: "${selectedPersona.email}" → "${formValues.email}"`);
             if (formValues.celular !== selectedPersona.celular) cambiosPersona.push(`Celular: "${selectedPersona.celular}" → "${formValues.celular}"`);
-            if (parseInt(formValues.id_empresa) !== selectedPersona.id_empresa) {
-                cambiosPersona.push(`Empresa: "${getNombreEmpresa(selectedPersona.id_empresa)}" → "${getNombreEmpresa(parseInt(formValues.id_empresa))}"`);
-            }
 
             if (cambiosPersona.length > 0) {
                 await addToHistory(personaActualizada, nombreCompleto, 'MODIFICACIÓN', cambiosPersona.join(', '));
@@ -805,35 +807,101 @@ export const PersonasUsuariosSection: React.FC = () => {
                 >
                     {/* Formulario de persona */}
                     <div className="dc-form-grid" style={{ marginBottom: '1rem' }}>
-                        {personaFormFields.map((field) => {
-                            const fieldOptions = field.id === 'id_empresa'
-                                ? [{ value: '', label: 'Seleccione empresa' }, ...empresaOptions]
-                                : field.options;
-                            return (
-                                <div key={field.id} className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
-                                    <label>{field.label}</label>
-                                    {field.type === 'select' ? (
-                                        <select
-                                            value={(formValues as any)[field.id] || ''}
-                                            onChange={(e) => setFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
-                                            required={field.required}
-                                        >
-                                            {fieldOptions?.map(opt => (
-                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                            ))}
-                                        </select>
-                                    ) : (
+                        <div className="dc-form-grid" style={{ marginBottom: '1rem' }}>
+                            {/* Campo Tipo */}
+                            <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                <label>Tipo</label>
+                                <select
+                                    value={formValues.tipo}
+                                    onChange={(e) => setFormValues(prev => ({ ...prev, tipo: e.target.value }))}
+                                >
+                                    {TIPOS_PERSONA.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Campo Tipo Documento */}
+                            <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                <label>Tipo Documento</label>
+                                <select
+                                    value={formValues.tipoDoc}
+                                    onChange={(e) => setFormValues(prev => ({ ...prev, tipoDoc: e.target.value }))}
+                                >
+                                    <option value="DNI">DNI</option>
+                                    <option value="RUC">RUC</option>
+                                </select>
+                            </div>
+
+                            {/* N° Documento */}
+                            <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                <label>N° Documento</label>
+                                <input
+                                    type="text"
+                                    placeholder="DNI o RUC"
+                                    value={formValues.numDoc}
+                                    onChange={(e) => setFormValues(prev => ({ ...prev, numDoc: e.target.value }))}
+                                    required
+                                />
+                            </div>
+
+                            {/* 🔹 Campos condicionales según tipoDoc */}
+                            {formValues.tipoDoc === 'DNI' ? (
+                                <>
+                                    <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                        <label>Nombre(s)</label>
                                         <input
-                                            type={field.type}
-                                            placeholder={field.placeholder}
-                                            value={(formValues as any)[field.id] || ''}
-                                            onChange={(e) => setFormValues(prev => ({ ...prev, [field.id]: e.target.value }))}
-                                            required={field.required}
+                                            type="text"
+                                            placeholder="Nombre"
+                                            value={formValues.nombre}
+                                            onChange={(e) => setFormValues(prev => ({ ...prev, nombre: e.target.value }))}
                                         />
-                                    )}
+                                    </div>
+                                    <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                        <label>Apellido</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Apellido"
+                                            value={formValues.apellido}
+                                            onChange={(e) => setFormValues(prev => ({ ...prev, apellido: e.target.value }))}
+                                        />
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                    <label>Razón Social</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Solo para cliente jurídico"
+                                        value={formValues.razonSocial}
+                                        onChange={(e) => setFormValues(prev => ({ ...prev, razonSocial: e.target.value }))}
+                                    />
                                 </div>
-                            );
-                        })}
+                            )}
+
+                            {/* Email */}
+                            <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                <label>Email</label>
+                                <input
+                                    type="email"
+                                    placeholder="correo@ejemplo.com"
+                                    value={formValues.email}
+                                    onChange={(e) => setFormValues(prev => ({ ...prev, email: e.target.value }))}
+                                />
+                            </div>
+
+                            {/* Celular */}
+                            <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                                <label>Celular</label>
+                                <input
+                                    type="text"
+                                    placeholder="+51 987654321"
+                                    value={formValues.celular}
+                                    onChange={(e) => setFormValues(prev => ({ ...prev, celular: e.target.value }))}
+                                    required
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     {/* Toggle para crear usuario */}
