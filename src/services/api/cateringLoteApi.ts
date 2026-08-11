@@ -17,7 +17,6 @@ const mapCateringLoteToFrontend = (l: any): CateringLote => ({
 });
 
 export const cateringLoteApi = {
-    // Obtener todos los lotes (para administración general)
     getAll: async (id_empresa: number): Promise<CateringLote[]> => {
         const res = await fetch(`${API_URL}/catering-lotes?id_empresa=${id_empresa}`);
         if (!res.ok) throw new Error('Error al obtener lotes de catering');
@@ -25,7 +24,6 @@ export const cateringLoteApi = {
         return data.map(mapCateringLoteToFrontend);
     },
 
-    // Obtener lotes de un item específico
     getByItem: async (itemId: number, id_empresa: number): Promise<CateringLote[]> => {
         const res = await fetch(`${API_URL}/catering-lotes/item/${itemId}?id_empresa=${id_empresa}`);
         if (!res.ok) throw new Error('Error al obtener lotes del item');

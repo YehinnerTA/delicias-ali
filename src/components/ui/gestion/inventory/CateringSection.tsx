@@ -15,7 +15,6 @@ import { personaApi } from '../../../../services/api/personaApi';
 import { historialApi } from '../../../../services/api/historialApi';
 import { Persona } from '../../../../features/types/person';
 
-// Lista de unidades para Materia Prima
 const UNIDADES_MATERIA_PRIMA = [
     { value: 'unidad', label: 'Unidad' },
     { value: 'kg', label: 'Kilogramo (kg)' },
@@ -28,7 +27,6 @@ const UNIDADES_MATERIA_PRIMA = [
     { value: 'frasco', label: 'Frasco' },
 ];
 
-// Lista de unidades para Utensilios
 const UNIDADES_UTENSILIO = [
     { value: 'unidad', label: 'Unidad' },
     { value: 'docena', label: 'Docena' },
@@ -67,10 +65,6 @@ const recordToFilters = (record: Record<string, string>): { nombre: string; tipo
     tipo: record.tipo || '',
     stockMin: record.stockMin || ''
 });
-
-// ============================================================
-// FUNCIONES DE FECHAS
-// ============================================================
 
 const sumarDiasAFecha = (fechaStr: string, dias: number): string => {
     const partes = fechaStr.split('-');
@@ -144,8 +138,6 @@ const formatLocalDateTime = (isoString: string): string => {
     return `${dia}/${mes}/${año} ${horas}:${minutos}`;
 };
 
-// ============================================================
-
 export const CateringSection: React.FC = () => {
     const {
         cateringItems,
@@ -160,7 +152,6 @@ export const CateringSection: React.FC = () => {
     const { getSelectedCompanyId } = useCompany();
     const { toasts, showToast, removeToast } = useToast();
 
-    // Estado del formulario de creación
     const [formValues, setFormValues] = useState({
         nombre: '',
         stock: '0',
@@ -173,7 +164,6 @@ export const CateringSection: React.FC = () => {
         id_proveedor: ''
     });
 
-    // Estado para lotes
     const [lotesItems, setLotesItems] = useState<CateringLote[]>([]);
     const [proveedores, setProveedores] = useState<Persona[]>([]);
     const [modalOpen, setModalOpen] = useState(false);
@@ -195,7 +185,6 @@ export const CateringSection: React.FC = () => {
     const cargarDatos = async (id_empresa: number) => {
         try {
             const items = await cateringItemApi.getAll(id_empresa);
-            // Para materia prima, cargar lotes
             const itemsConLotes = await Promise.all(
                 items.map(async (item) => {
                     if (item.tipo === 'materia prima') {
@@ -251,9 +240,6 @@ export const CateringSection: React.FC = () => {
         showToast('Filtros de insumos limpiados', 'info', 'Filtros reseteados');
     };
 
-    // ============================================================
-    // OBTENER FECHA DE VENCIMIENTO MÁS PRÓXIMA DE LOS LOTES
-    // ============================================================
     const getFechaVencimientoMasProxima = (item: CateringItem): string | null => {
         if (item.tipo === 'utensilio') return null;
         if (!item.lotes || item.lotes.length === 0) return null;
@@ -264,13 +250,9 @@ export const CateringSection: React.FC = () => {
 
         if (fechasValidas.length === 0) return null;
 
-        // Ordenar y devolver la más próxima
         return fechasValidas.sort()[0];
     };
 
-    // ============================================================
-    // COLUMNAS DE LA TABLA
-    // ============================================================
     const columns: Column<CateringItem>[] = [
         { key: 'nombre', header: 'Nombre', render: (item) => <strong>{item.nombre}</strong> },
         {
@@ -352,9 +334,6 @@ export const CateringSection: React.FC = () => {
         return [];
     };
 
-    // ============================================================
-    // CREAR NUEVO PRODUCTO (con lote inicial para materia prima)
-    // ============================================================
     const handleAddItem = async () => {
         if (!formValues.nombre) {
             showToast('Nombre requerido', 'warning', 'Campos incompletos');
@@ -368,7 +347,6 @@ export const CateringSection: React.FC = () => {
             return;
         }
 
-        // Validaciones para materia prima
         if (formValues.tipo === 'materia prima') {
             if (formValues.tiene_vencimiento && !formValues.fecha_vencimiento) {
                 showToast('La fecha de vencimiento es obligatoria', 'warning', 'Campos incompletos');
@@ -382,7 +360,6 @@ export const CateringSection: React.FC = () => {
 
         setIsSubmitting(true);
         try {
-            // Crear el item
             const payload = {
                 nombre: formValues.nombre,
                 stock: parseInt(formValues.stock) || 0,
@@ -399,19 +376,15 @@ export const CateringSection: React.FC = () => {
 
             const newItem = await cateringItemApi.create(payload as any);
 
-            // Si es materia prima, crear lote inicial
             if (formValues.tipo === 'materia prima') {
-                // Calcular fecha de vencimiento para el lote
                 let fechaVencLote = null;
                 if (formValues.tiene_vencimiento && formValues.fecha_vencimiento) {
                     fechaVencLote = formValues.fecha_vencimiento;
                 } else if (formValues.dias_vida_util) {
-                    // Calcular desde la fecha de creación
                     const hoy = new Date().toISOString().split('T')[0];
                     fechaVencLote = sumarDiasAFecha(hoy, parseInt(formValues.dias_vida_util) - 1);
                 }
 
-                // Si no hay fecha, no crear lote
                 if (fechaVencLote) {
                     await cateringLoteApi.create({
                         id_item: newItem.id,
@@ -451,14 +424,10 @@ export const CateringSection: React.FC = () => {
         }
     };
 
-    // ============================================================
-    // VER DETALLE CON LOTES
-    // ============================================================
     const handleView = async (item: CateringItem) => {
         try {
             const historialItem = await historialApi.getByEntity('catering_items', item.id);
 
-            // Obtener historial de lotes
             let historialesLotes: any[] = [];
             if (item.lotes && item.lotes.length > 0) {
                 const histLotes = await Promise.all(
@@ -621,9 +590,6 @@ export const CateringSection: React.FC = () => {
         }
     };
 
-    // ============================================================
-    // AGREGAR LOTE A UN PRODUCTO EXISTENTE
-    // ============================================================
     const handleAddLote = (item: CateringItem) => {
         if (item.tipo === 'utensilio') {
             showToast('Los utensilios no tienen lotes', 'warning', 'No aplica');
@@ -640,7 +606,6 @@ export const CateringSection: React.FC = () => {
                 return;
             }
 
-            // Validar fecha: si no hay fecha directa, debe haber días
             let fechaVencimiento = null;
             if (fechaDirecta) {
                 fechaVencimiento = fechaDirecta;
@@ -671,7 +636,6 @@ export const CateringSection: React.FC = () => {
                     id_empresa: empresaId
                 });
 
-                // Actualizar el item en el estado
                 const updatedItems = cateringItems.map(p =>
                     p.id === item.id ? { ...p, lotes: [...(p.lotes || []), nuevoLote] } : p
                 );
@@ -734,11 +698,7 @@ export const CateringSection: React.FC = () => {
         setModalOpen(true);
     };
 
-    // ============================================================
-    // EDITAR STOCK (solo para utensilios o ajuste general)
-    // ============================================================
     const handleEdit = (item: CateringItem) => {
-        // Si es materia prima, mostrar opción para agregar lote en lugar de editar stock directo
         if (item.tipo === 'materia prima') {
             handleAddLote(item);
             return;
