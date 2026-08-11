@@ -9,6 +9,7 @@ export interface CateringLote {
     diasVidaUtil: number | null;
     fechaRegistro: string;
     registradoPor: string;
+    descartado: boolean | number;
     created_at: string;
     updated_at: string;
     historial: HistorialEntry[];

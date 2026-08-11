@@ -88,8 +88,8 @@ export const createCateringLote = async (req: Request, res: Response) => {
 
         const result = await executeMutation(
             `INSERT INTO catering_lotes 
-                (id_empresa, id_item, stock, fecha_vencimiento, dias_vida_util, fecha_registro, registrado_por) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                (id_empresa, id_item, stock, fecha_vencimiento, dias_vida_util, fecha_registro, registrado_por, descartado) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
             [
                 id_empresa,
                 id_item,
@@ -102,7 +102,7 @@ export const createCateringLote = async (req: Request, res: Response) => {
         );
 
         const stockTotal = await executeQuerySingle<{ total: number }>(
-            `SELECT SUM(stock) AS total FROM catering_lotes WHERE id_item = ? AND id_empresa = ?`,
+            `SELECT SUM(stock) AS total FROM catering_lotes WHERE id_item = ? AND id_empresa = ? AND descartado = 0`,
             [id_item, id_empresa]
         );
         const nuevoStockTotal = stockTotal?.total || 0;
@@ -133,7 +133,7 @@ export const createCateringLote = async (req: Request, res: Response) => {
 export const updateCateringLote = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { stock, fecha_vencimiento, dias_vida_util, id_empresa } = req.body;
+        const { stock, fecha_vencimiento, dias_vida_util, descartado, id_empresa } = req.body;
 
         if (!id_empresa) {
             return res.status(400).json({ message: 'id_empresa es requerido' });
@@ -147,27 +147,34 @@ export const updateCateringLote = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Lote no encontrado en esta empresa' });
         }
 
-        const stockAnterior = loteActual.stock || 0;
-        const nuevoStock = stock !== undefined ? stock : stockAnterior;
-        const diferenciaStock = nuevoStock - stockAnterior;
+        const updates: string[] = [];
+        const values: any[] = [];
 
+        if (stock !== undefined) { updates.push('stock = ?'); values.push(stock); }
+        if (fecha_vencimiento !== undefined) { updates.push('fecha_vencimiento = ?'); values.push(fecha_vencimiento); }
+        if (dias_vida_util !== undefined) { updates.push('dias_vida_util = ?'); values.push(dias_vida_util); }
+        if (descartado !== undefined) { updates.push('descartado = ?'); values.push(descartado); }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ message: 'No se enviaron campos para actualizar' });
+        }
+
+        values.push(id, id_empresa);
         await executeMutation(
-            `UPDATE catering_lotes SET stock = ?, fecha_vencimiento = ?, dias_vida_util = ? WHERE id = ? AND id_empresa = ?`,
-            [nuevoStock, fecha_vencimiento, dias_vida_util, id, id_empresa]
+            `UPDATE catering_lotes SET ${updates.join(', ')} WHERE id = ? AND id_empresa = ?`,
+            values
         );
 
-        if (diferenciaStock !== 0) {
-            const stockTotal = await executeQuerySingle<{ total: number }>(
-                `SELECT SUM(stock) AS total FROM catering_lotes WHERE id_item = ? AND id_empresa = ?`,
-                [loteActual.id_item, id_empresa]
-            );
-            const nuevoStockTotal = stockTotal?.total || 0;
+        const stockTotal = await executeQuerySingle<{ total: number }>(
+            `SELECT SUM(stock) AS total FROM catering_lotes WHERE id_item = ? AND id_empresa = ? AND descartado = 0`,
+            [loteActual.id_item, id_empresa]
+        );
+        const nuevoStockTotal = stockTotal?.total || 0;
 
-            await executeMutation(
-                `UPDATE catering_items SET stock = ? WHERE id = ? AND id_empresa = ?`,
-                [nuevoStockTotal, loteActual.id_item, id_empresa]
-            );
-        }
+        await executeMutation(
+            `UPDATE catering_items SET stock = ? WHERE id = ? AND id_empresa = ?`,
+            [nuevoStockTotal, loteActual.id_item, id_empresa]
+        );
 
         const updated = await executeQuerySingle(
             `SELECT 
@@ -196,7 +203,7 @@ export const deleteCateringLote = async (req: Request, res: Response) => {
         }
 
         const lote = await executeQuerySingle<any>(
-            `SELECT id_item, stock FROM catering_lotes WHERE id = ? AND id_empresa = ?`,
+            `SELECT id_item FROM catering_lotes WHERE id = ? AND id_empresa = ?`,
             [id, id_empresa]
         );
         if (!lote) {
@@ -209,7 +216,7 @@ export const deleteCateringLote = async (req: Request, res: Response) => {
         );
 
         const stockTotal = await executeQuerySingle<{ total: number }>(
-            `SELECT SUM(stock) AS total FROM catering_lotes WHERE id_item = ? AND id_empresa = ?`,
+            `SELECT SUM(stock) AS total FROM catering_lotes WHERE id_item = ? AND id_empresa = ? AND descartado = 0`,
             [lote.id_item, id_empresa]
         );
         const nuevoStockTotal = stockTotal?.total || 0;
@@ -223,5 +230,55 @@ export const deleteCateringLote = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('[deleteCateringLote] Error:', error);
         res.status(500).json({ message: 'Error al eliminar lote de catering', error: error instanceof Error ? error.message : String(error) });
+    }
+};
+
+export const descartarCateringLote = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { id_empresa } = req.body;
+
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        const lote = await executeQuerySingle<any>(
+            `SELECT id_item, stock FROM catering_lotes WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
+        );
+        if (!lote) {
+            return res.status(404).json({ message: 'Lote no encontrado en esta empresa' });
+        }
+
+        await executeMutation(
+            `UPDATE catering_lotes SET descartado = 1 WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
+        );
+
+        const stockTotal = await executeQuerySingle<{ total: number }>(
+            `SELECT SUM(stock) AS total FROM catering_lotes WHERE id_item = ? AND id_empresa = ? AND descartado = 0`,
+            [lote.id_item, id_empresa]
+        );
+        const nuevoStockTotal = stockTotal?.total || 0;
+
+        await executeMutation(
+            `UPDATE catering_items SET stock = ? WHERE id = ? AND id_empresa = ?`,
+            [nuevoStockTotal, lote.id_item, id_empresa]
+        );
+
+        const updated = await executeQuerySingle(
+            `SELECT 
+                cl.*,
+                p.nombre AS registrado_por_nombre,
+                p.apellido AS registrado_por_apellido
+            FROM catering_lotes cl
+            JOIN personas p ON cl.registrado_por = p.id
+            WHERE cl.id = ? AND cl.id_empresa = ?`,
+            [id, id_empresa]
+        );
+        res.json(updated);
+    } catch (error) {
+        console.error('[descartarCateringLote] Error:', error);
+        res.status(500).json({ message: 'Error al descartar lote de catering', error: error instanceof Error ? error.message : String(error) });
     }
 };

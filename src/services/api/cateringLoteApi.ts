@@ -13,6 +13,7 @@ const mapCateringLoteToFrontend = (l: any): CateringLote => ({
     registradoPor: l.registrado_por_nombre || l.registrado_por,
     created_at: l.created_at,
     updated_at: l.updated_at,
+    descartado: l.descartado === 1 || l.descartado === true,
     historial: []
 });
 
@@ -32,7 +33,7 @@ export const cateringLoteApi = {
     },
 
     create: async (
-        lote: Omit<CateringLote, 'id' | 'historial' | 'registradoPor' | 'created_at' | 'updated_at'> & { usuario_id: number; id_empresa: number }
+        lote: Omit<CateringLote, 'id' | 'historial' | 'registradoPor' | 'created_at' | 'updated_at' | 'descartado'> & { usuario_id: number; id_empresa: number }
     ): Promise<CateringLote> => {
         const res = await fetch(`${API_URL}/catering-lotes`, {
             method: 'POST',
@@ -60,6 +61,7 @@ export const cateringLoteApi = {
                 stock: lote.stock,
                 fecha_vencimiento: lote.fechaVencimiento,
                 dias_vida_util: lote.diasVidaUtil,
+                descartado: lote.descartado,
                 id_empresa: lote.id_empresa
             })
         });
@@ -73,5 +75,16 @@ export const cateringLoteApi = {
             method: 'DELETE'
         });
         if (!res.ok) throw new Error('Error al eliminar lote de catering');
+    },
+
+    descartar: async (id: number, id_empresa: number): Promise<CateringLote> => {
+        const res = await fetch(`${API_URL}/catering-lotes/${id}/descartar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_empresa })
+        });
+        if (!res.ok) throw new Error('Error al descartar lote');
+        const data = await res.json();
+        return mapCateringLoteToFrontend(data);
     }
 };

@@ -164,7 +164,6 @@ export const CateringSection: React.FC = () => {
         id_proveedor: ''
     });
 
-    const [lotesItems, setLotesItems] = useState<CateringLote[]>([]);
     const [proveedores, setProveedores] = useState<Persona[]>([]);
     const [modalOpen, setModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
@@ -245,6 +244,7 @@ export const CateringSection: React.FC = () => {
         if (!item.lotes || item.lotes.length === 0) return null;
 
         const fechasValidas = item.lotes
+            .filter(l => l.descartado !== true && l.descartado !== 1)
             .map(l => l.fechaVencimiento)
             .filter(f => f !== null && f !== undefined) as string[];
 
@@ -258,7 +258,7 @@ export const CateringSection: React.FC = () => {
         {
             key: 'stock', header: 'Stock', render: (item) => {
                 if (item.tipo === 'utensilio') return item.stock;
-                const total = item.lotes?.reduce((s, l) => s + l.stock, 0) || 0;
+                const total = item.lotes?.filter(l => l.descartado !== true && l.descartado !== 1).reduce((s, l) => s + l.stock, 0) || 0;
                 return total;
             }
         },
@@ -274,17 +274,21 @@ export const CateringSection: React.FC = () => {
                 return (
                     <>
                         {item.lotes.map((l, idx) => {
+                            const esDescartado = l.descartado === true || l.descartado === 1;
                             const diasRestantes = getDiasRestantes(l.fechaVencimiento as string);
-                            const estado = diasRestantes < 0 ? 'VENCIDO' : (diasRestantes <= 2 ? '¡PRÓXIMO!' : 'Vigente');
+                            const estado = esDescartado ? 'DESCARTADO' : (diasRestantes < 0 ? 'VENCIDO' : (diasRestantes <= 2 ? '¡PRÓXIMO!' : 'Vigente'));
+                            const badgeColor = esDescartado ? '#888' : (diasRestantes < 0 ? '#d32f2f' : (diasRestantes <= 2 ? '#ff9800' : '#4caf50'));
                             return (
                                 <div key={idx} style={{ fontSize: '0.7rem', margin: '3px 0' }}>
                                     <span className="dc-badge" style={{
-                                        background: diasRestantes < 0 ? '#d32f2f' : (diasRestantes <= 2 ? '#ff9800' : '#17cc1a'),
-                                        color: '#000000'
+                                        background: badgeColor,
+                                        color: '#fff',
+                                        opacity: esDescartado ? 0.6 : 1
                                     }}>
                                         {formatearFecha(l.fechaVencimiento as string)} - {estado}
                                     </span>
                                     · {l.stock} und
+                                    {esDescartado && <span style={{ marginLeft: '0.5rem', color: '#888' }}>🚫</span>}
                                 </div>
                             );
                         })}
@@ -424,6 +428,87 @@ export const CateringSection: React.FC = () => {
         }
     };
 
+    const handleDescartarLote = (lote: CateringLote, item: CateringItem) => {
+        if (lote.descartado === true || lote.descartado === 1) {
+            showToast('Este lote ya fue descartado', 'info', 'Sin cambios');
+            return;
+        }
+
+        setModalContent({
+            title: `Descartar lote de "${item.nombre}"`,
+            icon: 'fa-trash-alt',
+            children: (
+                <>
+                    <div className="dc-warning-box">
+                        <i className="fas fa-exclamation-triangle"></i>
+                        <p><strong>¡Atención!</strong> Estás a punto de descartar un lote de "{item.nombre}"</p>
+                    </div>
+                    <div style={{ marginBottom: '1rem' }}>
+                        <p><strong>Detalles del lote:</strong></p>
+                        <ul style={{ listStyle: 'none', padding: 0 }}>
+                            <li>📦 <strong>Stock:</strong> {lote.stock} unidades</li>
+                            <li>📅 <strong>Vence:</strong> {formatearFecha(lote.fechaVencimiento as string)}</li>
+                            <li>📋 <strong>Registro:</strong> {formatearFecha(lote.fechaRegistro)}</li>
+                        </ul>
+                    </div>
+                    <p>
+                        El lote será marcado como <strong>DESCARTADO</strong> y su stock dejará de contarse en el total.
+                        <br />
+                        <span style={{ color: '#d32f2f' }}>Esta acción no se puede deshacer.</span>
+                    </p>
+                    <p>¿Confirmas que deseas proceder con el descarte?</p>
+                </>
+            ),
+            footer: (
+                <>
+                    <button
+                        className="dc-btn secondary"
+                        onClick={() => {
+                            setModalOpen(false);
+                            setModalContent(null);
+                        }}
+                    >
+                        <i className="fas fa-times"></i> Cancelar
+                    </button>
+                    <button
+                        className="dc-btn danger"
+                        onClick={async () => {
+                            const empresaId = getSelectedCompanyId();
+                            if (!empresaId) {
+                                showToast('No se pudo identificar la empresa', 'error', 'Error');
+                                setModalOpen(false);
+                                setModalContent(null);
+                                return;
+                            }
+
+                            setIsSubmitting(true);
+                            try {
+                                await cateringLoteApi.descartar(lote.id, empresaId);
+                                await cargarDatos(empresaId);
+                                await addActivity('MODIFICAR', 'catering', `Lote descartado: "${item.nombre}" (${lote.stock} und)`);
+                                await addToHistory(lote, item.nombre, 'DESCARTE', `Lote descartado - stock: ${lote.stock}`);
+                                showToast(`Lote de "${item.nombre}" descartado correctamente`, 'success', 'Lote descartado');
+                                setModalOpen(false);
+                                setModalContent(null);
+                            } catch (error) {
+                                console.error('[CateringSection] Error al descartar lote:', error);
+                                showToast('Error al descartar el lote', 'error', 'Error');
+                                setModalOpen(false);
+                                setModalContent(null);
+                            } finally {
+                                setIsSubmitting(false);
+                            }
+                        }}
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? 'Descartando...' : <><i className="fas fa-trash"></i> Sí, Descartar</>}
+                    </button>
+                </>
+            )
+        });
+        setModalOpen(true);
+    };
+
     const handleView = async (item: CateringItem) => {
         try {
             const historialItem = await historialApi.getByEntity('catering_items', item.id);
@@ -465,7 +550,7 @@ export const CateringSection: React.FC = () => {
 
             const stockTotal = item.tipo === 'utensilio'
                 ? item.stock
-                : (item.lotes?.reduce((s, l) => s + l.stock, 0) || 0);
+                : (item.lotes?.filter(l => l.descartado !== true && l.descartado !== 1).reduce((s, l) => s + l.stock, 0) || 0);
 
             setModalContent({
                 title: `Detalle de ${itemConHistorial.nombre}`,
@@ -518,27 +603,43 @@ export const CateringSection: React.FC = () => {
                             <div className="dc-info-card">
                                 <h4><i className="fas fa-boxes"></i> Detalle de Lotes</h4>
                                 {item.lotes.map((l, idx) => {
+                                    const esDescartado = l.descartado === true || l.descartado === 1;
                                     const diasRestantes = getDiasRestantes(l.fechaVencimiento as string);
-                                    const estado = diasRestantes < 0 ? 'VENCIDO' : (diasRestantes <= 2 ? 'PRÓXIMO' : 'Vigente');
+                                    const estado = esDescartado ? 'DESCARTADO' : (diasRestantes < 0 ? 'VENCIDO' : (diasRestantes <= 2 ? 'PRÓXIMO' : 'Vigente'));
+                                    const badgeColor = esDescartado ? '#888' : (diasRestantes < 0 ? '#d32f2f' : (diasRestantes <= 2 ? '#ff9800' : '#4caf50'));
                                     return (
                                         <div key={idx} className="batch-group" style={{
                                             border: '1px solid #f0d6db',
                                             borderRadius: '1rem',
                                             marginBottom: '1rem',
                                             padding: '1rem',
-                                            background: '#fffbfc'
+                                            background: esDescartado ? '#f5f5f5' : '#fffbfc'
                                         }}>
                                             <strong>Lote {idx + 1}</strong> | Vence: {formatearFecha(l.fechaVencimiento as string)}
-                                            <span className={`dc-badge ${diasRestantes < 0 ? 'badge-expired' : (diasRestantes <= 2 ? 'badge-near-expiry' : '')}`}
-                                                style={{
-                                                    background: diasRestantes < 0 ? '#d32f2f' : (diasRestantes <= 2 ? '#ff9800' : '#4caf50'),
-                                                    color: '#fff',
-                                                    marginLeft: '0.5rem'
-                                                }}>
-                                                {estado} ({Math.abs(diasRestantes)} días {diasRestantes < 0 ? 'vencidos' : 'restantes'})
+                                            <span className="dc-badge" style={{
+                                                background: badgeColor,
+                                                color: '#fff',
+                                                marginLeft: '0.5rem'
+                                            }}>
+                                                {estado} {!esDescartado && l.stock > 0 && `(${Math.abs(diasRestantes)} días ${diasRestantes < 0 ? 'vencidos' : 'restantes'})`}
                                             </span><br />
                                             📦 Stock: {l.stock}<br />
                                             📅 Registro: {formatearFecha(l.fechaRegistro)}
+                                            {!esDescartado && l.stock > 0 && (
+                                                <button
+                                                    className="dc-btn danger"
+                                                    style={{ marginTop: '0.5rem', padding: '0.2rem 0.8rem', fontSize: '0.7rem' }}
+                                                    onClick={() => handleDescartarLote(l, item)}
+                                                    disabled={isSubmitting}
+                                                >
+                                                    <i className="fas fa-trash"></i> Descartar
+                                                </button>
+                                            )}
+                                            {esDescartado && (
+                                                <span style={{ marginLeft: '0.5rem', color: '#888', fontSize: '0.8rem' }}>
+                                                    <i className="fas fa-check-circle"></i> Descartado
+                                                </span>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -862,6 +963,7 @@ export const CateringSection: React.FC = () => {
 
                 <ActivityLog logs={cateringActivityLogs} title="Actividad reciente · Catering" />
 
+                {/* Modal de creación */}
                 <Modal
                     isOpen={modalOpen && !modalContent}
                     onClose={() => {
@@ -991,6 +1093,7 @@ export const CateringSection: React.FC = () => {
                             </select>
                         </div>
 
+                        {/* Campos condicionales solo para materia prima */}
                         {formValues.tipo === 'materia prima' && (
                             <>
                                 <div className="dc-input-group" style={{ flex: '1 1 100%' }}>
@@ -1041,6 +1144,7 @@ export const CateringSection: React.FC = () => {
                     </div>
                 </Modal>
 
+                {/* Modal de detalle/edición/eliminación */}
                 <Modal
                     isOpen={!!modalContent}
                     onClose={() => {
