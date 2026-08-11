@@ -55,7 +55,19 @@ export const getCateringItemById = async (req: Request, res: Response) => {
 
 export const createCateringItem = async (req: Request, res: Response) => {
     try {
-        const { nombre, stock, tipo, usuario_id, id_empresa } = req.body;
+        const {
+            nombre,
+            stock,
+            tipo,
+            usuario_id,
+            id_empresa,
+            unidad_medida,
+            tiene_vencimiento,
+            fecha_vencimiento,
+            dias_vida_util,
+            precio_compra,
+            id_proveedor
+        } = req.body;
 
         if (!nombre || !tipo || !usuario_id || !id_empresa) {
             return res.status(400).json({ message: 'Faltan campos obligatorios: nombre, tipo, usuario_id, id_empresa' });
@@ -73,8 +85,21 @@ export const createCateringItem = async (req: Request, res: Response) => {
         const registrado_por = personaRow.id_persona;
 
         const result = await executeMutation(
-            `INSERT INTO catering_items (id_empresa, nombre, stock, tipo, registrado_por) VALUES (?, ?, ?, ?, ?)`,
-            [id_empresa, nombre, stock || 0, tipo, registrado_por]
+            `INSERT INTO catering_items (id_empresa, nombre, stock, tipo, registrado_por, unidad_medida, tiene_vencimiento, fecha_vencimiento, dias_vida_util, precio_compra, id_proveedor) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                id_empresa,
+                nombre,
+                stock || 0,
+                tipo,
+                registrado_por,
+                unidad_medida || 'unidad',
+                tiene_vencimiento === true ? 1 : 0,
+                fecha_vencimiento || null,
+                dias_vida_util || null,
+                precio_compra || null,
+                id_proveedor || null
+            ]
         );
 
         const newRow = await executeQuerySingle(

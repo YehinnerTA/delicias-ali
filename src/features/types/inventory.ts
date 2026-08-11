@@ -1,13 +1,35 @@
 import { HistorialEntry } from './hist_act';
 
+export interface CateringLote {
+    id: number;
+    id_empresa: number;
+    id_item: number;
+    stock: number;
+    fechaVencimiento: string | null;
+    diasVidaUtil: number | null;
+    fechaRegistro: string;
+    registradoPor: string;
+    created_at: string;
+    updated_at: string;
+    historial: HistorialEntry[];
+}
+
 export interface CateringItem {
     id: number;
     id_empresa: number;
     nombre: string;
     stock: number;
     tipo: 'materia prima' | 'utensilio';
+    unidad_medida: string;
+    tiene_vencimiento: boolean;
+    fecha_vencimiento: string | null;
+    dias_vida_util: number | null;
+    precio_compra: number | null;
+    id_proveedor: number | null;
     registradoPor: string;
     ultimaEdicion: string;
+    createdAt: string;
+    lotes: CateringLote[];
     historial: HistorialEntry[];
 }
 

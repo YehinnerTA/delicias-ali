@@ -6,6 +6,7 @@ import actividadRoutes from './direction/actividadRoutes';
 import historialRoutes from './direction/historialRoutes';
 import authRoutes from './direction/authRoutes';
 import cateringRoutes from './direction/cateringRoutes';
+import cateringLoteRoutes from './direction/cateringLoteRoutes';
 import postreRoutes from './direction/postreRoutes';
 import loteRoutes from './direction/loteRoutes';
 import ventaRoutes from './direction/ventaRoutes';
@@ -26,5 +27,6 @@ router.use('/lotes', loteRoutes);
 router.use('/ventas', ventaRoutes);
 router.use('/catering-service', cateringServiceRoutes);
 router.use('/recetas', recetaRoutes);
+router.use('/catering-lotes', cateringLoteRoutes);
 
 export default router;

@@ -2,16 +2,35 @@ import { CateringItem } from '../../features/types/inventory';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-const mapToFrontend = (data: any): CateringItem => ({
-    id: data.id,
-    id_empresa: data.id_empresa,
-    nombre: data.nombre,
-    stock: data.stock,
-    tipo: data.tipo,
-    registradoPor: data.registrado_por_nombre || data.registrado_por,
-    ultimaEdicion: data.ultima_edicion,
-    historial: []
-});
+const mapToFrontend = (data: any): CateringItem => {
+    let registradoPor = data.registrado_por;
+    if (data.razon_social) {
+        registradoPor = data.razon_social;
+    } else if (data.registrado_por_nombre) {
+        registradoPor = data.registrado_por_nombre;
+        if (data.registrado_por_apellido) {
+            registradoPor += ` ${data.registrado_por_apellido}`;
+        }
+    }
+    return {
+        id: data.id,
+        id_empresa: data.id_empresa,
+        nombre: data.nombre,
+        stock: data.stock,
+        tipo: data.tipo,
+        unidad_medida: data.unidad_medida || 'unidad',
+        tiene_vencimiento: data.tiene_vencimiento === 1 || data.tiene_vencimiento === true,
+        fecha_vencimiento: data.fecha_vencimiento || null,
+        dias_vida_util: data.dias_vida_util ? Number(data.dias_vida_util) : null,
+        precio_compra: data.precio_compra !== null && data.precio_compra !== undefined ? Number(data.precio_compra) : null,
+        id_proveedor: data.id_proveedor ? Number(data.id_proveedor) : null,
+        registradoPor: registradoPor,
+        ultimaEdicion: data.ultima_edicion,
+        createdAt: data.created_at,
+        historial: [],
+        lotes: []
+    };
+};
 
 export const cateringItemApi = {
     getAll: async (id_empresa: number): Promise<CateringItem[]> => {
@@ -32,7 +51,13 @@ export const cateringItemApi = {
                 stock: item.stock,
                 tipo: item.tipo,
                 usuario_id: item.usuario_id,
-                id_empresa: item.id_empresa
+                id_empresa: item.id_empresa,
+                unidad_medida: item.unidad_medida,
+                tiene_vencimiento: item.tiene_vencimiento,
+                fecha_vencimiento: item.fecha_vencimiento || null,
+                dias_vida_util: item.dias_vida_util || null,
+                precio_compra: item.precio_compra || null,
+                id_proveedor: item.id_proveedor || null
             })
         });
         if (!res.ok) throw new Error('Error al crear insumo');
