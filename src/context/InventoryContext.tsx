@@ -141,16 +141,35 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
             let idEntidad = 0;
             let esCateringItem = false;
 
-            if ('id' in item && 'tipo' in item) {
+            if ('id_item' in item) {
+                entidad = 'catering_lotes';
+                idEntidad = (item as any).id;
+            }
+            else if ('tipo' in item && 'unidad_medida' in item) {
                 entidad = 'catering_items';
                 idEntidad = (item as any).id;
                 esCateringItem = true;
-            } else if ('lotes' in item) {
-                entidad = 'postres';
-                idEntidad = (item as any).id;
-            } else if ('postre_id' in item) {
+            }
+            else if ('postre_id' in item) {
                 entidad = 'lotes';
                 idEntidad = (item as any).id;
+            }
+            else if ('lotes' in item && Array.isArray((item as any).lotes)) {
+                entidad = 'postres';
+                idEntidad = (item as any).id;
+            }
+            else if ('id_usuario' in item) {
+                entidad = 'usuarios';
+                idEntidad = (item as any).id_usuario;
+            }
+            else if ('id_persona' in item) {
+                entidad = 'personas';
+                idEntidad = (item as any).id_persona;
+            }
+            else if ('id' in item && (item as any).id) {
+                entidad = 'desconocido';
+                idEntidad = (item as any).id;
+                console.warn('[InventoryContext] Entidad no detectada, usando fallback:', { item, entidad, idEntidad });
             }
 
             if (entidad && idEntidad) {
@@ -180,6 +199,16 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
                         )
                     );
                 }
+                else if (entidad === 'postres') {
+                    const updatedItem = item as unknown as Postre;
+                    setPostresItems((prev) =>
+                        prev.map((p) =>
+                            p.id === updatedItem.id ? { ...p, historial: updatedItem.historial } : p
+                        )
+                    );
+                }
+            } else {
+                console.warn('[InventoryContext] No se pudo detectar entidad para historial:', item);
             }
         } catch (error) {
             console.error('[InventoryContext] Error al agregar historial:', error);
