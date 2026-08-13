@@ -195,15 +195,9 @@ export const PersonasUsuariosSection: React.FC = () => {
             header: 'Tipo',
             render: (p) => <span className="dc-badge">{p.tipo_persona.replace('_', ' ')}</span>
         },
-        {
-            key: 'numero_documento',
-            header: 'Documento',
-            render: (p) => `${p.tipo_documento}: ${p.numero_documento}`
-        },
         { key: 'nombre_completo', header: 'Nombre completo', render: (p) => getNombrePersona(p) },
         { key: 'email', header: 'Email', render: (p) => p.email || '-' },
         { key: 'celular', header: 'Celular' },
-        { key: 'empresa', header: 'Empresa', render: (p) => getNombreEmpresa(p.id_empresa) },
         {
             key: 'usuario',
             header: 'Usuario',
@@ -777,7 +771,6 @@ export const PersonasUsuariosSection: React.FC = () => {
 
                 <ActivityLog logs={actividadLogs} title="Actividad reciente · Personas y Usuarios" />
 
-                {/* Modal de ver detalle */}
                 <Modal
                     isOpen={modalOpen}
                     onClose={() => setModalOpen(false)}
@@ -788,7 +781,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                     {modalContent?.children}
                 </Modal>
 
-                {/* ===== MODAL DE CREACIÓN ===== */}
                 <Modal
                     isOpen={isCreateModalOpen}
                     onClose={() => setIsCreateModalOpen(false)}
@@ -805,10 +797,8 @@ export const PersonasUsuariosSection: React.FC = () => {
                         </div>
                     }
                 >
-                    {/* Formulario de persona */}
                     <div className="dc-form-grid" style={{ marginBottom: '1rem' }}>
                         <div className="dc-form-grid" style={{ marginBottom: '1rem' }}>
-                            {/* Campo Tipo */}
                             <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
                                 <label>Tipo</label>
                                 <select
@@ -821,7 +811,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                                 </select>
                             </div>
 
-                            {/* Campo Tipo Documento */}
                             <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
                                 <label>Tipo Documento</label>
                                 <select
@@ -833,7 +822,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                                 </select>
                             </div>
 
-                            {/* N° Documento */}
                             <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
                                 <label>N° Documento</label>
                                 <input
@@ -845,7 +833,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                                 />
                             </div>
 
-                            {/* 🔹 Campos condicionales según tipoDoc */}
                             {formValues.tipoDoc === 'DNI' ? (
                                 <>
                                     <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
@@ -879,7 +866,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Email */}
                             <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
                                 <label>Email</label>
                                 <input
@@ -890,7 +876,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                                 />
                             </div>
 
-                            {/* Celular */}
                             <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
                                 <label>Celular</label>
                                 <input
@@ -904,7 +889,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Toggle para crear usuario */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.5rem 0', borderTop: '1px solid #f0d6db', marginTop: '0.5rem' }}>
                         <label style={{ fontWeight: '600', cursor: 'pointer' }}>
                             <input
@@ -1023,7 +1007,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                     )}
                 </Modal>
 
-                {/* ===== MODAL DE EDICIÓN ===== */}
                 <Modal
                     isOpen={isEditModalOpen}
                     onClose={() => {
