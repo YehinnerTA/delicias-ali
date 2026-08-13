@@ -42,6 +42,7 @@ export interface Lote {
     fechaVencimiento: string;
     diasDuracion: number;
     fechaRegistro: string;
+    descartado: boolean | number;
     registradoPor: string;
     ultimaEdicion: string;
     historial: HistorialEntry[];

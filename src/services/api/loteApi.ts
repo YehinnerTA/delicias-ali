@@ -12,12 +12,13 @@ const mapLoteToFrontend = (l: any): Lote => ({
     fechaRegistro: l.fecha_registro,
     registradoPor: l.registrado_por_nombre || l.registrado_por,
     ultimaEdicion: l.ultima_edicion,
+    descartado: l.descartado === 1 || l.descartado === true,
     historial: []
 });
 
 export const loteApi = {
     create: async (
-        lote: Omit<Lote, 'id' | 'historial' | 'registradoPor' | 'ultimaEdicion'> & { usuario_id: number; id_empresa: number }
+        lote: Omit<Lote, 'id' | 'historial' | 'registradoPor' | 'ultimaEdicion' | 'descartado'> & { usuario_id: number; id_empresa: number }
     ): Promise<Lote> => {
         const res = await fetch(`${API_URL}/lotes`, {
             method: 'POST',
@@ -38,15 +39,21 @@ export const loteApi = {
     },
 
     update: async (id: number, lote: Partial<Lote>): Promise<Lote> => {
+        const payload: any = {
+            stock: lote.stock,
+            fecha_vencimiento: lote.fechaVencimiento,
+            dias_duracion: lote.diasDuracion,
+            id_empresa: lote.id_empresa
+        };
+
+        if (lote.descartado !== undefined) {
+            payload.descartado = lote.descartado;
+        }
+
         const res = await fetch(`${API_URL}/lotes/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                stock: lote.stock,
-                fecha_vencimiento: lote.fechaVencimiento,
-                dias_duracion: lote.diasDuracion,
-                id_empresa: lote.id_empresa
-            })
+            body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error('Error al actualizar lote');
         const data = await res.json();
@@ -58,5 +65,16 @@ export const loteApi = {
             method: 'DELETE'
         });
         if (!res.ok) throw new Error('Error al eliminar lote');
+    },
+
+    descartar: async (id: number, id_empresa: number): Promise<Lote> => {
+        const res = await fetch(`${API_URL}/lotes/${id}/descartar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_empresa })
+        });
+        if (!res.ok) throw new Error('Error al descartar lote');
+        const data = await res.json();
+        return mapLoteToFrontend(data);
     }
 };

@@ -81,26 +81,6 @@ const sumarDiasAFecha = (fechaStr: string, dias: number): string => {
     return `${y}-${m}-${d}`;
 };
 
-const getFechaVencimientoItem = (item: CateringItem): string | null => {
-    if (item.tipo === 'utensilio') return null;
-
-    if (item.tiene_vencimiento && item.fecha_vencimiento) {
-        const fechaStr = item.fecha_vencimiento.includes('T')
-            ? item.fecha_vencimiento.split('T')[0]
-            : item.fecha_vencimiento;
-        return fechaStr;
-    }
-
-    if (item.dias_vida_util && item.createdAt) {
-        const fechaBase = item.createdAt.includes('T')
-            ? item.createdAt.split('T')[0]
-            : item.createdAt;
-        return sumarDiasAFecha(fechaBase, item.dias_vida_util - 1);
-    }
-
-    return null;
-};
-
 const getDiasRestantes = (fechaVencimiento: string): number => {
     const hoy = new Date();
     const hoyStr = hoy.toISOString().split('T')[0];
@@ -263,7 +243,6 @@ export const CateringSection: React.FC = () => {
             }
         },
         { key: 'tipo', header: 'Tipo', render: (item) => <span className="dc-badge">{item.tipo}</span> },
-        { key: 'unidad_medida', header: 'Unidad', render: (item) => item.unidad_medida || '-' },
         {
             key: 'lotes',
             header: 'Lotes (stock por vencimiento)',
@@ -282,51 +261,18 @@ export const CateringSection: React.FC = () => {
                                 <div key={idx} style={{ fontSize: '0.7rem', margin: '3px 0' }}>
                                     <span className="dc-badge" style={{
                                         background: badgeColor,
-                                        color: '#fff',
-                                        opacity: esDescartado ? 0.6 : 1
+                                        color: '#221c1e',
                                     }}>
                                         {formatearFecha(l.fechaVencimiento as string)} - {estado}
                                     </span>
                                     · {l.stock} und
-                                    {esDescartado && <span style={{ marginLeft: '0.5rem', color: '#888' }}>🚫</span>}
                                 </div>
                             );
                         })}
                     </>
                 );
             }
-        },
-        {
-            key: 'fechaVencimiento',
-            header: 'Fecha Vencimiento (próximo)',
-            render: (item) => {
-                if (item.tipo === 'utensilio') {
-                    return <span style={{ color: '#888' }}>No Requiere</span>;
-                }
-                const fecha = getFechaVencimientoMasProxima(item);
-                if (!fecha) {
-                    return <span style={{ color: '#888' }}>Sin lotes</span>;
-                }
-                const vencido = isVencido(fecha);
-                const fechaFormateada = formatearFecha(fecha);
-                return (
-                    <span style={{
-                        color: vencido ? '#d32f2f' : 'inherit',
-                        fontWeight: vencido ? 'bold' : 'normal',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
-                        {fechaFormateada}
-                        {vencido && (
-                            <span className="dc-badge" style={{ background: '#d32f2f', color: '#fff' }}>
-                                VENCIDO
-                            </span>
-                        )}
-                    </span>
-                );
-            }
-        },
+        }
     ];
 
     const getUnidadesOptions = (tipo: string) => {
@@ -606,19 +552,18 @@ export const CateringSection: React.FC = () => {
                                     const esDescartado = l.descartado === true || l.descartado === 1;
                                     const diasRestantes = getDiasRestantes(l.fechaVencimiento as string);
                                     const estado = esDescartado ? 'DESCARTADO' : (diasRestantes < 0 ? 'VENCIDO' : (diasRestantes <= 2 ? 'PRÓXIMO' : 'Vigente'));
-                                    const badgeColor = esDescartado ? '#888' : (diasRestantes < 0 ? '#d32f2f' : (diasRestantes <= 2 ? '#ff9800' : '#4caf50'));
+                                    const badgeColor = esDescartado ? '#888' : (diasRestantes < 0 ? '#d32f2f' : (diasRestantes <= 2 ? '#ff9800' : '#003802'));
                                     return (
                                         <div key={idx} className="batch-group" style={{
                                             border: '1px solid #f0d6db',
                                             borderRadius: '1rem',
                                             marginBottom: '1rem',
                                             padding: '1rem',
-                                            background: esDescartado ? '#f5f5f5' : '#fffbfc'
                                         }}>
                                             <strong>Lote {idx + 1}</strong> | Vence: {formatearFecha(l.fechaVencimiento as string)}
                                             <span className="dc-badge" style={{
                                                 background: badgeColor,
-                                                color: '#fff',
+                                                color: '#1f1c1c',
                                                 marginLeft: '0.5rem'
                                             }}>
                                                 {estado} {!esDescartado && l.stock > 0 && `(${Math.abs(diasRestantes)} días ${diasRestantes < 0 ? 'vencidos' : 'restantes'})`}
@@ -963,7 +908,6 @@ export const CateringSection: React.FC = () => {
 
                 <ActivityLog logs={cateringActivityLogs} title="Actividad reciente · Catering" />
 
-                {/* Modal de creación */}
                 <Modal
                     isOpen={modalOpen && !modalContent}
                     onClose={() => {
@@ -1007,7 +951,6 @@ export const CateringSection: React.FC = () => {
                     }
                 >
                     <div className="dc-form-grid">
-                        {/* Nombre */}
                         <div className="dc-input-group" style={{ flex: '1 1 100%' }}>
                             <label>Nombre *</label>
                             <input
@@ -1019,7 +962,6 @@ export const CateringSection: React.FC = () => {
                             />
                         </div>
 
-                        {/* Stock */}
                         <div className="dc-input-group">
                             <label>Stock inicial *</label>
                             <input
@@ -1030,7 +972,6 @@ export const CateringSection: React.FC = () => {
                             />
                         </div>
 
-                        {/* Tipo */}
                         <div className="dc-input-group">
                             <label>Tipo *</label>
                             <select
@@ -1049,7 +990,6 @@ export const CateringSection: React.FC = () => {
                             </select>
                         </div>
 
-                        {/* Unidad de medida */}
                         <div className="dc-input-group">
                             <label>Unidad de medida</label>
                             <select
@@ -1065,7 +1005,6 @@ export const CateringSection: React.FC = () => {
                             </select>
                         </div>
 
-                        {/* Precio de compra */}
                         <div className="dc-input-group">
                             <label>Precio de compra (S/)</label>
                             <input
@@ -1077,7 +1016,6 @@ export const CateringSection: React.FC = () => {
                             />
                         </div>
 
-                        {/* Proveedor */}
                         <div className="dc-input-group">
                             <label>Proveedor</label>
                             <select
@@ -1093,7 +1031,6 @@ export const CateringSection: React.FC = () => {
                             </select>
                         </div>
 
-                        {/* Campos condicionales solo para materia prima */}
                         {formValues.tipo === 'materia prima' && (
                             <>
                                 <div className="dc-input-group" style={{ flex: '1 1 100%' }}>
@@ -1144,7 +1081,6 @@ export const CateringSection: React.FC = () => {
                     </div>
                 </Modal>
 
-                {/* Modal de detalle/edición/eliminación */}
                 <Modal
                     isOpen={!!modalContent}
                     onClose={() => {

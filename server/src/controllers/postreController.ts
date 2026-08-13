@@ -20,7 +20,8 @@ export const getPostres = async (req: Request, res: Response) => {
                         'dias_duracion', l.dias_duracion,
                         'fecha_registro', l.fecha_registro,
                         'registrado_por', l.registrado_por,
-                        'ultima_edicion', l.ultima_edicion
+                        'ultima_edicion', l.ultima_edicion,
+                        'descartado', l.descartado
                     )
                 ) AS lotes
             FROM postres p
@@ -64,7 +65,8 @@ export const getPostreById = async (req: Request, res: Response) => {
                         'dias_duracion', l.dias_duracion,
                         'fecha_registro', l.fecha_registro,
                         'registrado_por', l.registrado_por,
-                        'ultima_edicion', l.ultima_edicion
+                        'ultima_edicion', l.ultima_edicion,
+                        'descartado', l.descartado
                     )
                 ) AS lotes
             FROM postres p
@@ -112,8 +114,8 @@ export const createPostre = async (req: Request, res: Response) => {
         if (lotes && Array.isArray(lotes) && lotes.length > 0) {
             for (const lote of lotes) {
                 await executeMutation(
-                    `INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por, descartado) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
                     [
                         id_empresa,
                         postreId,

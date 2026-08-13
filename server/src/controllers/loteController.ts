@@ -68,8 +68,8 @@ export const createLote = async (req: Request, res: Response) => {
         const registrado_por = personaRow.id_persona;
 
         const result = await executeMutation(
-            `INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por, descartado) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
             [
                 id_empresa,
                 postre_id,
@@ -95,7 +95,7 @@ export const createLote = async (req: Request, res: Response) => {
 export const updateLote = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { stock, fecha_vencimiento, dias_duracion, id_empresa } = req.body;
+        const { stock, fecha_vencimiento, dias_duracion, descartado, id_empresa } = req.body;
 
         if (!id_empresa) {
             return res.status(400).json({ message: 'id_empresa es requerido' });
@@ -109,9 +109,22 @@ export const updateLote = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Lote no encontrado en esta empresa' });
         }
 
+        const updates: string[] = [];
+        const values: any[] = [];
+
+        if (stock !== undefined) { updates.push('stock = ?'); values.push(stock); }
+        if (fecha_vencimiento !== undefined) { updates.push('fecha_vencimiento = ?'); values.push(fecha_vencimiento); }
+        if (dias_duracion !== undefined) { updates.push('dias_duracion = ?'); values.push(dias_duracion); }
+        if (descartado !== undefined) { updates.push('descartado = ?'); values.push(descartado); }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ message: 'No se enviaron campos para actualizar' });
+        }
+
+        values.push(id, id_empresa);
         await executeMutation(
-            `UPDATE lotes SET stock = ?, fecha_vencimiento = ?, dias_duracion = ? WHERE id = ? AND id_empresa = ?`,
-            [stock, fecha_vencimiento, dias_duracion, id, id_empresa]
+            `UPDATE lotes SET ${updates.join(', ')} WHERE id = ? AND id_empresa = ?`,
+            values
         );
 
         const updated = await executeQuerySingle(
@@ -150,5 +163,44 @@ export const deleteLote = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('[deleteLote] Error:', error);
         res.status(500).json({ message: 'Error al eliminar lote', error: error instanceof Error ? error.message : String(error) });
+    }
+};
+
+export const descartarLote = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { id_empresa } = req.body;
+
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        const exists = await executeQuerySingle(
+            'SELECT id FROM lotes WHERE id = ? AND id_empresa = ?',
+            [id, id_empresa]
+        );
+        if (!exists) {
+            return res.status(404).json({ message: 'Lote no encontrado en esta empresa' });
+        }
+
+        await executeMutation(
+            `UPDATE lotes SET descartado = 1 WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
+        );
+
+        const updated = await executeQuerySingle(
+            `SELECT 
+                l.*,
+                p.nombre AS registrado_por_nombre,
+                p.apellido AS registrado_por_apellido
+            FROM lotes l
+            JOIN personas p ON l.registrado_por = p.id
+            WHERE l.id = ? AND l.id_empresa = ?`,
+            [id, id_empresa]
+        );
+        res.json(updated);
+    } catch (error) {
+        console.error('[descartarLote] Error:', error);
+        res.status(500).json({ message: 'Error al descartar lote', error: error instanceof Error ? error.message : String(error) });
     }
 };

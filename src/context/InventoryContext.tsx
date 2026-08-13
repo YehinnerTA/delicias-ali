@@ -69,7 +69,7 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
     const calcularFechaVencimiento = (dias: number): string => {
         if (!dias || dias <= 0) return new Date().toISOString().split('T')[0];
         const fecha = new Date();
-        fecha.setDate(fecha.getDate() + dias);
+        fecha.setDate(fecha.getDate() + (dias - 1));
         return fecha.toISOString().split('T')[0];
     };
 
