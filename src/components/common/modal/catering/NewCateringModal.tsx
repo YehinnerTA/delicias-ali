@@ -622,7 +622,6 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
 
     const modalFooter = (
         <>
-            <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
             <button className="dc-btn success" onClick={registrarVenta} disabled={isSubmitting}>
                 {isSubmitting ? 'Registrando...' : <><i className="fas fa-check-circle"></i> Registrar e Imprimir</>}
             </button>

@@ -27,7 +27,6 @@ export const ReimprimirModal: React.FC<ReimprimirModalProps> = ({ isOpen, onClos
 
     const modalFooter = (
         <>
-            <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
             <button className="dc-btn success" onClick={handleReimprimir}>Generar PDF</button>
         </>
     );

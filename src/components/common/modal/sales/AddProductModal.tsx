@@ -174,7 +174,6 @@ export const AgregarProductosModal: React.FC<AgregarProductosModalProps> = ({ is
 
     const modalFooter = (
         <>
-            <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
             <button className="dc-btn success" onClick={confirmarAgregar} disabled={isSubmitting}>
                 {isSubmitting ? 'Guardando...' : 'Agregar Productos'}
             </button>

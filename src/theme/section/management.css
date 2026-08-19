@@ -581,7 +581,21 @@
     overflow-y: auto;
     flex: 1;
     color: var(--color-gray);
+
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
+
+.dc-modal-body::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+    background: transparent;
+    opacity: 0;
+}
+
 
 .dc-modal-footer {
     padding: 1rem 1.8rem 1.5rem;

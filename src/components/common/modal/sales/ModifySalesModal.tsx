@@ -206,7 +206,6 @@ export const ModifySalesModal: React.FC<ModifySalesModalProps> = ({ isOpen, onCl
 
     const modalFooter = (
         <>
-            <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
             <button className="dc-btn success" onClick={guardarCambios} disabled={isSubmitting}>
                 {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
             </button>

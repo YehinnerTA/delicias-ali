@@ -179,7 +179,6 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
 
     const modalFooter = (
         <>
-            <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
             <button className="dc-btn success" onClick={procesarDevolucion} disabled={isSubmitting}>
                 {isSubmitting ? 'Procesando...' : 'Procesar Devolución'}
             </button>

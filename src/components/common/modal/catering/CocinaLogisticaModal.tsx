@@ -75,12 +75,8 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
 
     if (!venta) return null;
 
-    const modalFooter = (
-        <button className="dc-btn secondary" onClick={onClose}>Cerrar</button>
-    );
-
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Requerimientos Cocina & Logística" icon="fa-clipboard-list" footer={modalFooter}>
+        <Modal isOpen={isOpen} onClose={onClose} title="Requerimientos Cocina & Logística" icon="fa-clipboard-list">
             {/* Información principal de la venta */}
             <div className="dc-info-card">
                 <h4><i className="fas fa-clipboard-list"></i> ORDEN PARA COCINA Y LOGÍSTICA</h4>

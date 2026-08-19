@@ -91,10 +91,6 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
         </div>
     ));
 
-    const modalFooter = (
-        <button className="dc-btn secondary" onClick={onClose}>Cerrar</button>
-    );
-
     const eventoInfo = venta.eventoData ? (
         <div className="dc-info-grid">
             <div className="dc-info-item">
@@ -117,7 +113,7 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
     ) : null;
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={`Detalle de Venta - ${venta.numero}`} icon="fa-receipt" footer={modalFooter}>
+        <Modal isOpen={isOpen} onClose={onClose} title={`Detalle de Venta - ${venta.numero}`} icon="fa-receipt">
             {/* Tabs */}
             <div className="dc-tabs">
                 <button

@@ -68,12 +68,8 @@ export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, on
         </div>
     ));
 
-    const modalFooter = (
-        <button className="dc-btn secondary" onClick={onClose}>Cerrar</button>
-    );
-
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={`Detalle de Venta - ${venta.numero}`} icon="fa-receipt" footer={modalFooter}>
+        <Modal isOpen={isOpen} onClose={onClose} title={`Detalle de Venta - ${venta.numero}`} icon="fa-receipt">
             {/* Tabs internos */}
             <div className="dc-tabs">
                 <button

@@ -57,7 +57,6 @@ export const CateringCancelModal: React.FC<CateringCancelModalProps> = ({ isOpen
 
     const modalFooter = (
         <>
-            <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
             <button className="dc-btn danger" onClick={handleAnular} disabled={isSubmitting}>
                 {isSubmitting ? 'Anulando...' : 'Sí, Anular Venta'}
             </button>

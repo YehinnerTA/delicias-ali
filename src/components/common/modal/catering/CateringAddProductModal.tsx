@@ -398,7 +398,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
 
     const modalFooter = (
         <>
-            <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
             <button className="dc-btn success" onClick={confirmarAgregar} disabled={isSubmitting}>
                 {isSubmitting ? 'Agregando...' : 'Agregar Servicios/Materiales'}
             </button>
