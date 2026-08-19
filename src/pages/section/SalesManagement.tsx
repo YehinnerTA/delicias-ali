@@ -128,7 +128,6 @@ const VentasContent: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Botón Nueva Venta */}
                 <div style={{ marginBottom: '1.5rem' }}>
                     <button className="dc-btn" onClick={() => setNuevaVentaOpen(true)}>
                         <i className="fas fa-plus-circle"></i> Nueva Venta
@@ -172,7 +171,6 @@ const VentasContent: React.FC = () => {
                 ))}
             </div>
 
-            {/* Modales */}
             <NewSaleModal isOpen={nuevaVentaOpen} onClose={() => setNuevaVentaOpen(false)} onSuccess={handleNuevaVentaSuccess} />
             <DetalleVentaModal isOpen={detalleVentaOpen} onClose={() => setDetalleVentaOpen(false)} venta={selectedVenta} />
             <ModifySalesModal isOpen={editarVentaOpen} onClose={() => setEditarVentaOpen(false)} venta={selectedVenta} onSuccess={() => setEditarVentaOpen(false)} />
