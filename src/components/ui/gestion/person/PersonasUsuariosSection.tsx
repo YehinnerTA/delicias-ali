@@ -482,8 +482,7 @@ export const PersonasUsuariosSection: React.FC = () => {
                             </div>
                         )}
                     </>
-                ),
-                footer: <button className="dc-btn secondary" onClick={() => setModalOpen(false)}><i className="fas fa-times"></i> Cerrar</button>
+                )
             });
             setModalOpen(true);
         } catch (error) {
@@ -722,9 +721,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                     <button className="dc-btn danger" onClick={handleConfirm} disabled={isSubmitting}>
                         {isSubmitting ? 'Eliminando...' : <><i className="fas fa-trash"></i> Sí, Eliminar</>}
                     </button>
-                    <button className="dc-btn secondary" onClick={() => setModalOpen(false)}>
-                        <i className="fas fa-ban"></i> Cancelar
-                    </button>
                 </>
             )
         });
@@ -788,9 +784,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                     icon="fa-user-plus"
                     footer={
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
-                            <button className="dc-btn secondary" onClick={() => setIsCreateModalOpen(false)}>
-                                <i className="fas fa-times"></i> Cancelar
-                            </button>
                             <button className="dc-btn success" onClick={handleCreate} disabled={isSubmitting}>
                                 {isSubmitting ? 'Registrando...' : <><i className="fas fa-save"></i> Registrar</>}
                             </button>
@@ -1017,9 +1010,6 @@ export const PersonasUsuariosSection: React.FC = () => {
                     icon="fa-edit"
                     footer={
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
-                            <button className="dc-btn secondary" onClick={() => setIsEditModalOpen(false)}>
-                                <i className="fas fa-times"></i> Cancelar
-                            </button>
                             <button className="dc-btn success" onClick={handleUpdate} disabled={isSubmitting}>
                                 {isSubmitting ? 'Guardando...' : <><i className="fas fa-save"></i> Guardar Cambios</>}
                             </button>
