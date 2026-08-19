@@ -160,7 +160,7 @@ const VentasContent: React.FC = () => {
                             <i className="fas fa-plus-circle" onClick={() => { setSelectedVenta(item); setAgregarProductosOpen(true); }} title="Agregar productos"></i>
                             <i className="fas fa-exchange-alt" onClick={() => { setSelectedVenta(item); setDevolucionOpen(true); }} title="Devolución"></i>
                             <i className="fas fa-print" onClick={() => { setSelectedVenta(item); setReimprimirOpen(true); }} title="Reimprimir"></i>
-                            <i className="fas fa-times-circle" onClick={() => { setSelectedVenta(item); setAnularOpen(true); }} title="Anular"></i>
+                            <i className="fas fa-trash-alt" onClick={() => { setSelectedVenta(item); setAnularOpen(true); }} title="Anular"></i>
                         </>
                     )}
                 />

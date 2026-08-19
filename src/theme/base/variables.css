@@ -28,4 +28,13 @@ ion-app {
     --color-exito: #00811e;
     --color-advertencia: #ffc107;
     --color-peligro: #ff0019;
+
+    /* ===== COLORES DE ACCIONES ===== */
+    --color-accion-view: #0d6efd;
+    --color-accion-edit: #ffc107;
+    --color-accion-add: #198754;
+    --color-accion-devolucion: #6f42c1;
+    --color-accion-cocina: #fd7e14;
+    --color-accion-print: #6c757d;
+    --color-accion-trash: #dc3545;
 }

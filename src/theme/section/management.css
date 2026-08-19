@@ -346,16 +346,32 @@
     transition: 0.1s;
 }
 
-.dc-actions .fa-edit {
-    color: var(--color-secundario);
+.dc-actions .fa-trash-alt {
+    color: var(--color-accion-trash);
 }
 
-.dc-actions .fa-trash-alt {
-    color: var(--color-peligro);
+.dc-actions .fa-clipboard-list {
+    color: var(--color-accion-cocina);
+}
+
+.dc-actions .fa-exchange-alt {
+    color: var(--color-accion-devolucion);
+}
+
+.dc-actions .fa-print {
+    color: var(--color-accion-print);
+}
+
+.dc-actions .fa-plus-circle {
+    color: var(--color-accion-add);
+}
+
+.dc-actions .fa-edit {
+    color: var(--color-accion-edit);
 }
 
 .dc-actions .fa-eye {
-    color: var(--color-exito);
+    color: var(--color-accion-view);
 }
 
 .dc-results-count {

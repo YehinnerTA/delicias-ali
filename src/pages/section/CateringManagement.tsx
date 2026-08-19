@@ -159,7 +159,7 @@ const CateringSalesContent: React.FC = () => {
                             <i className="fas fa-exchange-alt" onClick={() => { setSelectedVenta(item); setDevolucionOpen(true); }} title="Devolución"></i>
                             <i className="fas fa-print" onClick={() => { setSelectedVenta(item); setReimprimirOpen(true); }} title="Reimprimir"></i>
                             <i className="fas fa-clipboard-list" onClick={() => { setSelectedVenta(item); setCocinaOpen(true); }} title="Cocina/Logística"></i>
-                            <i className="fas fa-times-circle" onClick={() => { setSelectedVenta(item); setAnularOpen(true); }} title="Anular"></i>
+                            <i className="fas fa-trash-alt" onClick={() => { setSelectedVenta(item); setAnularOpen(true); }} title="Anular"></i>
                         </>
                     )}
                 />
