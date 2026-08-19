@@ -66,11 +66,22 @@ export const InventoryProvider: React.FC<{ children: ReactNode }> = ({ children 
         setEmpresaId(id);
     }, [getSelectedCompanyId]);
 
+    const getTodayLocal = (): string => {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
     const calcularFechaVencimiento = (dias: number): string => {
-        if (!dias || dias <= 0) return new Date().toISOString().split('T')[0];
+        if (!dias || dias <= 0) return getTodayLocal();
         const fecha = new Date();
-        fecha.setDate(fecha.getDate() + (dias - 1));
-        return fecha.toISOString().split('T')[0];
+        fecha.setDate(fecha.getDate() + dias);
+        const y = fecha.getFullYear();
+        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+        const d = String(fecha.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
     };
 
     const getDiasRestantes = (fechaVencimiento: string): number => {

@@ -5,7 +5,8 @@ import {
     createLote,
     updateLote,
     deleteLote,
-    descartarLote
+    descartarLote,
+    createBulkLotes
 } from '../../controllers/loteController';
 
 const router = Router();
@@ -13,6 +14,7 @@ const router = Router();
 router.get('/', getLotes);
 router.get('/postre/:postreId', getLotesByPostre);
 router.post('/', createLote);
+router.post('/bulk', createBulkLotes);
 router.put('/:id', updateLote);
 router.delete('/:id', deleteLote);
 router.post('/:id/descartar', descartarLote);

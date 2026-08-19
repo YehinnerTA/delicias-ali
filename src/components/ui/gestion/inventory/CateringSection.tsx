@@ -14,6 +14,7 @@ import { cateringLoteApi } from '../../../../services/api/cateringLoteApi';
 import { personaApi } from '../../../../services/api/personaApi';
 import { historialApi } from '../../../../services/api/historialApi';
 import { Persona } from '../../../../features/types/person';
+import * as XLSX from 'xlsx';
 
 const UNIDADES_MATERIA_PRIMA = [
     { value: 'unidad', label: 'Unidad' },
@@ -66,35 +67,33 @@ const recordToFilters = (record: Record<string, string>): { nombre: string; tipo
     stockMin: record.stockMin || ''
 });
 
+const getTodayLocal = (): string => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
 const sumarDiasAFecha = (fechaStr: string, dias: number): string => {
     const partes = fechaStr.split('-');
     const año = parseInt(partes[0]);
     const mes = parseInt(partes[1]) - 1;
     const dia = parseInt(partes[2]);
-
-    const fecha = new Date(Date.UTC(año, mes, dia));
-    fecha.setUTCDate(fecha.getUTCDate() + dias);
-
-    const y = fecha.getUTCFullYear();
-    const m = String(fecha.getUTCMonth() + 1).padStart(2, '0');
-    const d = String(fecha.getUTCDate()).padStart(2, '0');
+    const fecha = new Date(año, mes, dia);
+    fecha.setDate(fecha.getDate() + dias);
+    const y = fecha.getFullYear();
+    const m = String(fecha.getMonth() + 1).padStart(2, '0');
+    const d = String(fecha.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
 };
 
 const getDiasRestantes = (fechaVencimiento: string): number => {
-    const hoy = new Date();
-    const hoyStr = hoy.toISOString().split('T')[0];
+    const hoyStr = getTodayLocal();
     const venc = new Date(fechaVencimiento);
     const vencStr = venc.toISOString().split('T')[0];
     const diff = Math.ceil((new Date(vencStr).getTime() - new Date(hoyStr).getTime()) / (1000 * 60 * 60 * 24));
     return diff;
-};
-
-const isVencido = (fechaVencimiento: string | null): boolean => {
-    if (!fechaVencimiento) return false;
-    const hoy = new Date();
-    const hoyStr = hoy.toISOString().split('T')[0];
-    return fechaVencimiento < hoyStr;
 };
 
 const formatearFecha = (fecha: string): string => {
@@ -116,6 +115,42 @@ const formatLocalDateTime = (isoString: string): string => {
     const horas = String(date.getHours()).padStart(2, '0');
     const minutos = String(date.getMinutes()).padStart(2, '0');
     return `${dia}/${mes}/${año} ${horas}:${minutos}`;
+};
+
+const parseExcelDate = (value: any): string | undefined => {
+    if (!value) return undefined;
+
+    if (typeof value === 'number' && value > 0 && value < 50000) {
+        const excelEpoch = new Date(1899, 11, 30);
+        const date = new Date(excelEpoch.getTime() + value * 86400000);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    if (typeof value === 'string') {
+        if (value.includes('/')) {
+            const partes = value.split('/');
+            if (partes.length === 3 && partes[2].length === 4) {
+                return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+            }
+        }
+
+        if (value.includes('-') && value.length === 10) {
+            return value;
+        }
+
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+    }
+
+    return undefined;
 };
 
 export const CateringSection: React.FC = () => {
@@ -143,6 +178,23 @@ export const CateringSection: React.FC = () => {
         precio_compra: '',
         id_proveedor: ''
     });
+
+    const [bulkModalOpen, setBulkModalOpen] = useState(false);
+    const [bulkTipo, setBulkTipo] = useState<'materia prima' | 'utensilio'>('materia prima');
+    const [bulkUnidadMedida, setBulkUnidadMedida] = useState('unidad');
+    const [bulkProveedor, setBulkProveedor] = useState<string>('');
+    const [bulkRows, setBulkRows] = useState<Array<{
+        id: string;
+        nombre: string;
+        stock: string;
+        precio_compra: string;
+        fecha_vencimiento: string;
+        tipo?: 'materia prima' | 'utensilio';
+        id_proveedor?: string;
+        unidad_medida?: string;
+        dias_vida_util: string;
+    }>>([{ id: crypto.randomUUID(), nombre: '', stock: '', precio_compra: '', fecha_vencimiento: '', dias_vida_util: '' }]);
+    const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
     const [proveedores, setProveedores] = useState<Persona[]>([]);
     const [modalOpen, setModalOpen] = useState(false);
@@ -332,7 +384,7 @@ export const CateringSection: React.FC = () => {
                     fechaVencLote = formValues.fecha_vencimiento;
                 } else if (formValues.dias_vida_util) {
                     const hoy = new Date().toISOString().split('T')[0];
-                    fechaVencLote = sumarDiasAFecha(hoy, parseInt(formValues.dias_vida_util) - 1);
+                    fechaVencLote = sumarDiasAFecha(hoy, parseInt(formValues.dias_vida_util));
                 }
 
                 if (fechaVencLote) {
@@ -374,6 +426,441 @@ export const CateringSection: React.FC = () => {
         }
     };
 
+    const handleAddBulkRow = () => {
+        setBulkRows(prev => [...prev, {
+            id: crypto.randomUUID(),
+            nombre: '',
+            stock: '',
+            precio_compra: '',
+            fecha_vencimiento: '',
+            dias_vida_util: '',
+            tipo: undefined,
+            id_proveedor: undefined,
+            unidad_medida: undefined
+        }]);
+    };
+
+    const handleRemoveBulkRow = (id: string) => {
+        if (bulkRows.length <= 1) {
+            showToast('Debe haber al menos una fila', 'warning', '');
+            return;
+        }
+        setBulkRows(prev => prev.filter(row => row.id !== id));
+    };
+
+    const handleBulkRowChange = (id: string, field: string, value: string) => {
+        setBulkRows(prev => prev.map(row =>
+            row.id === id ? { ...row, [field]: value } : row
+        ));
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const userId = user?.id;
+        const empresaId = getSelectedCompanyId();
+        if (!userId || !empresaId) {
+            showToast('No se pudo identificar al usuario o empresa', 'error', 'Error de autenticación');
+            return;
+        }
+
+        setBulkSubmitting(true);
+        try {
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    const data = evt.target?.result;
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+                    if (jsonData.length === 0) {
+                        showToast('No se encontraron datos en el archivo', 'warning', '');
+                        return;
+                    }
+
+                    const firstRow = jsonData[0] as any;
+                    const hasFechaVencimiento = 'fecha_vencimiento' in firstRow || 'fechaVencimiento' in firstRow;
+                    const hasDiasVidaUtil = 'dias_vida_util' in firstRow || 'diasVidaUtil' in firstRow;
+                    const tipoDetectado = (hasFechaVencimiento || hasDiasVidaUtil) ? 'materia prima' : 'utensilio';
+
+                    const items = jsonData.map((row: any) => ({
+                        nombre: row['nombre'] || row['Nombre'] || '',
+                        stock: parseInt(row['stock'] || row['Stock'] || 0, 10),
+                        precio_compra: parseFloat(row['precio_compra'] || row['Precio compra'] || row['precio'] || 0),
+                        fecha_vencimiento: parseExcelDate(row['fecha_vencimiento'] || row['fechaVencimiento'] || row['Fecha vencimiento']),
+                        dias_vida_util: parseInt(row['dias_vida_util'] || row['diasVidaUtil'] || row['Días vida útil'] || 0, 10) || undefined,
+                        id_proveedor: (() => {
+                            const ruc = row['id_proveedor'] || row['ruc_proveedor'] || row['RUC'] || row['Proveedor RUC'] || '';
+                            if (!ruc) return undefined;
+                            const rucStr = ruc.toString().trim();
+                            const proveedor = proveedores.find(p => p.numero_documento === rucStr && p.tipo_documento === 'RUC');
+                            return proveedor ? proveedor.id_persona : undefined;
+                        })(),
+                        unidad_medida: row['unidad_medida'] || row['unidadMedida'] || row['Unidad'] || 'unidad'
+                    }));
+
+                    const invalidRows = items.filter(item => !item.nombre || !item.stock);
+                    if (invalidRows.length > 0) {
+                        showToast(`Hay ${invalidRows.length} filas sin nombre o stock`, 'warning', '');
+                        return;
+                    }
+
+                    if (tipoDetectado === 'materia prima') {
+                        const rowsWithoutExpiry = items.filter(item => !item.fecha_vencimiento && !item.dias_vida_util);
+                        if (rowsWithoutExpiry.length > 0) {
+                            showToast(`Hay ${rowsWithoutExpiry.length} filas de materia prima sin fecha_vencimiento o dias_vida_util`, 'warning', '');
+                            return;
+                        }
+                    }
+
+                    const proveedoresSet = new Set(items.map(item => item.id_proveedor));
+                    const allSameProveedor = proveedoresSet.size === 1;
+                    const proveedorUnico = allSameProveedor ? items[0].id_proveedor : null;
+
+                    if (allSameProveedor) {
+                        const bulkPayload = {
+                            items: items.map(item => ({
+                                nombre: item.nombre,
+                                stock: item.stock,
+                                precio_compra: item.precio_compra || undefined,
+                                fecha_vencimiento: item.fecha_vencimiento || undefined,
+                                dias_vida_util: item.dias_vida_util || undefined
+                            })),
+                            tipo: tipoDetectado as 'materia prima' | 'utensilio',
+                            id_proveedor: proveedorUnico || null,
+                            usuario_id: userId,
+                            id_empresa: empresaId,
+                            unidad_medida: items[0].unidad_medida || 'unidad'
+                        };
+
+                        const result = await cateringItemApi.createBulk(bulkPayload);
+
+                        if (tipoDetectado === 'materia prima' && result.success.length > 0) {
+                            for (const item of result.success) {
+                                const originalRow = items.find(row => row.nombre.trim() === item.nombre);
+                                if (!originalRow) continue;
+
+                                let fechaVencLote = null;
+                                let diasVidaUtilLote = null;
+
+                                if (originalRow.fecha_vencimiento) {
+                                    fechaVencLote = originalRow.fecha_vencimiento;
+                                } else if (originalRow.dias_vida_util) {
+                                    const dias = originalRow.dias_vida_util;
+                                    diasVidaUtilLote = dias;
+                                    const hoy = new Date().toISOString().split('T')[0];
+                                    fechaVencLote = sumarDiasAFecha(hoy, dias);
+                                }
+
+                                if (fechaVencLote) {
+                                    await cateringLoteApi.create({
+                                        id_item: item.id,
+                                        stock: originalRow.stock,
+                                        fechaVencimiento: fechaVencLote,
+                                        diasVidaUtil: diasVidaUtilLote,
+                                        fechaRegistro: new Date().toISOString().split('T')[0],
+                                        usuario_id: userId,
+                                        id_empresa: empresaId
+                                    });
+                                }
+                            }
+                            await cargarDatos(empresaId);
+                        }
+
+                        if (result.successCount > 0) {
+                            showToast(`${result.successCount} registros creados exitosamente`, 'success', 'Carga completada');
+                        }
+                        if (result.errorCount > 0) {
+                            const errorMessages = result.errors.map(e => `Fila ${e.index + 1}: ${e.message}`).join('\n');
+                            showToast(`Fallaron ${result.errorCount} registros. Ver detalles en consola.`, 'error', 'Errores');
+                            console.error('Errores:', result.errors);
+                        }
+                        await addActivity('INSERT', 'catering', `Carga Excel: ${result.successCount} ${tipoDetectado}(s) registrados`);
+
+                    } else {
+                        let successCount = 0;
+                        let errorCount = 0;
+                        const errorsList: string[] = [];
+
+                        for (let i = 0; i < items.length; i++) {
+                            const row = items[i];
+                            try {
+                                const tipoFila = (row as any).tipo || tipoDetectado;
+                                const proveedorFila = row.id_proveedor || null;
+                                const unidadFila = row.unidad_medida || 'unidad';
+
+                                const itemPayload = {
+                                    nombre: row.nombre,
+                                    stock: row.stock,
+                                    tipo: tipoFila,
+                                    usuario_id: userId,
+                                    id_empresa: empresaId,
+                                    unidad_medida: unidadFila,
+                                    tiene_vencimiento: row.fecha_vencimiento ? true : false,
+                                    fecha_vencimiento: row.fecha_vencimiento || null,
+                                    dias_vida_util: row.dias_vida_util || null,
+                                    precio_compra: row.precio_compra || null,
+                                    id_proveedor: proveedorFila
+                                };
+
+                                const newItem = await cateringItemApi.create(itemPayload as any);
+
+                                if (tipoFila === 'materia prima') {
+                                    let fechaVencLote = null;
+                                    let diasVidaUtilLote = null;
+                                    if (row.fecha_vencimiento) {
+                                        fechaVencLote = row.fecha_vencimiento;
+                                    } else if (row.dias_vida_util) {
+                                        const dias = row.dias_vida_util;
+                                        diasVidaUtilLote = dias;
+                                        const hoy = new Date().toISOString().split('T')[0];
+                                        fechaVencLote = sumarDiasAFecha(hoy, dias);
+                                    }
+                                    if (fechaVencLote) {
+                                        await cateringLoteApi.create({
+                                            id_item: newItem.id,
+                                            stock: row.stock,
+                                            fechaVencimiento: fechaVencLote,
+                                            diasVidaUtil: diasVidaUtilLote,
+                                            fechaRegistro: new Date().toISOString().split('T')[0],
+                                            usuario_id: userId,
+                                            id_empresa: empresaId
+                                        });
+                                    }
+                                }
+
+                                successCount++;
+                            } catch (err) {
+                                const msg = err instanceof Error ? err.message : String(err);
+                                errorsList.push(`Fila ${i + 1}: ${msg}`);
+                                errorCount++;
+                            }
+                        }
+
+                        if (successCount > 0) {
+                            await cargarDatos(empresaId);
+                        }
+
+                        if (successCount > 0) {
+                            showToast(`${successCount} registros creados exitosamente`, 'success', 'Carga completada');
+                        }
+                        if (errorCount > 0) {
+                            showToast(`Fallaron ${errorCount} registros. Revisa la consola.`, 'error', 'Errores');
+                            console.error('Errores:', errorsList);
+                        }
+                        await addActivity('INSERT', 'catering', `Carga Excel: ${successCount} registros creados`);
+                    }
+
+                    setBulkModalOpen(false);
+                    e.target.value = '';
+
+                } catch (error) {
+                    console.error('[CateringSection] Error al leer Excel:', error);
+                    showToast('Error al leer el archivo Excel', 'error', '');
+                } finally {
+                    setBulkSubmitting(false);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } catch (error) {
+            console.error('[CateringSection] Error al procesar Excel:', error);
+            showToast('Error al procesar el archivo', 'error', '');
+            setBulkSubmitting(false);
+        }
+    };
+
+    const handleBulkAdd = async () => {
+        const invalidRows = bulkRows.filter(row => !row.nombre.trim() || !row.stock.trim());
+        if (invalidRows.length > 0) {
+            showToast('Todos los registros deben tener nombre y stock', 'warning', 'Campos incompletos');
+            return;
+        }
+
+        const userId = user?.id;
+        const empresaId = getSelectedCompanyId();
+        if (!userId || !empresaId) {
+            showToast('No se pudo identificar al usuario o empresa', 'error', 'Error de autenticación');
+            return;
+        }
+
+        const rowsWithMP = bulkRows.filter(row => {
+            const tipoRow = row.tipo || bulkTipo;
+            return tipoRow === 'materia prima';
+        });
+        if (rowsWithMP.length > 0) {
+            const rowsWithoutExpiry = rowsWithMP.filter(row => !row.fecha_vencimiento && !row.dias_vida_util);
+            if (rowsWithoutExpiry.length > 0) {
+                showToast('Para materia prima, cada fila debe tener fecha de vencimiento o días de vida útil', 'warning', 'Campos incompletos');
+                return;
+            }
+        }
+
+        const tipos = bulkRows.map(row => (row.tipo || bulkTipo) as 'materia prima' | 'utensilio');
+        const proveedores = bulkRows.map(row => row.id_proveedor || bulkProveedor);
+        const allSameTipo = new Set(tipos).size === 1;
+        const allSameProveedor = new Set(proveedores).size === 1;
+
+        setBulkSubmitting(true);
+        let successCount = 0;
+        let errorCount = 0;
+        const errorsList: string[] = [];
+
+        try {
+            if (allSameTipo && allSameProveedor) {
+                const tipoGlobal = tipos[0];
+                const proveedorGlobal = proveedores[0];
+                const unidadGlobal = bulkRows.every(row => !row.unidad_medida) ? bulkUnidadMedida : bulkUnidadMedida;
+
+                const bulkItems = bulkRows.map(row => ({
+                    nombre: row.nombre.trim(),
+                    stock: parseInt(row.stock, 10) || 0,
+                    precio_compra: row.precio_compra ? parseFloat(row.precio_compra) : undefined,
+                    fecha_vencimiento: row.fecha_vencimiento || undefined,
+                    dias_vida_util: row.dias_vida_util ? parseInt(row.dias_vida_util, 10) : undefined
+                }));
+
+                const bulkPayload = {
+                    items: bulkItems,
+                    tipo: tipoGlobal as 'materia prima' | 'utensilio',
+                    id_proveedor: proveedorGlobal ? parseInt(proveedorGlobal, 10) : null,
+                    usuario_id: userId,
+                    id_empresa: empresaId,
+                    unidad_medida: bulkUnidadMedida || 'unidad'
+                };
+
+                const result = await cateringItemApi.createBulk(bulkPayload);
+
+                if (tipoGlobal === 'materia prima' && result.success.length > 0) {
+                    for (const item of result.success) {
+                        const originalRow = bulkRows.find(row => row.nombre.trim() === item.nombre);
+                        if (!originalRow) continue;
+
+                        let fechaVencLote = null;
+                        let diasVidaUtilLote = null;
+                        if (originalRow.fecha_vencimiento) {
+                            fechaVencLote = originalRow.fecha_vencimiento;
+                        } else if (originalRow.dias_vida_util) {
+                            const dias = parseInt(originalRow.dias_vida_util, 10);
+                            diasVidaUtilLote = dias;
+                            const hoy = new Date().toISOString().split('T')[0];
+                            fechaVencLote = sumarDiasAFecha(hoy, dias);
+                        }
+
+                        if (fechaVencLote) {
+                            await cateringLoteApi.create({
+                                id_item: item.id,
+                                stock: parseInt(originalRow.stock, 10) || 0,
+                                fechaVencimiento: fechaVencLote,
+                                diasVidaUtil: diasVidaUtilLote,
+                                fechaRegistro: new Date().toISOString().split('T')[0],
+                                usuario_id: userId,
+                                id_empresa: empresaId
+                            });
+                        }
+                    }
+                }
+
+                await cargarDatos(empresaId);
+
+                successCount = result.successCount;
+                errorCount = result.errorCount;
+                if (result.errors.length > 0) {
+                    result.errors.forEach(e => errorsList.push(`Fila ${e.index + 1}: ${e.message}`));
+                }
+            } else {
+                for (let i = 0; i < bulkRows.length; i++) {
+                    const row = bulkRows[i];
+                    try {
+                        const tipoRow = row.tipo || bulkTipo;
+                        const proveedorRow = row.id_proveedor || bulkProveedor;
+                        const unidadRow = row.unidad_medida || bulkUnidadMedida || 'unidad';
+
+                        if (tipoRow === 'materia prima') {
+                            if (!row.fecha_vencimiento && !row.dias_vida_util) {
+                                errorsList.push(`Fila ${i + 1}: materia prima requiere fecha_vencimiento o dias_vida_util`);
+                                errorCount++;
+                                continue;
+                            }
+                        }
+
+                        const itemPayload = {
+                            nombre: row.nombre.trim(),
+                            stock: parseInt(row.stock, 10) || 0,
+                            tipo: tipoRow,
+                            usuario_id: userId,
+                            id_empresa: empresaId,
+                            unidad_medida: unidadRow,
+                            tiene_vencimiento: row.fecha_vencimiento ? true : false,
+                            fecha_vencimiento: row.fecha_vencimiento || null,
+                            dias_vida_util: row.dias_vida_util ? parseInt(row.dias_vida_util, 10) : null,
+                            precio_compra: row.precio_compra ? parseFloat(row.precio_compra) : null,
+                            id_proveedor: proveedorRow ? parseInt(proveedorRow, 10) : null
+                        };
+
+                        const newItem = await cateringItemApi.create(itemPayload as any);
+
+                        if (tipoRow === 'materia prima') {
+                            let fechaVencLote = null;
+                            let diasVidaUtilLote = null;
+                            if (row.fecha_vencimiento) {
+                                fechaVencLote = row.fecha_vencimiento;
+                            } else if (row.dias_vida_util) {
+                                const dias = parseInt(row.dias_vida_util, 10);
+                                diasVidaUtilLote = dias;
+                                const hoy = new Date().toISOString().split('T')[0];
+                                fechaVencLote = sumarDiasAFecha(hoy, dias);
+                            }
+                            if (fechaVencLote) {
+                                await cateringLoteApi.create({
+                                    id_item: newItem.id,
+                                    stock: parseInt(row.stock, 10) || 0,
+                                    fechaVencimiento: fechaVencLote,
+                                    diasVidaUtil: diasVidaUtilLote,
+                                    fechaRegistro: new Date().toISOString().split('T')[0],
+                                    usuario_id: userId,
+                                    id_empresa: empresaId
+                                });
+                            }
+                        }
+
+                        successCount++;
+                    } catch (err) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        errorsList.push(`Fila ${i + 1}: ${msg}`);
+                        errorCount++;
+                    }
+                }
+                if (successCount > 0) {
+                    await cargarDatos(empresaId);
+                }
+            }
+
+            if (successCount > 0) {
+                showToast(`${successCount} registros creados exitosamente`, 'success', 'Carga completada');
+            }
+            if (errorCount > 0) {
+                showToast(`Fallaron ${errorCount} registros. Revisa la consola.`, 'error', 'Errores');
+                console.error('Errores en carga:', errorsList);
+            }
+
+            await addActivity('INSERT', 'catering', `Carga masiva: ${successCount} registros creados`);
+
+            setBulkModalOpen(false);
+            setBulkRows([{ id: crypto.randomUUID(), nombre: '', stock: '', precio_compra: '', fecha_vencimiento: '', dias_vida_util: '' }]);
+            setBulkProveedor('');
+            setBulkTipo('materia prima');
+            setBulkUnidadMedida('unidad');
+
+        } catch (error) {
+            console.error('[CateringSection] Error en carga:', error);
+            showToast('Error al procesar la carga', 'error', 'Error');
+        } finally {
+            setBulkSubmitting(false);
+        }
+    };
+
     const handleDescartarLote = (lote: CateringLote, item: CateringItem) => {
         if (lote.descartado === true || lote.descartado === 1) {
             showToast('Este lote ya fue descartado', 'info', 'Sin cambios');
@@ -407,15 +894,6 @@ export const CateringSection: React.FC = () => {
             ),
             footer: (
                 <>
-                    <button
-                        className="dc-btn secondary"
-                        onClick={() => {
-                            setModalOpen(false);
-                            setModalContent(null);
-                        }}
-                    >
-                        <i className="fas fa-times"></i> Cancelar
-                    </button>
                     <button
                         className="dc-btn danger"
                         onClick={async () => {
@@ -619,14 +1097,6 @@ export const CateringSection: React.FC = () => {
                             </div>
                         </div>
                     </>
-                ),
-                footer: (
-                    <button className="dc-btn secondary" onClick={() => {
-                        setModalOpen(false);
-                        setModalContent(null);
-                    }}>
-                        <i className="fas fa-times"></i> Cerrar
-                    </button>
                 )
             });
             setModalOpen(true);
@@ -657,7 +1127,7 @@ export const CateringSection: React.FC = () => {
                 fechaVencimiento = fechaDirecta;
             } else if (diasN && diasN > 0) {
                 const hoy = new Date().toISOString().split('T')[0];
-                fechaVencimiento = sumarDiasAFecha(hoy, diasN - 1);
+                fechaVencimiento = sumarDiasAFecha(hoy, diasN);
             } else {
                 showToast("Debe especificar fecha de vencimiento o días de vida útil", "warning", "Campos incompletos");
                 return;
@@ -732,12 +1202,6 @@ export const CateringSection: React.FC = () => {
                     <button className="dc-btn success" onClick={handleSave} disabled={isSubmitting}>
                         {isSubmitting ? 'Creando...' : <><i className="fas fa-save"></i> Crear lote</>}
                     </button>
-                    <button className="dc-btn secondary" onClick={() => {
-                        setModalOpen(false);
-                        setModalContent(null);
-                    }}>
-                        <i className="fas fa-times"></i> Cancelar
-                    </button>
                 </>
             )
         });
@@ -804,12 +1268,6 @@ export const CateringSection: React.FC = () => {
                     <button className="dc-btn success" onClick={handleSave} disabled={isSubmitting}>
                         {isSubmitting ? 'Guardando...' : <><i className="fas fa-save"></i> Guardar Cambios</>}
                     </button>
-                    <button className="dc-btn secondary" onClick={() => {
-                        setModalOpen(false);
-                        setModalContent(null);
-                    }}>
-                        <i className="fas fa-times"></i> Cancelar
-                    </button>
                 </>
             )
         });
@@ -858,12 +1316,6 @@ export const CateringSection: React.FC = () => {
                     <button className="dc-btn danger" onClick={handleConfirm} disabled={isSubmitting}>
                         {isSubmitting ? 'Eliminando...' : <><i className="fas fa-trash"></i> Sí, Eliminar</>}
                     </button>
-                    <button className="dc-btn secondary" onClick={() => {
-                        setModalOpen(false);
-                        setModalContent(null);
-                    }}>
-                        <i className="fas fa-ban"></i> Cancelar
-                    </button>
                 </>
             )
         });
@@ -875,9 +1327,12 @@ export const CateringSection: React.FC = () => {
     return (
         <div data-tab="catering">
             <div>
-                <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <button className="dc-btn" onClick={() => setModalOpen(true)}>
                         <i className="fas fa-plus-circle"></i> Nuevo Insumo
+                    </button>
+                    <button className="dc-btn info" onClick={() => setBulkModalOpen(true)}>
+                        <i className="fas fa-upload"></i> Carga Masiva
                     </button>
                 </div>
 
@@ -928,22 +1383,6 @@ export const CateringSection: React.FC = () => {
                     icon="fa-box-open"
                     footer={
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
-                            <button className="dc-btn secondary" onClick={() => {
-                                setModalOpen(false);
-                                setFormValues({
-                                    nombre: '',
-                                    stock: '0',
-                                    tipo: 'materia prima',
-                                    unidad_medida: 'unidad',
-                                    tiene_vencimiento: false,
-                                    fecha_vencimiento: '',
-                                    dias_vida_util: '',
-                                    precio_compra: '',
-                                    id_proveedor: ''
-                                });
-                            }}>
-                                <i className="fas fa-times"></i> Cancelar
-                            </button>
                             <button className="dc-btn success" onClick={handleAddItem} disabled={isSubmitting}>
                                 {isSubmitting ? 'Registrando...' : <><i className="fas fa-save"></i> Registrar</>}
                             </button>
@@ -1082,6 +1521,162 @@ export const CateringSection: React.FC = () => {
                 </Modal>
 
                 <Modal
+                    isOpen={bulkModalOpen}
+                    onClose={() => {
+                        setBulkModalOpen(false);
+                        setBulkRows([{ id: crypto.randomUUID(), nombre: '', stock: '', precio_compra: '', fecha_vencimiento: '', dias_vida_util: '' }]);
+                    }}
+                    title="Carga Masiva de Insumos"
+                    icon="fa-upload"
+                    footer={
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
+                            <button className="dc-btn success" onClick={handleBulkAdd} disabled={bulkSubmitting}>
+                                {bulkSubmitting ? 'Registrando...' : <><i className="fas fa-save"></i> Registrar todos</>}
+                            </button>
+                        </div>
+                    }
+                >
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                        <div className="dc-input-group">
+                            <label>Tipo *</label>
+                            <select
+                                value={bulkTipo}
+                                onChange={(e) => setBulkTipo(e.target.value as 'materia prima' | 'utensilio')}
+                            >
+                                <option value="materia prima">Materia Prima</option>
+                                <option value="utensilio">Utensilio</option>
+                            </select>
+                        </div>
+                        <div className="dc-input-group">
+                            <label>Unidad de medida</label>
+                            <select
+                                value={bulkUnidadMedida}
+                                onChange={(e) => setBulkUnidadMedida(e.target.value)}
+                            >
+                                {getUnidadesOptions(bulkTipo).map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="dc-input-group">
+                            <label>Proveedor</label>
+                            <select
+                                value={bulkProveedor}
+                                onChange={(e) => setBulkProveedor(e.target.value)}
+                            >
+                                <option value="">Seleccione un proveedor</option>
+                                {proveedores.map(p => (
+                                    <option key={p.id_persona} value={p.id_persona}>
+                                        {getNombrePersonaLocal(p)}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '0.5rem' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                            <thead style={{ background: '#f5f5f5', position: 'sticky', top: 0, zIndex: 1 }}>
+                                <tr>
+                                    <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Nombre *</th>
+                                    <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Stock *</th>
+                                    <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Precio compra</th>
+                                    {bulkTipo === 'materia prima' && (
+                                        <>
+                                            <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Fecha Venc.</th>
+                                            <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Días vida útil</th>
+                                        </>
+                                    )}
+                                    <th style={{ padding: '0.5rem', textAlign: 'center', borderBottom: '2px solid #ddd' }}>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {bulkRows.map((row, index) => (
+                                    <tr key={row.id} style={{ borderBottom: '1px solid #eee' }}>
+                                        <td style={{ padding: '0.3rem' }}>
+                                            <input
+                                                type="text"
+                                                value={row.nombre}
+                                                onChange={(e) => handleBulkRowChange(row.id, 'nombre', e.target.value)}
+                                                placeholder="Nombre"
+                                                style={{ width: '100%', padding: '0.3rem' }}
+                                            />
+                                        </td>
+                                        <td style={{ padding: '0.3rem' }}>
+                                            <input
+                                                type="number"
+                                                value={row.stock}
+                                                onChange={(e) => handleBulkRowChange(row.id, 'stock', e.target.value)}
+                                                placeholder="0"
+                                                min="0"
+                                                style={{ width: '100%', padding: '0.3rem' }}
+                                            />
+                                        </td>
+                                        <td style={{ padding: '0.3rem' }}>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={row.precio_compra}
+                                                onChange={(e) => handleBulkRowChange(row.id, 'precio_compra', e.target.value)}
+                                                placeholder="0.00"
+                                                style={{ width: '100%', padding: '0.3rem' }}
+                                            />
+                                        </td>
+                                        {bulkTipo === 'materia prima' && (
+                                            <>
+                                                <td style={{ padding: '0.3rem' }}>
+                                                    <input
+                                                        type="date"
+                                                        value={row.fecha_vencimiento}
+                                                        onChange={(e) => handleBulkRowChange(row.id, 'fecha_vencimiento', e.target.value)}
+                                                        style={{ width: '100%', padding: '0.3rem' }}
+                                                    />
+                                                </td>
+                                                <td style={{ padding: '0.3rem' }}>
+                                                    <input
+                                                        type="number"
+                                                        value={row.dias_vida_util}
+                                                        onChange={(e) => handleBulkRowChange(row.id, 'dias_vida_util', e.target.value)}
+                                                        placeholder="Días"
+                                                        min="1"
+                                                        style={{ width: '100%', padding: '0.3rem' }}
+                                                    />
+                                                </td>
+                                            </>
+                                        )}
+                                        <td style={{ textAlign: 'center' }}>
+                                            <button
+                                                onClick={() => handleRemoveBulkRow(row.id)}
+                                                disabled={bulkRows.length <= 1}
+                                                style={{ background: 'transparent', border: 'none' }}
+                                            >
+                                                <i className="fas fa-trash dc-eliminar"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <button className="dc-btn info" onClick={handleAddBulkRow} style={{ fontSize: '0.9rem' }}>
+                            <i className="fas fa-plus"></i> Agregar fila
+                        </button>
+                        <label className="dc-btn info" style={{ cursor: 'pointer', fontSize: '0.9rem' }}>
+                            <i className="fas fa-file-excel"></i> Subir Excel
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                onChange={handleFileUpload}
+                                style={{ display: 'none' }}
+                                disabled={bulkSubmitting}
+                            />
+                        </label>
+                    </div>
+                </Modal>
+
+                <Modal
                     isOpen={!!modalContent}
                     onClose={() => {
                         setModalOpen(false);
@@ -1100,6 +1695,6 @@ export const CateringSection: React.FC = () => {
                     <Toast key={toast.id} toast={toast} onClose={removeToast} />
                 ))}
             </div>
-        </div>
+        </div >
     );
 };

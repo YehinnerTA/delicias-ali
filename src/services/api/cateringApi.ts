@@ -65,6 +65,40 @@ export const cateringItemApi = {
         return mapToFrontend(data);
     },
 
+    createBulk: async (
+        payload: {
+            items: Array<{
+                nombre: string;
+                stock: number;
+                precio_compra?: number;
+                fecha_vencimiento?: string;
+                dias_vida_util?: number;
+            }>;
+            tipo: 'materia prima' | 'utensilio';
+            id_proveedor: number | null;
+            usuario_id: number;
+            id_empresa: number;
+            unidad_medida?: string;
+        }
+    ): Promise<{
+        success: any[];
+        errors: { index: number; message: string; data: any }[];
+        total: number;
+        successCount: number;
+        errorCount: number;
+    }> => {
+        const res = await fetch(`${API_URL}/catering-items/bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Error al procesar la carga masiva');
+        }
+        return await res.json();
+    },
+
     update: async (id: number, item: Partial<CateringItem>): Promise<CateringItem> => {
         const res = await fetch(`${API_URL}/catering-items/${id}`, {
             method: 'PUT',

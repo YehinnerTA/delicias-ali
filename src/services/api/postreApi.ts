@@ -52,6 +52,36 @@ export const postreApi = {
         return mapToFrontend(data);
     },
 
+    createBulk: async (
+        payload: {
+            items: Array<{
+                nombre: string;
+                stock: number;
+                precio: number;
+                dias_duracion: number;
+            }>;
+            usuario_id: number;
+            id_empresa: number;
+        }
+    ): Promise<{
+        success: any[];
+        errors: { index: number; message: string; data: any }[];
+        total: number;
+        successCount: number;
+        errorCount: number;
+    }> => {
+        const res = await fetch(`${API_URL}/postres/bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Error al procesar la carga masiva de postres');
+        }
+        return await res.json();
+    },
+
     update: async (id: number, postre: Partial<Postre>): Promise<Postre> => {
         const res = await fetch(`${API_URL}/postres/${id}`, {
             method: 'PUT',

@@ -12,6 +12,7 @@ import { Postre, Lote } from '../../../../features/types/inventory';
 import { postreApi } from '../../../../services/api/postreApi';
 import { loteApi } from '../../../../services/api/loteApi';
 import { historialApi } from '../../../../services/api/historialApi';
+import * as XLSX from 'xlsx';
 
 const postreFiltersConfig: FilterField[] = [
     { id: 'nombre', label: 'Buscar por nombre', type: 'text', placeholder: 'Ej: Cheesecake, Tarta...' },
@@ -34,6 +35,15 @@ const recordToFilters = (record: Record<string, string>): { nombre: string; esta
     nombre: record.nombre || '',
     estado: record.estado || ''
 });
+
+const getTodayLocal = (): string => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
 
 const formatearFecha = (fecha: string): string => {
     if (!fecha) return '-';
@@ -76,6 +86,16 @@ export const PasteleriaSection: React.FC = () => {
         diasVenc: ''
     });
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+    const [bulkModalOpen, setBulkModalOpen] = useState(false);
+    const [bulkRows, setBulkRows] = useState<Array<{
+        id: string;
+        nombre: string;
+        stock: string;
+        precio: string;
+        dias_duracion: string;
+    }>>([{ id: crypto.randomUUID(), nombre: '', stock: '', precio: '', dias_duracion: '' }]);
+    const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
@@ -185,15 +205,6 @@ export const PasteleriaSection: React.FC = () => {
             footer: (
                 <>
                     <button
-                        className="dc-btn secondary"
-                        onClick={() => {
-                            setModalOpen(false);
-                            setModalContent(null);
-                        }}
-                    >
-                        <i className="fas fa-times"></i> Cancelar
-                    </button>
-                    <button
                         className="dc-btn danger"
                         onClick={async () => {
                             const empresaId = getSelectedCompanyId();
@@ -296,7 +307,7 @@ export const PasteleriaSection: React.FC = () => {
                 stock: parseInt(stock),
                 fecha_vencimiento: fechaVencimiento,
                 dias_duracion: parseInt(diasVenc),
-                fecha_registro: new Date().toISOString().split('T')[0],
+                fecha_registro: getTodayLocal(),
             };
 
             const nuevoPostre = await postreApi.create({
@@ -321,6 +332,271 @@ export const PasteleriaSection: React.FC = () => {
             showToast('Error al crear el postre', 'error', 'Error');
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    // ============================================================
+    // CARGA MASIVA MANUAL
+    // ============================================================
+    const handleAddBulkRow = () => {
+        setBulkRows(prev => [...prev, {
+            id: crypto.randomUUID(),
+            nombre: '',
+            stock: '',
+            precio: '',
+            dias_duracion: ''
+        }]);
+    };
+
+    const handleRemoveBulkRow = (id: string) => {
+        if (bulkRows.length <= 1) {
+            showToast('Debe haber al menos una fila', 'warning', '');
+            return;
+        }
+        setBulkRows(prev => prev.filter(row => row.id !== id));
+    };
+
+    const handleBulkRowChange = (id: string, field: string, value: string) => {
+        setBulkRows(prev => prev.map(row =>
+            row.id === id ? { ...row, [field]: value } : row
+        ));
+    };
+
+    const handleBulkAdd = async () => {
+        const invalidRows = bulkRows.filter(row => !row.nombre.trim() || !row.stock.trim() || !row.precio.trim() || !row.dias_duracion.trim());
+        if (invalidRows.length > 0) {
+            showToast('Todos los registros deben tener nombre, stock, precio y días de duración', 'warning', 'Campos incompletos');
+            return;
+        }
+
+        const userId = user?.id;
+        const empresaId = getSelectedCompanyId();
+        if (!userId || !empresaId) {
+            showToast('No se pudo identificar al usuario o empresa', 'error', 'Error de autenticación');
+            return;
+        }
+
+        setBulkSubmitting(true);
+        let postresSuccess: any[] = [];
+        let postresErrors: any[] = [];
+        let lotesErrors: any[] = [];
+
+        try {
+            // 1. Crear postres en bulk
+            const postresPayload = {
+                items: bulkRows.map(row => ({
+                    nombre: row.nombre.trim(),
+                    stock: parseInt(row.stock, 10),
+                    precio: parseFloat(row.precio),
+                    dias_duracion: parseInt(row.dias_duracion, 10),
+                    fecha_registro: getTodayLocal()
+                })),
+                usuario_id: userId,
+                id_empresa: empresaId
+            };
+
+            const postresResult = await postreApi.createBulk(postresPayload);
+            postresSuccess = postresResult.success || [];
+            postresErrors = postresResult.errors || [];
+
+            // 2. Si hay postres creados, construir y enviar lotes
+            if (postresSuccess.length > 0) {
+                const lotesItems: {
+                    postre_id: number;
+                    stock: number;
+                    fecha_vencimiento: string;
+                    dias_duracion: number;
+                    fecha_registro: string;
+                }[] = [];
+
+                for (const postre of postresSuccess) {
+                    const originalRow = bulkRows.find(row => row.nombre.trim() === postre.nombre);
+                    if (!originalRow) continue;
+
+                    const diasDuracion = parseInt(originalRow.dias_duracion, 10);
+                    const fechaRegistro = getTodayLocal();
+                    const fechaVencimiento = calcularFechaVencimiento(diasDuracion);
+
+                    lotesItems.push({
+                        postre_id: postre.id,
+                        stock: parseInt(originalRow.stock, 10),
+                        fecha_vencimiento: fechaVencimiento,
+                        dias_duracion: diasDuracion,
+                        fecha_registro: fechaRegistro
+                    });
+                }
+
+                if (lotesItems.length > 0) {
+                    const lotesResult = await loteApi.createBulk({
+                        items: lotesItems,
+                        usuario_id: userId,
+                        id_empresa: empresaId
+                    });
+                    lotesErrors = lotesResult.errors || [];
+                }
+            }
+
+            // 3. Recargar datos
+            if (postresSuccess.length > 0) {
+                const updatedPostres = await postreApi.getAll(empresaId);
+                setPostresItems(updatedPostres);
+            }
+
+            // 4. Mostrar resumen
+            const totalExitosos = postresSuccess.length;
+            const totalErrores = postresErrors.length + lotesErrors.length;
+
+            if (totalExitosos > 0) {
+                showToast(`${totalExitosos} postres creados exitosamente`, 'success', 'Carga completada');
+            }
+            if (totalErrores > 0) {
+                const allErrors = [...postresErrors, ...lotesErrors];
+                const errorMessages = allErrors.map(e => `Fila ${e.index + 1}: ${e.message}`).join('\n');
+                showToast(`Fallaron ${totalErrores} registros. Ver detalles en consola.`, 'error', 'Errores');
+                console.error('Errores en carga:', allErrors);
+            }
+
+            await addActivity('INSERT', 'tienda', `Carga masiva: ${totalExitosos} postres registrados`);
+
+            setBulkModalOpen(false);
+            setBulkRows([{ id: crypto.randomUUID(), nombre: '', stock: '', precio: '', dias_duracion: '' }]);
+
+        } catch (error) {
+            console.error('[TiendaSection] Error en carga masiva:', error);
+            showToast('Error al procesar la carga', 'error', 'Error');
+        } finally {
+            setBulkSubmitting(false);
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const userId = user?.id;
+        const empresaId = getSelectedCompanyId();
+        if (!userId || !empresaId) {
+            showToast('No se pudo identificar al usuario o empresa', 'error', 'Error de autenticación');
+            return;
+        }
+
+        setBulkSubmitting(true);
+        try {
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    const data = evt.target?.result;
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+                    if (jsonData.length === 0) {
+                        showToast('No se encontraron datos en el archivo', 'warning', '');
+                        return;
+                    }
+
+                    const items = jsonData.map((row: any) => ({
+                        nombre: row['nombre'] || row['Nombre'] || '',
+                        stock: parseInt(row['stock'] || row['Stock'] || 0, 10),
+                        precio: parseFloat(row['precio'] || row['Precio'] || row['price'] || 0),
+                        dias_duracion: parseInt(row['dias_duracion'] || row['diasDuracion'] || row['Días duración'] || 0, 10)
+                    }));
+
+                    const invalidRows = items.filter(item => !item.nombre || !item.stock || !item.precio || !item.dias_duracion);
+                    if (invalidRows.length > 0) {
+                        showToast(`Hay ${invalidRows.length} filas con campos incompletos (nombre, stock, precio, días)`, 'warning', '');
+                        return;
+                    }
+
+                    // 1. Crear postres
+                    const postresPayload = {
+                        items: items.map(item => ({
+                            ...item,
+                            fecha_registro: getTodayLocal()
+                        })),
+                        usuario_id: userId,
+                        id_empresa: empresaId
+                    };
+
+                    const postresResult = await postreApi.createBulk(postresPayload);
+                    const postresSuccess = postresResult.success || [];
+                    const postresErrors = postresResult.errors || [];
+
+                    // 2. Crear lotes
+                    let lotesErrors: any[] = [];
+                    if (postresSuccess.length > 0) {
+                        const lotesItems: {
+                            postre_id: number;
+                            stock: number;
+                            fecha_vencimiento: string;
+                            dias_duracion: number;
+                            fecha_registro: string;
+                        }[] = [];
+
+                        for (const postre of postresSuccess) {
+                            const originalItem = items.find(row => row.nombre.trim() === postre.nombre);
+                            if (!originalItem) continue;
+
+                            const diasDuracion = originalItem.dias_duracion;
+                            const fechaRegistro = getTodayLocal();
+                            const fechaVencimiento = calcularFechaVencimiento(diasDuracion);
+
+                            lotesItems.push({
+                                postre_id: postre.id,
+                                stock: originalItem.stock,
+                                fecha_vencimiento: fechaVencimiento,
+                                dias_duracion: diasDuracion,
+                                fecha_registro: fechaRegistro
+                            });
+                        }
+
+                        if (lotesItems.length > 0) {
+                            const lotesResult = await loteApi.createBulk({
+                                items: lotesItems,
+                                usuario_id: userId,
+                                id_empresa: empresaId
+                            });
+                            lotesErrors = lotesResult.errors || [];
+                        }
+                    }
+
+                    // 3. Recargar datos
+                    if (postresSuccess.length > 0) {
+                        const updatedPostres = await postreApi.getAll(empresaId);
+                        setPostresItems(updatedPostres);
+                    }
+
+                    // 4. Mostrar resumen
+                    const totalExitosos = postresSuccess.length;
+                    const totalErrores = postresErrors.length + lotesErrors.length;
+
+                    if (totalExitosos > 0) {
+                        showToast(`${totalExitosos} postres creados exitosamente desde Excel`, 'success', 'Carga completada');
+                    }
+                    if (totalErrores > 0) {
+                        const allErrors = [...postresErrors, ...lotesErrors];
+                        const errorMessages = allErrors.map(e => `Fila ${e.index + 1}: ${e.message}`).join('\n');
+                        showToast(`Fallaron ${totalErrores} registros. Ver detalles en consola.`, 'error', 'Errores');
+                        console.error('Errores en Excel:', allErrors);
+                    }
+
+                    await addActivity('INSERT', 'tienda', `Carga Excel: ${totalExitosos} postres registrados`);
+
+                    setBulkModalOpen(false);
+                    e.target.value = '';
+
+                } catch (error) {
+                    console.error('[TiendaSection] Error al leer Excel:', error);
+                    showToast('Error al leer el archivo Excel', 'error', '');
+                } finally {
+                    setBulkSubmitting(false);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } catch (error) {
+            console.error('[TiendaSection] Error al procesar Excel:', error);
+            showToast('Error al procesar el archivo', 'error', '');
+            setBulkSubmitting(false);
         }
     };
 
@@ -456,11 +732,7 @@ export const PasteleriaSection: React.FC = () => {
                             </div>
                         </div>
                     </>
-                ),
-                footer: <button className="dc-btn secondary" onClick={() => {
-                    setModalOpen(false);
-                    setModalContent(null);
-                }}><i className="fas fa-times"></i> Cerrar</button>
+                )
             });
             setModalOpen(true);
         } catch (error) {
@@ -494,7 +766,7 @@ export const PasteleriaSection: React.FC = () => {
                     stock: stockN,
                     fechaVencimiento: fechaVencimiento,
                     diasDuracion: diasN,
-                    fechaRegistro: new Date().toISOString().split('T')[0],
+                    fechaRegistro: getTodayLocal(),
                     usuario_id: userId,
                     id_empresa: empresaId
                 });
@@ -542,10 +814,6 @@ export const PasteleriaSection: React.FC = () => {
                     <button className="dc-btn success" onClick={handleSave} disabled={isSubmitting}>
                         {isSubmitting ? 'Creando...' : <><i className="fas fa-save"></i> Crear lote</>}
                     </button>
-                    <button className="dc-btn secondary" onClick={() => {
-                        setModalOpen(false);
-                        setModalContent(null);
-                    }}><i className="fas fa-times"></i> Cancelar</button>
                 </>
             )
         });
@@ -594,10 +862,6 @@ export const PasteleriaSection: React.FC = () => {
                     <button className="dc-btn danger" onClick={handleConfirm} disabled={isSubmitting}>
                         {isSubmitting ? 'Eliminando...' : <><i className="fas fa-trash"></i> Sí, Eliminar</>}
                     </button>
-                    <button className="dc-btn secondary" onClick={() => {
-                        setModalOpen(false);
-                        setModalContent(null);
-                    }}><i className="fas fa-ban"></i> Cancelar</button>
                 </>
             )
         });
@@ -609,9 +873,12 @@ export const PasteleriaSection: React.FC = () => {
     return (
         <div data-tab="tienda">
             <div>
-                <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <button className="dc-btn" onClick={() => setIsCreateModalOpen(true)}>
                         <i className="fas fa-plus-circle"></i> Nuevo Postre
+                    </button>
+                    <button className="dc-btn info" onClick={() => setBulkModalOpen(true)}>
+                        <i className="fas fa-upload"></i> Carga Masiva
                     </button>
                 </div>
 
@@ -642,6 +909,172 @@ export const PasteleriaSection: React.FC = () => {
 
                 <ActivityLog logs={tiendaActivityLogs} title="Actividad reciente · Postres" />
 
+                {/* Modal de creación individual */}
+                <Modal
+                    isOpen={isCreateModalOpen}
+                    onClose={() => {
+                        setIsCreateModalOpen(false);
+                        setCreateFormValues({ nombre: '', precio: '', stock: '', diasVenc: '' });
+                    }}
+                    title="Nuevo Postre + Lote Inicial"
+                    icon="fa-plus-circle"
+                    footer={
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
+                            <button className="dc-btn success" onClick={handleCreatePostre} disabled={isSubmitting}>
+                                {isSubmitting ? 'Creando...' : <><i className="fas fa-save"></i> Crear</>}
+                            </button>
+                        </div>
+                    }
+                >
+                    <div className="dc-form-grid">
+                        <div className="dc-input-group">
+                            <label>Nombre postre *</label>
+                            <input
+                                type="text"
+                                value={createFormValues.nombre}
+                                onChange={(e) => setCreateFormValues(prev => ({ ...prev, nombre: e.target.value }))}
+                                placeholder="Ej: Tarta de fresa"
+                                required
+                            />
+                        </div>
+                        <div className="dc-input-group">
+                            <label>Precio unitario *</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={createFormValues.precio}
+                                onChange={(e) => setCreateFormValues(prev => ({ ...prev, precio: e.target.value }))}
+                                placeholder="0.00"
+                                required
+                            />
+                        </div>
+                        <div className="dc-input-group">
+                            <label>Stock (unidades) *</label>
+                            <input
+                                type="number"
+                                value={createFormValues.stock}
+                                onChange={(e) => setCreateFormValues(prev => ({ ...prev, stock: e.target.value }))}
+                                placeholder="0"
+                                min="0"
+                                required
+                            />
+                        </div>
+                        <div className="dc-input-group">
+                            <label>Días hasta vencimiento *</label>
+                            <input
+                                type="number"
+                                value={createFormValues.diasVenc}
+                                onChange={(e) => setCreateFormValues(prev => ({ ...prev, diasVenc: e.target.value }))}
+                                placeholder="Ej: 7"
+                                min="1"
+                                required
+                            />
+                        </div>
+                    </div>
+                </Modal>
+
+                {/* Modal de carga masiva */}
+                <Modal
+                    isOpen={bulkModalOpen}
+                    onClose={() => {
+                        setBulkModalOpen(false);
+                        setBulkRows([{ id: crypto.randomUUID(), nombre: '', stock: '', precio: '', dias_duracion: '' }]);
+                    }}
+                    title="Carga Masiva de Postres"
+                    icon="fa-upload"
+                    footer={
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
+                            <button className="dc-btn success" onClick={handleBulkAdd} disabled={bulkSubmitting}>
+                                {bulkSubmitting ? 'Registrando...' : <><i className="fas fa-save"></i> Registrar todos</>}
+                            </button>
+                        </div>
+                    }
+                >
+                    <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '0.5rem' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                            <thead style={{ background: '#f5f5f5', position: 'sticky', top: 0, zIndex: 1 }}>
+                                <tr>
+                                    <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Nombre *</th>
+                                    <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Stock *</th>
+                                    <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Precio *</th>
+                                    <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Días duración *</th>
+                                    <th style={{ padding: '0.5rem', textAlign: 'center', borderBottom: '2px solid #ddd' }}>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {bulkRows.map((row, index) => (
+                                    <tr key={row.id} style={{ borderBottom: '1px solid #eee' }}>
+                                        <td style={{ padding: '0.3rem' }}>
+                                            <input
+                                                type="text"
+                                                value={row.nombre}
+                                                onChange={(e) => handleBulkRowChange(row.id, 'nombre', e.target.value)}
+                                                placeholder="Nombre"
+                                                style={{ width: '100%', padding: '0.3rem' }}
+                                            />
+                                        </td>
+                                        <td style={{ padding: '0.3rem' }}>
+                                            <input
+                                                type="number"
+                                                value={row.stock}
+                                                onChange={(e) => handleBulkRowChange(row.id, 'stock', e.target.value)}
+                                                placeholder="0"
+                                                min="0"
+                                                style={{ width: '100%', padding: '0.3rem' }}
+                                            />
+                                        </td>
+                                        <td style={{ padding: '0.3rem' }}>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={row.precio}
+                                                onChange={(e) => handleBulkRowChange(row.id, 'precio', e.target.value)}
+                                                placeholder="0.00"
+                                                style={{ width: '100%', padding: '0.3rem' }}
+                                            />
+                                        </td>
+                                        <td style={{ padding: '0.3rem' }}>
+                                            <input
+                                                type="number"
+                                                value={row.dias_duracion}
+                                                onChange={(e) => handleBulkRowChange(row.id, 'dias_duracion', e.target.value)}
+                                                placeholder="Días"
+                                                min="1"
+                                                style={{ width: '100%', padding: '0.3rem' }}
+                                            />
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <button
+                                                onClick={() => handleRemoveBulkRow(row.id)}
+                                                disabled={bulkRows.length <= 1}
+                                                style={{ background: 'transparent', border: 'none' }}
+                                            >
+                                                <i className="fas fa-trash dc-eliminar"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <button className="dc-btn info" onClick={handleAddBulkRow} style={{ fontSize: '0.9rem' }}>
+                            <i className="fas fa-plus"></i> Agregar fila
+                        </button>
+                        <label className="dc-btn info" style={{ cursor: 'pointer', fontSize: '0.9rem' }}>
+                            <i className="fas fa-file-excel"></i> Subir Excel
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                onChange={handleFileUpload}
+                                style={{ display: 'none' }}
+                                disabled={bulkSubmitting}
+                            />
+                        </label>
+                    </div>
+                </Modal>
+
                 <Modal
                     isOpen={isCreateModalOpen}
                     onClose={() => {
@@ -652,12 +1085,6 @@ export const PasteleriaSection: React.FC = () => {
                     icon="fa-plus-circle"
                     footer={
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
-                            <button className="dc-btn secondary" onClick={() => {
-                                setIsCreateModalOpen(false);
-                                setCreateFormValues({ nombre: '', precio: '0', stock: '0', diasVenc: '7' });
-                            }}>
-                                <i className="fas fa-times"></i> Cancelar
-                            </button>
                             <button className="dc-btn success" onClick={handleCreatePostre} disabled={isSubmitting}>
                                 {isSubmitting ? 'Creando...' : <><i className="fas fa-save"></i> Crear</>}
                             </button>

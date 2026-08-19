@@ -4,7 +4,8 @@ import {
     getCateringItemById,
     createCateringItem,
     updateCateringItem,
-    deleteCateringItem
+    deleteCateringItem,
+    createBulkCateringItems
 } from '../../controllers/cateringController';
 
 const router = Router();
@@ -12,6 +13,7 @@ const router = Router();
 router.get('/', getCateringItems);
 router.get('/:id', getCateringItemById);
 router.post('/', createCateringItem);
+router.post('/bulk', createBulkCateringItems);
 router.put('/:id', updateCateringItem);
 router.delete('/:id', deleteCateringItem);
 

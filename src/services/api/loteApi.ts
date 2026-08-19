@@ -76,5 +76,36 @@ export const loteApi = {
         if (!res.ok) throw new Error('Error al descartar lote');
         const data = await res.json();
         return mapLoteToFrontend(data);
+    },
+
+    createBulk: async (
+        payload: {
+            items: Array<{
+                postre_id: number;
+                stock: number;
+                fecha_vencimiento: string;
+                dias_duracion: number;
+                fecha_registro?: string;
+            }>;
+            usuario_id: number;
+            id_empresa: number;
+        }
+    ): Promise<{
+        success: any[];
+        errors: { index: number; message: string; data: any }[];
+        total: number;
+        successCount: number;
+        errorCount: number;
+    }> => {
+        const res = await fetch(`${API_URL}/lotes/bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Error al procesar la carga masiva de lotes');
+        }
+        return await res.json();
     }
 };

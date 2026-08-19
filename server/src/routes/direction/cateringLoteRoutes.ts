@@ -5,7 +5,8 @@ import {
     createCateringLote,
     updateCateringLote,
     deleteCateringLote,
-    descartarCateringLote
+    descartarCateringLote,
+    createBulkCateringLote
 } from '../../controllers/cateringLoteController';
 
 const router = Router();
@@ -13,6 +14,7 @@ const router = Router();
 router.get('/', getCateringLotes);
 router.get('/item/:itemId', getCateringLotesByItem);
 router.post('/', createCateringLote);
+router.post('/bulk-lote', createBulkCateringLote);
 router.put('/:id', updateCateringLote);
 router.delete('/:id', deleteCateringLote);
 router.post('/:id/descartar', descartarCateringLote);

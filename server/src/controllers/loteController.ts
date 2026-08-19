@@ -204,3 +204,120 @@ export const descartarLote = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Error al descartar lote', error: error instanceof Error ? error.message : String(error) });
     }
 };
+
+export const createBulkLotes = async (req: Request, res: Response) => {
+    try {
+        const {
+            items,      // Array de lotes: { postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro }
+            usuario_id,
+            id_empresa
+        } = req.body;
+
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: 'Se requiere un array de lotes' });
+        }
+        if (!usuario_id || !id_empresa) {
+            return res.status(400).json({ message: 'Faltan campos obligatorios: usuario_id, id_empresa' });
+        }
+
+        const personaRow = await executeQuerySingle<{ id_persona: number }>(
+            `SELECT id_persona FROM usuarios WHERE id = ?`,
+            [usuario_id]
+        );
+        if (!personaRow) {
+            return res.status(400).json({ message: 'Usuario no encontrado o sin persona asociada' });
+        }
+        const registrado_por = personaRow.id_persona;
+
+        const success: any[] = [];
+        const errors: { index: number; message: string; data: any }[] = [];
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            try {
+                if (!item.postre_id) {
+                    errors.push({
+                        index: i,
+                        message: 'El campo "postre_id" es obligatorio',
+                        data: item
+                    });
+                    continue;
+                }
+                if (item.stock === undefined || item.stock === null) {
+                    errors.push({
+                        index: i,
+                        message: 'El campo "stock" es obligatorio',
+                        data: item
+                    });
+                    continue;
+                }
+                if (!item.fecha_vencimiento) {
+                    errors.push({
+                        index: i,
+                        message: 'El campo "fecha_vencimiento" es obligatorio',
+                        data: item
+                    });
+                    continue;
+                }
+                if (!item.dias_duracion) {
+                    errors.push({
+                        index: i,
+                        message: 'El campo "dias_duracion" es obligatorio',
+                        data: item
+                    });
+                    continue;
+                }
+
+                const stock = parseInt(item.stock) || 0;
+                const dias_duracion = parseInt(item.dias_duracion) || 0;
+                const fecha_registro = item.fecha_registro || new Date().toISOString().split('T')[0];
+
+                // Insertar lote
+                const result = await executeMutation(
+                    `INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por, descartado) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+                    [
+                        id_empresa,
+                        item.postre_id,
+                        stock,
+                        item.fecha_vencimiento,
+                        dias_duracion,
+                        fecha_registro,
+                        registrado_por
+                    ]
+                );
+
+                // Obtener el lote creado
+                const newLote = await executeQuerySingle(
+                    'SELECT * FROM lotes WHERE id = ? AND id_empresa = ?',
+                    [result.insertId, id_empresa]
+                );
+
+                success.push(newLote);
+
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : String(err);
+                errors.push({
+                    index: i,
+                    message: `Error al insertar lote: ${errorMessage}`,
+                    data: item
+                });
+            }
+        }
+
+        res.status(201).json({
+            success,
+            errors,
+            total: items.length,
+            successCount: success.length,
+            errorCount: errors.length
+        });
+
+    } catch (error) {
+        console.error('[createBulkLotes] Error:', error);
+        res.status(500).json({
+            message: 'Error al procesar la carga masiva de lotes',
+            error: error instanceof Error ? error.message : String(error)
+        });
+    }
+};
