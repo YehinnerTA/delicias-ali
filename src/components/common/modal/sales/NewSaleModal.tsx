@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
+import { ConfirmModal } from '../confirmModal';
 import { useVentas } from '../../../../context/SalesContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { Venta, VentaTemporal, ProductoVenta, CatalogoProducto } from '../../../../features/types/sales';
 import { generarVistaPreviaHTML, generarPDF } from '../../../../services/pdf/pdfService';
+import { personaApi } from '../../../../services/api/personaApi';
+import { Persona } from '../../../../features/types/person';
 
 interface NewSaleModalProps {
     isOpen: boolean;
@@ -19,6 +22,9 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
     const { getSelectedCompanyId } = useCompany();
     const id_empresa = getSelectedCompanyId() ?? 0;
     const { showToast } = useToast();
+
+    const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+    const [documentoPendiente, setDocumentoPendiente] = useState<string>('');
 
     const getInitialVenta = (): VentaTemporal => ({
         id_empresa,
@@ -36,11 +42,17 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
 
     const [tipoComprobante, setTipoComprobante] = useState<'ticket' | 'factura'>('ticket');
     const [fasesAbiertas, setFasesAbiertas] = useState<{ [key: number]: boolean }>({ 1: true, 2: false, 3: false, 4: false });
-    const [clientes, setClientes] = useState<any[]>([]);
     const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [montoPago, setMontoPago] = useState<number>(0);
     const [productosDisponibles, setProductosDisponibles] = useState<CatalogoProducto[]>([]);
+
+    const [clienteSeleccionado, setClienteSeleccionado] = useState<Persona | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const [documentoBuscado, setDocumentoBuscado] = useState('');
+
+    const CLIENTE_VARIOS_DOCUMENTO = '00000000';
+    const CLIENTE_VARIOS_NOMBRE = 'VARIOS';
 
     const productoVigente = (producto: CatalogoProducto): boolean => {
         if (!producto.fechaVencimiento) return true;
@@ -53,9 +65,12 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
 
     useEffect(() => {
         if (isOpen) {
-            cargarClientes();
+            resetForm();
             setSelectedProductId(null);
             setMontoPago(0);
+            setClienteSeleccionado(null);
+            setDocumentoBuscado('');
+            setConfirmModalOpen(false);
             const productSelect = document.getElementById('productoSelect') as HTMLSelectElement;
             if (productSelect) productSelect.value = '';
             const cantidadInput = document.getElementById('cantidadProd') as HTMLInputElement;
@@ -64,23 +79,9 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                 cantidadInput.max = '999';
                 cantidadInput.placeholder = 'Cantidad';
             }
-            const docInput = document.getElementById('clienteDoc') as HTMLInputElement;
-            const nombreInput = document.getElementById('clienteNombre') as HTMLInputElement;
             const montoInput = document.getElementById('montoPago') as HTMLInputElement;
-            if (docInput) docInput.value = '';
-            if (nombreInput) nombreInput.value = '';
             if (montoInput) montoInput.value = '';
-            setCurrentVenta({
-                id_empresa,
-                cliente: { nombre: "", documento: "" },
-                productos: [],
-                componentes: {
-                    descuento: { activo: false, tipo: 'porcentaje', valor: 0 },
-                    cupon: { activo: false, codigo: "", valor: 0 }
-                },
-                metodoPago: { tipo: 'efectivo', monto: 0, vuelto: 0 },
-                subtotal: 0, igv: 0, total: 0
-            });
+            setCurrentVenta(getInitialVenta());
         }
     }, [isOpen]);
 
@@ -91,19 +92,11 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
         }
     }, [isOpen, catalogoProductos]);
 
-    const cargarClientes = async () => {
-        if (!id_empresa) {
-            showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
-            return;
-        }
-        try {
-            const { ventaApi } = await import('../../../../services/api/ventaApi');
-            const data = await ventaApi.getClientes(id_empresa);
-            setClientes(data);
-        } catch (error) {
-            console.error('[NewSaleModal] Error al cargar clientes:', error);
-            showToast('Error al cargar clientes', 'error', 'Error');
-        }
+    const resetForm = () => {
+        setCurrentVenta(getInitialVenta());
+        setClienteSeleccionado(null);
+        setDocumentoBuscado('');
+        setConfirmModalOpen(false);
     };
 
     const toggleFase = (fase: number) => {
@@ -133,27 +126,137 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
         calcularTotales();
     }, [currentVenta.productos, currentVenta.componentes]);
 
-    const buscarClientePorDocumento = (documento: string) => {
-        if (!documento) {
-            const nombreInput = document.getElementById('clienteNombre') as HTMLInputElement;
-            if (nombreInput) nombreInput.value = '';
+    const buscarClientePorDocumento = async (documento: string) => {
+        if (!documento || documento.length < 8) {
+            setClienteSeleccionado(null);
+            setCurrentVenta(prev => ({
+                ...prev,
+                cliente: { nombre: '', documento: '' }
+            }));
             return;
         }
-        const cliente = clientes.find(c => c.numeroDocumento === documento);
-        const nombreInput = document.getElementById('clienteNombre') as HTMLInputElement;
-        if (cliente) {
-            if (nombreInput) nombreInput.value = cliente.nombreCompleto;
-            setCurrentVenta(prev => ({
-                ...prev,
-                cliente: { nombre: cliente.nombreCompleto, documento: cliente.numeroDocumento }
-            }));
-        } else {
-            if (nombreInput) nombreInput.value = '';
-            setCurrentVenta(prev => ({
-                ...prev,
-                cliente: { nombre: '', documento }
-            }));
+
+        const esDNI = /^\d{8}$/.test(documento);
+        const esRUC = /^\d{11}$/.test(documento);
+
+        if (!esDNI && !esRUC) {
+            showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos)', 'warning', 'Formato inválido');
+            return;
         }
+
+        setIsSearching(true);
+        setDocumentoBuscado(documento);
+
+        try {
+            const persona = await personaApi.searchByDocumento(id_empresa, documento);
+
+            if (persona) {
+                setClienteSeleccionado(persona);
+                const nombreCompleto = persona.tipo_documento === 'DNI'
+                    ? `${persona.nombre || ''} ${persona.apellido || ''}`.trim()
+                    : persona.razon_social || persona.nombre || '';
+
+                setCurrentVenta(prev => ({
+                    ...prev,
+                    cliente: { nombre: nombreCompleto, documento: persona.numero_documento }
+                }));
+
+                showToast(`Cliente encontrado: ${nombreCompleto}`, 'success', 'Cliente encontrado');
+            } else {
+                setClienteSeleccionado(null);
+                setCurrentVenta(prev => ({
+                    ...prev,
+                    cliente: { nombre: '', documento }
+                }));
+
+                setDocumentoPendiente(documento);
+                setConfirmModalOpen(true);
+            }
+        } catch (error) {
+            console.error('[NewSaleModal] Error al buscar cliente:', error);
+            showToast('Error al buscar el cliente', 'error', 'Error');
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const confirmarRegistroAutomatico = async () => {
+        if (documentoPendiente) {
+            await registrarClienteAutomatico(documentoPendiente);
+            setDocumentoPendiente('');
+            setConfirmModalOpen(false);
+        }
+    };
+
+    const cancelarRegistroAutomatico = () => {
+        setDocumentoPendiente('');
+        setConfirmModalOpen(false);
+        setCurrentVenta(prev => ({
+            ...prev,
+            cliente: { nombre: '', documento: '' }
+        }));
+    };
+
+    const registrarClienteAutomatico = async (documento: string) => {
+        try {
+            const esDNI = /^\d{8}$/.test(documento);
+            const esRUC = /^\d{11}$/.test(documento);
+
+            if (!esDNI && !esRUC) {
+                showToast('Documento inválido para registro', 'error', 'Error');
+                return;
+            }
+
+            const tipoDocumento = esDNI ? 'DNI' : 'RUC';
+            const tipoPersona = esDNI ? 'cliente_natural' : 'cliente_juridico';
+
+            const personaData: Omit<Persona, 'id_persona' | 'historial'> = {
+                id_empresa,
+                tipo_persona: tipoPersona,
+                tipo_documento: tipoDocumento,
+                numero_documento: documento,
+                razon_social: esRUC ? 'CLIENTE GENÉRICO' : null,
+                nombre: esDNI ? 'CLIENTE GENÉRICO' : null,
+                apellido: esDNI ? '' : null,
+                email: '',
+                celular: '000000000',
+                estado: true
+            };
+
+            const nuevaPersona = await personaApi.create(personaData);
+
+            if (nuevaPersona) {
+                setClienteSeleccionado(nuevaPersona);
+                const nombreCompleto = esDNI
+                    ? `${nuevaPersona.nombre || 'CLIENTE GENÉRICO'} ${nuevaPersona.apellido || ''}`.trim()
+                    : nuevaPersona.razon_social || 'CLIENTE GENÉRICO';
+
+                setCurrentVenta(prev => ({
+                    ...prev,
+                    cliente: {
+                        nombre: nombreCompleto,
+                        documento: nuevaPersona.numero_documento
+                    }
+                }));
+
+                showToast(`Cliente registrado automáticamente: ${nombreCompleto}`, 'success', 'Cliente registrado');
+            }
+        } catch (error) {
+            console.error('[NewSaleModal] Error al registrar cliente:', error);
+            showToast('Error al registrar el cliente automáticamente', 'error', 'Error');
+        }
+    };
+
+    const cargarClienteVarios = () => {
+        setCurrentVenta(prev => ({
+            ...prev,
+            cliente: {
+                nombre: CLIENTE_VARIOS_NOMBRE,
+                documento: CLIENTE_VARIOS_DOCUMENTO
+            }
+        }));
+        setClienteSeleccionado(null);
+        showToast('Cliente VARIOS cargado', 'info', 'Cliente cargado');
     };
 
     const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -400,7 +503,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
                 cliente_nombre: clienteNombre,
                 cliente_apellido: '',
                 cliente_email: '',
-                cliente_celular: '',
+                cliente_celular: '000000000',
                 productos: productosParaAPI,
                 subtotal: currentVenta.subtotal,
                 descuento: currentVenta.componentes.descuento.activo ? currentVenta.componentes.descuento.valor : 0,
@@ -420,20 +523,12 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
             generarPDF(nuevaVenta, tipoComprobante);
             showToast(`Venta ${nuevaVenta.numero} registrada y comprobante generado`, "success", "Venta registrada");
 
-            setCurrentVenta({
-                id_empresa,
-                cliente: { nombre: "", documento: "" },
-                productos: [],
-                componentes: {
-                    descuento: { activo: false, tipo: 'porcentaje', valor: 0 },
-                    cupon: { activo: false, codigo: "", valor: 0 }
-                },
-                metodoPago: { tipo: 'efectivo', monto: 0, vuelto: 0 },
-                subtotal: 0, igv: 0, total: 0
-            });
+            resetForm();
             setProductosDisponibles(catalogoProductos.filter(p => p.stock > 0 && productoVigente(p)));
             setSelectedProductId(null);
             setMontoPago(0);
+            setClienteSeleccionado(null);
+            setDocumentoBuscado('');
             const productSelect = document.getElementById('productoSelect') as HTMLSelectElement;
             if (productSelect) productSelect.value = '';
             const cantidadInput = document.getElementById('cantidadProd') as HTMLInputElement;
@@ -488,264 +583,314 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose, onS
         </>
     );
 
+    const mostrarBotonVarios = !clienteSeleccionado && !currentVenta.cliente.documento;
+
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Nueva Venta" icon="fa-shopping-cart" footer={modalFooter}>
-            <div className="split-layout">
-                <div className="split-left">
-                    {/* Fase 1: Cliente */}
-                    <div className="fase">
-                        <div className="fase-header" onClick={() => toggleFase(1)}>
-                            <span><i className="fas fa-user"></i> Fase 1: Datos del Cliente</span>
-                            <i className="fas fa-chevron-down"></i>
-                        </div>
-                        {fasesAbiertas[1] && (
-                            <div className="fase-body">
-                                <div className="dc-form-grid">
-                                    <div className="dc-input-group">
-                                        <label>Documento (DNI/RUC):</label>
-                                        <input
-                                            type="text"
-                                            id="clienteDoc"
-                                            placeholder="Ingrese DNI o RUC"
-                                            onChange={(e) => buscarClientePorDocumento(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="dc-input-group">
-                                        <label>Nombre del Cliente:</label>
-                                        <input
-                                            type="text"
-                                            id="clienteNombre"
-                                            placeholder="Nombre completo"
-                                            onChange={(e) => {
-                                                setCurrentVenta(prev => ({
-                                                    ...prev,
-                                                    cliente: { ...prev.cliente, nombre: e.target.value }
-                                                }));
-                                            }}
-                                        />
-                                    </div>
-                                </div>
+        <>
+            <Modal isOpen={isOpen} onClose={onClose} title="Nueva Venta" icon="fa-shopping-cart" footer={modalFooter}>
+                <div className="split-layout">
+                    <div className="split-left">
+                        <div className="fase">
+                            <div className="fase-header" onClick={() => toggleFase(1)}>
+                                <span><i className="fas fa-user"></i> Fase 1: Datos del Cliente</span>
+                                <i className="fas fa-chevron-down"></i>
                             </div>
-                        )}
-                    </div>
-
-                    {/* Fase 2: Productos */}
-                    <div className="fase">
-                        <div className="fase-header" onClick={() => toggleFase(2)}>
-                            <span><i className="fas fa-boxes"></i> Fase 2: Productos</span>
-                            <i className="fas fa-chevron-down"></i>
-                        </div>
-                        {fasesAbiertas[2] && (
-                            <div className="fase-body">
-                                <div className="dc-form-grid">
-                                    <div className="dc-input-group">
-                                        <label>Producto (Lote):</label>
-                                        <select id="productoSelect" onChange={handleProductChange} value={selectedProductId ?? ''}>
-                                            <option value="">Seleccionar producto...</option>
-                                            {productosDisponibles.map(p => (
-                                                <option key={p.id} value={p.id}>
-                                                    {p.nombre} - S/ {p.precio.toFixed(2)} (Stock: {p.stock})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="dc-input-group">
-                                        <label>Cantidad:</label>
-                                        <input
-                                            type="number"
-                                            id="cantidadProd"
-                                            defaultValue="1"
-                                            min="1"
-                                            max="999"
-                                            placeholder="Cantidad"
-                                        />
-                                    </div>
-                                    <button className="dc-btn info" onClick={agregarProducto}>
-                                        <i className="fas fa-plus"></i> Agregar
-                                    </button>
-                                </div>
-                                <div className="dc-table-wrapper">
-                                    <table className="dc-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Producto</th>
-                                                <th>Cantidad</th>
-                                                <th>Precio Unit.</th>
-                                                <th>Subtotal</th>
-                                                <th></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {currentVenta.productos.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={5} className="text-center">No hay productos agregados</td>
-                                                </tr>
-                                            ) : (
-                                                currentVenta.productos.map((p) => (
-                                                    <tr key={p.id}>
-                                                        <td>{p.nombre}</td>
-                                                        <td>
-                                                            <input
-                                                                type="number"
-                                                                className="cantidad-input"
-                                                                min="1"
-                                                                value={p.cantidad}
-                                                                onChange={(e) => actualizarCantidad(
-                                                                    currentVenta.productos.findIndex(prod => prod.id === p.id),
-                                                                    e.target.value
-                                                                )}
-                                                            />
-                                                        </td>
-                                                        <td>S/ {p.precio.toFixed(2)}</td>
-                                                        <td>S/ {(p.cantidad * p.precio).toFixed(2)}</td>
-                                                        <td>
-                                                            <i className="fas fa-trash dc-eliminar" onClick={() => eliminarProducto(
-                                                                currentVenta.productos.findIndex(prod => prod.id === p.id)
-                                                            )}></i>
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Fase 3: Descuentos */}
-                    <div className="fase">
-                        <div className="fase-header" onClick={() => toggleFase(3)}>
-                            <span><i className="fas fa-tags"></i> Fase 3: Descuentos y Promociones</span>
-                            <i className="fas fa-chevron-down"></i>
-                        </div>
-                        {fasesAbiertas[3] && (
-                            <div className="fase-body">
-                                <div className="componentes-grid">
-                                    <div className="componente-card">
-                                        <div className="componente-header">
-                                            <strong>💰 Descuento</strong>
-                                            <div
-                                                className={`toggle-componente ${currentVenta.componentes.descuento.activo ? 'active' : ''}`}
-                                                onClick={() => toggleComponente('descuento')}
-                                            >
-                                                <div className='toggle-slider'></div>
-                                            </div>
-                                        </div>
-                                        {currentVenta.componentes.descuento.activo && (
-                                            <div className="dc-input-group dc-form-grid">
-                                                <select id="descTipo" onChange={actualizarDescuento} defaultValue={currentVenta.componentes.descuento.tipo}>
-                                                    <option value="porcentaje">% Porcentaje</option>
-                                                    <option value="monto">S/ Monto fijo</option>
-                                                </select>
-                                                <input type="number" id="descValor" placeholder="Valor" defaultValue={currentVenta.componentes.descuento.valor} onChange={actualizarDescuento} />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="componente-card">
-                                        <div className="componente-header">
-                                            <strong>🎫 Cupón</strong>
-                                            <div
-                                                className={`toggle-componente ${currentVenta.componentes.cupon.activo ? 'active' : ''}`}
-                                                onClick={() => toggleComponente('cupon')}
-                                            >
-                                                <div className='toggle-slider'></div>
-                                            </div>
-                                        </div>
-                                        {currentVenta.componentes.cupon.activo && (
-                                            <div className="dc-input-group">
-                                                <input type="text" id="cuponCodigo" placeholder="DESCUENTO10 o BIENVENIDO" onBlur={aplicarCupon} />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Fase 4: Método de Pago */}
-                    <div className="fase">
-                        <div className="fase-header" onClick={() => toggleFase(4)}>
-                            <span><i className="fas fa-credit-card"></i> Fase 4: Método de Pago</span>
-                            <i className="fas fa-chevron-down"></i>
-                        </div>
-                        {fasesAbiertas[4] && (
-                            <div className="fase-body">
-                                <div className="dc-form-grid">
-                                    <div className="metodos-pago">
-                                        {['efectivo', 'tarjeta', 'yape', 'plin'].map(m => (
-                                            <div
-                                                key={m}
-                                                className={`metodo-btn ${currentVenta.metodoPago.tipo === m ? 'selected' : ''}`}
-                                                onClick={() => seleccionarMetodo(m as any)}
-                                            >
-                                                <i className={`fas ${m === 'efectivo' ? 'fa-money-bill' : m === 'tarjeta' ? 'fa-credit-card' : 'fa-mobile-alt'}`}></i> {m.toUpperCase()}
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div id="pagoDetalle" className="dc-input-group">
-                                        {currentVenta.metodoPago.tipo === 'efectivo' && (
-                                            <div>
-                                                <label>Monto con el que paga:</label>
+                            {fasesAbiertas[1] && (
+                                <div className="fase-body">
+                                    <div className="dc-form-grid">
+                                        <div className="dc-input-group">
+                                            <label>Documento (DNI/RUC):</label>
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                                 <input
-                                                    type="number"
-                                                    id="montoPago"
-                                                    placeholder="S/ "
-                                                    onChange={handleMontoPagoChange}
+                                                    type="text"
+                                                    id="clienteDoc"
+                                                    placeholder="Ingrese DNI o RUC"
+                                                    value={currentVenta.cliente.documento}
+                                                    onChange={(e) => {
+                                                        const valor = e.target.value;
+                                                        setCurrentVenta(prev => ({
+                                                            ...prev,
+                                                            cliente: { ...prev.cliente, documento: valor }
+                                                        }));
+                                                        if (valor.length === 8 || valor.length === 11) {
+                                                            buscarClientePorDocumento(valor);
+                                                        }
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            const valor = (e.target as HTMLInputElement).value;
+                                                            if (valor.length === 8 || valor.length === 11) {
+                                                                buscarClientePorDocumento(valor);
+                                                            } else {
+                                                                showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos)', 'warning', 'Formato inválido');
+                                                            }
+                                                        }
+                                                    }}
+                                                    disabled={isSearching}
                                                 />
-                                                {montoPago > 0 && montoPago < currentVenta.total && (
-                                                    <div style={{ color: 'red', fontSize: '0.8rem' }}>
-                                                        El monto debe ser mayor o igual al total (S/ {currentVenta.total.toFixed(2)})
-                                                    </div>
+                                                {mostrarBotonVarios && (
+                                                    <button
+                                                        className="dc-btn secondary"
+                                                        onClick={cargarClienteVarios}
+                                                        style={{ padding: '8px 12px' }}
+                                                    >
+                                                        <i className="fas fa-users"></i> Varios
+                                                    </button>
                                                 )}
                                             </div>
-                                        )}
-                                        {currentVenta.metodoPago.tipo === 'yape' && (
-                                            <div className="qr-container">
-                                                <i className="fab fa-yape"></i>
-                                                <p><strong>Yape</strong> - Número: 999 888 777</p>
+                                        </div>
+                                        <div className="dc-input-group">
+                                            <label>Nombre del Cliente:</label>
+                                            <input
+                                                type="text"
+                                                id="clienteNombre"
+                                                placeholder="Nombre completo"
+                                                value={currentVenta.cliente.nombre}
+                                                onChange={(e) => {
+                                                    setCurrentVenta(prev => ({
+                                                        ...prev,
+                                                        cliente: { ...prev.cliente, nombre: e.target.value }
+                                                    }));
+                                                }}
+                                                readOnly={!!clienteSeleccionado}
+                                            />
+                                        </div>
+                                        {isSearching && (
+                                            <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                                                <i className="fas fa-spinner fa-spin"></i> Buscando cliente...
                                             </div>
                                         )}
-                                        {currentVenta.metodoPago.tipo === 'plin' && (
-                                            <div className="qr-container">
-                                                <i className="fas fa-mobile-alt"></i>
-                                                <p><strong>Plin</strong> - Número: 999 888 777</p>
+                                        {clienteSeleccionado && (
+                                            <div style={{ fontSize: '0.8rem', color: '#2e7d32' }}>
+                                                <i className="fas fa-check-circle"></i> Cliente seleccionado: {currentVenta.cliente.nombre}
                                             </div>
                                         )}
                                     </div>
                                 </div>
+                            )}
+                        </div>
+
+                        <div className="fase">
+                            <div className="fase-header" onClick={() => toggleFase(2)}>
+                                <span><i className="fas fa-boxes"></i> Fase 2: Productos</span>
+                                <i className="fas fa-chevron-down"></i>
                             </div>
-                        )}
+                            {fasesAbiertas[2] && (
+                                <div className="fase-body">
+                                    <div className="dc-form-grid">
+                                        <div className="dc-input-group">
+                                            <label>Producto (Lote):</label>
+                                            <select id="productoSelect" onChange={handleProductChange} value={selectedProductId ?? ''}>
+                                                <option value="">Seleccionar producto...</option>
+                                                {productosDisponibles.map(p => (
+                                                    <option key={p.id} value={p.id}>
+                                                        {p.nombre} - S/ {p.precio.toFixed(2)} (Stock: {p.stock})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="dc-input-group">
+                                            <label>Cantidad:</label>
+                                            <input
+                                                type="number"
+                                                id="cantidadProd"
+                                                defaultValue="1"
+                                                min="1"
+                                                max="999"
+                                                placeholder="Cantidad"
+                                            />
+                                        </div>
+                                        <button className="dc-btn info" onClick={agregarProducto}>
+                                            <i className="fas fa-plus"></i> Agregar
+                                        </button>
+                                    </div>
+                                    <div className="dc-table-wrapper">
+                                        <table className="dc-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Producto</th>
+                                                    <th>Cantidad</th>
+                                                    <th>Precio Unit.</th>
+                                                    <th>Subtotal</th>
+                                                    <th></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {currentVenta.productos.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="text-center">No hay productos agregados</td>
+                                                    </tr>
+                                                ) : (
+                                                    currentVenta.productos.map((p, index) => (
+                                                        <tr key={p.id}>
+                                                            <td>{p.nombre}</td>
+                                                            <td>
+                                                                <input
+                                                                    type="number"
+                                                                    className="cantidad-input"
+                                                                    min="1"
+                                                                    value={p.cantidad}
+                                                                    onChange={(e) => actualizarCantidad(index, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td>S/ {p.precio.toFixed(2)}</td>
+                                                            <td>S/ {(p.cantidad * p.precio).toFixed(2)}</td>
+                                                            <td>
+                                                                <i className="fas fa-trash dc-eliminar" onClick={() => eliminarProducto(index)}></i>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="fase">
+                            <div className="fase-header" onClick={() => toggleFase(3)}>
+                                <span><i className="fas fa-tags"></i> Fase 3: Descuentos y Promociones</span>
+                                <i className="fas fa-chevron-down"></i>
+                            </div>
+                            {fasesAbiertas[3] && (
+                                <div className="fase-body">
+                                    <div className="componentes-grid">
+                                        <div className="componente-card">
+                                            <div className="componente-header">
+                                                <strong>💰 Descuento</strong>
+                                                <div
+                                                    className={`toggle-componente ${currentVenta.componentes.descuento.activo ? 'active' : ''}`}
+                                                    onClick={() => toggleComponente('descuento')}
+                                                >
+                                                    <div className='toggle-slider'></div>
+                                                </div>
+                                            </div>
+                                            {currentVenta.componentes.descuento.activo && (
+                                                <div className="dc-input-group dc-form-grid">
+                                                    <select id="descTipo" onChange={actualizarDescuento} defaultValue={currentVenta.componentes.descuento.tipo}>
+                                                        <option value="porcentaje">% Porcentaje</option>
+                                                        <option value="monto">S/ Monto fijo</option>
+                                                    </select>
+                                                    <input type="number" id="descValor" placeholder="Valor" defaultValue={currentVenta.componentes.descuento.valor} onChange={actualizarDescuento} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="componente-card">
+                                            <div className="componente-header">
+                                                <strong>🎫 Cupón</strong>
+                                                <div
+                                                    className={`toggle-componente ${currentVenta.componentes.cupon.activo ? 'active' : ''}`}
+                                                    onClick={() => toggleComponente('cupon')}
+                                                >
+                                                    <div className='toggle-slider'></div>
+                                                </div>
+                                            </div>
+                                            {currentVenta.componentes.cupon.activo && (
+                                                <div className="dc-input-group">
+                                                    <input type="text" id="cuponCodigo" placeholder="DESCUENTO10 o BIENVENIDO" onBlur={aplicarCupon} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="fase">
+                            <div className="fase-header" onClick={() => toggleFase(4)}>
+                                <span><i className="fas fa-credit-card"></i> Fase 4: Método de Pago</span>
+                                <i className="fas fa-chevron-down"></i>
+                            </div>
+                            {fasesAbiertas[4] && (
+                                <div className="fase-body">
+                                    <div className="dc-form-grid">
+                                        <div className="metodos-pago">
+                                            {['efectivo', 'tarjeta', 'yape', 'plin'].map(m => (
+                                                <div
+                                                    key={m}
+                                                    className={`metodo-btn ${currentVenta.metodoPago.tipo === m ? 'selected' : ''}`}
+                                                    onClick={() => seleccionarMetodo(m as any)}
+                                                >
+                                                    <i className={`fas ${m === 'efectivo' ? 'fa-money-bill' : m === 'tarjeta' ? 'fa-credit-card' : 'fa-mobile-alt'}`}></i> {m.toUpperCase()}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div id="pagoDetalle" className="dc-input-group">
+                                            {currentVenta.metodoPago.tipo === 'efectivo' && (
+                                                <div>
+                                                    <label>Monto con el que paga:</label>
+                                                    <input
+                                                        type="number"
+                                                        id="montoPago"
+                                                        placeholder="S/ "
+                                                        onChange={handleMontoPagoChange}
+                                                    />
+                                                    {montoPago > 0 && montoPago < currentVenta.total && (
+                                                        <div style={{ color: 'red', fontSize: '0.8rem' }}>
+                                                            El monto debe ser mayor o igual al total (S/ {currentVenta.total.toFixed(2)})
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {currentVenta.metodoPago.tipo === 'yape' && (
+                                                <div className="qr-container">
+                                                    <i className="fab fa-yape"></i>
+                                                    <p><strong>Yape</strong> - Número: 999 888 777</p>
+                                                </div>
+                                            )}
+                                            {currentVenta.metodoPago.tipo === 'plin' && (
+                                                <div className="qr-container">
+                                                    <i className="fas fa-mobile-alt"></i>
+                                                    <p><strong>Plin</strong> - Número: 999 888 777</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="totales">
+                            <div className="total-line">
+                                Subtotal: <span>S/ {currentVenta.subtotal.toFixed(2)}</span>
+                            </div>
+                            <div className="total-line">
+                                Descuento: <span>S/ {(currentVenta.componentes.descuento.activo ? currentVenta.componentes.descuento.valor : 0).toFixed(2)}</span>
+                            </div>
+                            <div className="total-line">
+                                IGV (18%): <span>S/ {currentVenta.igv.toFixed(2)}</span>
+                            </div>
+                            <div className="total-line total-grande">
+                                TOTAL: <span>S/ {currentVenta.total.toFixed(2)}</span>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Totales */}
-                    <div className="totales">
-                        <div className="total-line">
-                            Subtotal: <span>S/ {currentVenta.subtotal.toFixed(2)}</span>
+                    <div className="split-right">
+                        <div className="dc-input-group" style={{ marginBottom: "15px" }}>
+                            <label><strong>Tipo de comprobante:</strong></label>
+                            <select id="tipoComprobantePreview" value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value as any)}>
+                                <option value="ticket">Ticket</option>
+                                <option value="factura">Factura Electrónica</option>
+                            </select>
                         </div>
-                        <div className="total-line">
-                            Descuento: <span>S/ {(currentVenta.componentes.descuento.activo ? currentVenta.componentes.descuento.valor : 0).toFixed(2)}</span>
-                        </div>
-                        <div className="total-line">
-                            IGV (18%): <span>S/ {currentVenta.igv.toFixed(2)}</span>
-                        </div>
-                        <div className="total-line total-grande">
-                            TOTAL: <span>S/ {currentVenta.total.toFixed(2)}</span>
-                        </div>
+                        <div id="vistaPreviaContenido" dangerouslySetInnerHTML={{ __html: generarVistaPreviaHTML(ventaPreview, tipoComprobante) }} />
                     </div>
                 </div>
+            </Modal>
 
-                <div className="split-right">
-                    <div className="dc-input-group" style={{ marginBottom: "15px" }}>
-                        <label><strong>Tipo de comprobante:</strong></label>
-                        <select id="tipoComprobantePreview" value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value as any)}>
-                            <option value="ticket">Ticket</option>
-                            <option value="factura">Factura Electrónica</option>
-                        </select>
-                    </div>
-                    <div id="vistaPreviaContenido" dangerouslySetInnerHTML={{ __html: generarVistaPreviaHTML(ventaPreview, tipoComprobante) }} />
-                </div>
-            </div>
-        </Modal>
+            <ConfirmModal
+                isOpen={confirmModalOpen}
+                onClose={cancelarRegistroAutomatico}
+                onConfirm={confirmarRegistroAutomatico}
+                title="Cliente no encontrado"
+                message={`No se encontró un cliente con el documento ${documentoPendiente}. ¿Desea registrarlo automáticamente como nuevo cliente?`}
+                confirmText="Sí, registrar"
+                cancelText="Cancelar"
+                confirmVariant="success"
+                icon="fa-user-plus"
+            />
+        </>
     );
 };

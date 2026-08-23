@@ -4,11 +4,13 @@ import {
     getPersonaById,
     createPersona,
     updatePersona,
-    deletePersona
+    deletePersona,
+    searchPersonaByDocumento
 } from '../../controllers/personaController';
 
 const router = Router();
 
+router.get('/search', searchPersonaByDocumento);
 router.get('/', getPersonas);
 router.get('/:id', getPersonaById);
 router.post('/', createPersona);

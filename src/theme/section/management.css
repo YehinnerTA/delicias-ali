@@ -596,6 +596,47 @@
     opacity: 0;
 }
 
+/* Tamaños de modal */
+.dc-modal-sm {
+    max-width: 400px;
+    width: 90%;
+}
+
+.dc-modal-md {
+    max-width: 600px;
+    width: 90%;
+}
+
+.dc-modal-lg {
+    max-width: 800px;
+    width: 90%;
+}
+
+.dc-modal-xl {
+    max-width: 1100px;
+    width: 90%;
+}
+
+/* Estilos adicionales para el botón secondary (si no existe) */
+.dc-btn.secondary {
+    background: #6c757d;
+    color: white;
+    border: none;
+}
+
+.dc-btn.secondary:hover {
+    background: #5a6268;
+}
+
+.dc-btn.warning {
+    background: #ffc107;
+    color: #212529;
+    border: none;
+}
+
+.dc-btn.warning:hover {
+    background: #e0a800;
+}
 
 .dc-modal-footer {
     padding: 1rem 1.8rem 1.5rem;

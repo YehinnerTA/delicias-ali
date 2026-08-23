@@ -18,6 +18,34 @@ export const getPersonas = async (req: Request, res: Response) => {
     }
 };
 
+export const searchPersonaByDocumento = async (req: Request, res: Response) => {
+    try {
+        const { numero, id_empresa } = req.query;
+
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        if (!numero) {
+            return res.status(400).json({ message: 'numero de documento es requerido' });
+        }
+
+        const row = await executeQuerySingle(
+            'SELECT * FROM personas WHERE numero_documento = ? AND id_empresa = ?',
+            [numero, id_empresa]
+        );
+
+        if (!row) {
+            return res.status(404).json({ message: 'Persona no encontrada' });
+        }
+
+        res.json(row);
+    } catch (error) {
+        console.error('[searchPersonaByDocumento] Error:', error);
+        res.status(500).json({ message: 'Error al buscar persona', error });
+    }
+};
+
 export const getPersonaById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;

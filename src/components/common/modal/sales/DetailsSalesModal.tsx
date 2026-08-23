@@ -4,6 +4,18 @@ import { Venta, HistorialEntry } from '../../../../features/types/sales';
 import { historialApi } from '../../../../services/api/historialApi';
 import { useToast } from '../../../../hooks/base/useToast';
 
+const formatLocalDateTime = (isoString: string): string => {
+    if (!isoString) return '-';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const año = date.getFullYear();
+    const horas = String(date.getHours()).padStart(2, '0');
+    const minutos = String(date.getMinutes()).padStart(2, '0');
+    return `${dia}/${mes}/${año} || ${horas}:${minutos}`;
+};
+
 interface DetalleVentaModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -48,7 +60,7 @@ export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, on
     ));
 
     const devHtml = (venta.devoluciones || []).map((d, idx) => (
-        <div key={idx} className="devolucion-card">   {/* ← CORREGIDO: usar idx */}
+        <div key={idx} className="devolucion-card">
             <small>{d.fecha}</small><br />
             <strong>NC: {d.notaCredito}</strong><br />
             Monto: S/ {d.monto.toFixed(2)}<br />
@@ -58,9 +70,9 @@ export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, on
     ));
 
     const histHtml = (historial.length > 0 ? historial : venta.historial || []).map((h, idx) => (
-        <div key={idx} className="dc-history-entry">   {/* ← CORREGIDO: usar idx */}
+        <div key={idx} className="dc-history-entry">
             <div>
-                <span className="dc-history-date">{h.fecha}</span>
+                <span className="dc-history-date">{formatLocalDateTime(h.fecha)}</span>
                 <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
             </div>
             <div className="dc-history-action">{h.accion}</div>
@@ -70,7 +82,6 @@ export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, on
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Detalle de Venta - ${venta.numero}`} icon="fa-receipt">
-            {/* Tabs internos */}
             <div className="dc-tabs">
                 <button
                     className={`dc-tab-btn ${activeTab === 'detalle' ? 'active' : ''}`}
@@ -98,7 +109,7 @@ export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, on
                                 </div>
                                 <div className="dc-info-item">
                                     <div className="dc-info-label">Fecha</div>
-                                    <div className="dc-info-value">{venta.fecha}</div>
+                                    <div className="dc-info-value">{formatLocalDateTime(venta.fecha)}</div>
                                 </div>
                                 <div className="dc-info-item">
                                     <div className="dc-info-label">Cliente</div>

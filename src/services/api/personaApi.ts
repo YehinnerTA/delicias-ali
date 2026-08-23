@@ -25,6 +25,23 @@ export const personaApi = {
         return data.map(mapToFrontend);
     },
 
+    searchByDocumento: async (id_empresa: number, numero_documento: string): Promise<Persona | null> => {
+        try {
+            const res = await fetch(`${API_URL}/personas/search?numero=${numero_documento}&id_empresa=${id_empresa}`);
+            if (res.status === 404) {
+                return null;
+            }
+            if (!res.ok) {
+                throw new Error('Error al buscar persona');
+            }
+            const data = await res.json();
+            return mapToFrontend(data);
+        } catch (error) {
+            console.error('[personaApi.searchByDocumento] Error:', error);
+            throw error;
+        }
+    },
+
     create: async (persona: Omit<Persona, 'id_persona' | 'historial'>): Promise<Persona> => {
         const res = await fetch(`${API_URL}/personas`, {
             method: 'POST',

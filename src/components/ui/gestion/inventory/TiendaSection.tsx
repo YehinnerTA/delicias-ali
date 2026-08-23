@@ -335,9 +335,6 @@ export const PasteleriaSection: React.FC = () => {
         }
     };
 
-    // ============================================================
-    // CARGA MASIVA MANUAL
-    // ============================================================
     const handleAddBulkRow = () => {
         setBulkRows(prev => [...prev, {
             id: crypto.randomUUID(),
@@ -382,7 +379,6 @@ export const PasteleriaSection: React.FC = () => {
         let lotesErrors: any[] = [];
 
         try {
-            // 1. Crear postres en bulk
             const postresPayload = {
                 items: bulkRows.map(row => ({
                     nombre: row.nombre.trim(),
@@ -399,7 +395,6 @@ export const PasteleriaSection: React.FC = () => {
             postresSuccess = postresResult.success || [];
             postresErrors = postresResult.errors || [];
 
-            // 2. Si hay postres creados, construir y enviar lotes
             if (postresSuccess.length > 0) {
                 const lotesItems: {
                     postre_id: number;
@@ -436,13 +431,11 @@ export const PasteleriaSection: React.FC = () => {
                 }
             }
 
-            // 3. Recargar datos
             if (postresSuccess.length > 0) {
                 const updatedPostres = await postreApi.getAll(empresaId);
                 setPostresItems(updatedPostres);
             }
 
-            // 4. Mostrar resumen
             const totalExitosos = postresSuccess.length;
             const totalErrores = postresErrors.length + lotesErrors.length;
 
@@ -508,7 +501,6 @@ export const PasteleriaSection: React.FC = () => {
                         return;
                     }
 
-                    // 1. Crear postres
                     const postresPayload = {
                         items: items.map(item => ({
                             ...item,
@@ -522,7 +514,6 @@ export const PasteleriaSection: React.FC = () => {
                     const postresSuccess = postresResult.success || [];
                     const postresErrors = postresResult.errors || [];
 
-                    // 2. Crear lotes
                     let lotesErrors: any[] = [];
                     if (postresSuccess.length > 0) {
                         const lotesItems: {
@@ -560,13 +551,11 @@ export const PasteleriaSection: React.FC = () => {
                         }
                     }
 
-                    // 3. Recargar datos
                     if (postresSuccess.length > 0) {
                         const updatedPostres = await postreApi.getAll(empresaId);
                         setPostresItems(updatedPostres);
                     }
 
-                    // 4. Mostrar resumen
                     const totalExitosos = postresSuccess.length;
                     const totalErrores = postresErrors.length + lotesErrors.length;
 
@@ -909,7 +898,6 @@ export const PasteleriaSection: React.FC = () => {
 
                 <ActivityLog logs={tiendaActivityLogs} title="Actividad reciente · Postres" />
 
-                {/* Modal de creación individual */}
                 <Modal
                     isOpen={isCreateModalOpen}
                     onClose={() => {
@@ -973,7 +961,6 @@ export const PasteleriaSection: React.FC = () => {
                     </div>
                 </Modal>
 
-                {/* Modal de carga masiva */}
                 <Modal
                     isOpen={bulkModalOpen}
                     onClose={() => {

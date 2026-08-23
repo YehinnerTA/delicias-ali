@@ -7,6 +7,18 @@ import { useToast } from '../../../../hooks/base/useToast';
 import { Venta } from '../../../../features/types/sales';
 import { generarPDFNotaCredito } from '../../../../services/pdf/pdfService';
 
+const formatLocalDateTime = (isoString: string): string => {
+    if (!isoString) return '-';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const año = date.getFullYear();
+    const horas = String(date.getHours()).padStart(2, '0');
+    const minutos = String(date.getMinutes()).padStart(2, '0');
+    return `${dia}/${mes}/${año} || ${horas}:${minutos}`;
+};
+
 interface DevolucionModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -210,7 +222,7 @@ export const DevolucionModal: React.FC<DevolucionModalProps> = ({ isOpen, onClos
                     <h4>Devoluciones previas</h4>
                     {devolucionesPrevias.map((d, idx) => (
                         <div key={idx} className="devolucion-card">
-                            <small>{d.fecha}</small><br />
+                            <small>{formatLocalDateTime(d.fecha)}</small><br />
                             <strong>NC: {d.notaCredito}</strong><br />
                             Monto: S/ {d.monto.toFixed(2)}<br />
                             Motivo: {d.motivo}<br />
