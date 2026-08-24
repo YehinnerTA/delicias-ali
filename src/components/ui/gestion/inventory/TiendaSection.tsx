@@ -44,7 +44,6 @@ const getTodayLocal = (): string => {
     return `${y}-${m}-${d}`;
 };
 
-
 const formatearFecha = (fecha: string): string => {
     if (!fecha) return '-';
     const fechaStr = fecha.includes('T') ? fecha.split('T')[0] : fecha;
