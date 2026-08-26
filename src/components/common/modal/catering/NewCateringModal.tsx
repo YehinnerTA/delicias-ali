@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
+import { ConfirmModal } from '../confirmModal';
 import { useCateringService } from '../../../../context/CateringContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { useToast } from '../../../../hooks/base/useToast';
-import { ServicioCatering, MaterialVenta, ProductoVenta, ProductoCarta, CANTIDAD_MINIMA_PRODUCTOS } from '../../../../features/types/catering';
+import { ServicioCatering, MaterialVenta, ProductoVenta, VentaTemporal, ProductoCarta, CANTIDAD_MINIMA_PRODUCTOS } from '../../../../features/types/catering';
 import { generarVistaPreviaHTML, generarPDF } from '../../../../services/pdf/pdfService';
+import { personaApi } from '../../../../services/api/personaApi';
+import { Persona } from '../../../../features/types/person';
 
 interface NewCateringModalProps {
     isOpen: boolean;
@@ -13,23 +16,26 @@ interface NewCateringModalProps {
     onSuccess: () => void;
 }
 
-interface VentaTemporal {
-    id_empresa: number;
-    cliente: { nombre: string; documento: string };
-    servicios: ServicioCatering[];
-    materiales: MaterialVenta[];
-    eventoData: { fecha: string; horario: string; personas: number; tipoDesayuno: string };
-    descuentoActivo: boolean;
-    descuentoTipo: 'porcentaje' | 'monto';
-    descuentoValor: number;
-    cuponActivo: boolean;
-    cuponCodigo: string;
-    cuponValor: number;
-    metodoPago: string;
-    subtotal: number;
-    igv: number;
-    total: number;
-}
+const formatLocalDateTime = (isoString: string): string => {
+    if (!isoString) return '-';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const año = date.getFullYear();
+    const horas = String(date.getHours()).padStart(2, '0');
+    const minutos = String(date.getMinutes()).padStart(2, '0');
+    return `${dia}/${mes}/${año} || ${horas}:${minutos}`;
+};
+
+const separarFechaHora = (fechaHora: string): { fecha: string; horario: string } => {
+    if (!fechaHora) return { fecha: '', horario: '' };
+    const [fecha, horario] = fechaHora.split('T');
+    return {
+        fecha: fecha || '',
+        horario: horario ? horario.substring(0, 5) : ''
+    };
+};
 
 export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onClose, onSuccess }) => {
     const { serviciosDisponibles, catalogoMateriales, addActivity, addToHistory, getNextNumeroVenta, refreshData } = useCateringService();
@@ -38,12 +44,15 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
     const id_empresa = getSelectedCompanyId() ?? 0;
     const { showToast } = useToast();
 
-    const [currentVenta, setCurrentVenta] = useState<VentaTemporal>({
+    const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+    const [documentoPendiente, setDocumentoPendiente] = useState<string>('');
+
+    const getInitialVenta = (): VentaTemporal => ({
         id_empresa,
         cliente: { nombre: "", documento: "" },
         servicios: [],
         materiales: [],
-        eventoData: { fecha: "", horario: "12:00", personas: 1, tipoDesayuno: "Clásico" },
+        eventoData: { fechaHora: "", personas: 1, tipoDesayuno: "Clásico" },
         descuentoActivo: false,
         descuentoTipo: 'porcentaje',
         descuentoValor: 0,
@@ -54,12 +63,26 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         subtotal: 0, igv: 0, total: 0
     });
 
+    const [currentVenta, setCurrentVenta] = useState<VentaTemporal>(getInitialVenta());
+
     const [tipoComprobante, setTipoComprobante] = useState<'ticket' | 'factura'>('ticket');
     const [fasesAbiertas, setFasesAbiertas] = useState<{ [key: number]: boolean }>({ 1: true, 2: false, 3: false, 4: false, 5: false, 6: false });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const [clienteSeleccionado, setClienteSeleccionado] = useState<Persona | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+
+    const CLIENTE_VARIOS_DOCUMENTO = '00000000';
+    const CLIENTE_VARIOS_NOMBRE = 'VARIOS';
+
     const toggleFase = (fase: number) => {
         setFasesAbiertas(prev => ({ ...prev, [fase]: !prev[fase] }));
+    };
+
+    const resetForm = () => {
+        setCurrentVenta(getInitialVenta());
+        setClienteSeleccionado(null);
+        setConfirmModalOpen(false);
     };
 
     const calcularTotales = () => {
@@ -92,6 +115,142 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         calcularTotales();
     }, [currentVenta.servicios, currentVenta.materiales, currentVenta.descuentoActivo,
     currentVenta.descuentoValor, currentVenta.descuentoTipo, currentVenta.cuponActivo, currentVenta.cuponValor]);
+
+    useEffect(() => {
+        if (isOpen) {
+            resetForm();
+        }
+    }, [isOpen]);
+
+    const buscarClientePorDocumento = async (documento: string) => {
+        if (!documento || documento.length < 8) {
+            setClienteSeleccionado(null);
+            setCurrentVenta(prev => ({
+                ...prev,
+                cliente: { nombre: '', documento: '' }
+            }));
+            return;
+        }
+
+        const esDNI = /^\d{8}$/.test(documento);
+        const esRUC = /^\d{11}$/.test(documento);
+
+        if (!esDNI && !esRUC) {
+            showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos)', 'warning', 'Formato inválido');
+            return;
+        }
+
+        setIsSearching(true);
+
+        try {
+            const persona = await personaApi.searchByDocumento(id_empresa, documento);
+
+            if (persona) {
+                setClienteSeleccionado(persona);
+                const nombreCompleto = persona.tipo_documento === 'DNI'
+                    ? `${persona.nombre || ''} ${persona.apellido || ''}`.trim()
+                    : persona.razon_social || persona.nombre || '';
+
+                setCurrentVenta(prev => ({
+                    ...prev,
+                    cliente: { nombre: nombreCompleto, documento: persona.numero_documento }
+                }));
+
+                showToast(`Cliente encontrado: ${nombreCompleto}`, 'success', 'Cliente encontrado');
+            } else {
+                setClienteSeleccionado(null);
+                setCurrentVenta(prev => ({
+                    ...prev,
+                    cliente: { nombre: '', documento }
+                }));
+
+                setDocumentoPendiente(documento);
+                setConfirmModalOpen(true);
+            }
+        } catch (error) {
+            showToast('Error al buscar el cliente', 'error', 'Error');
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const confirmarRegistroAutomatico = async () => {
+        if (documentoPendiente) {
+            await registrarClienteAutomatico(documentoPendiente);
+            setDocumentoPendiente('');
+            setConfirmModalOpen(false);
+        }
+    };
+
+    const cancelarRegistroAutomatico = () => {
+        setDocumentoPendiente('');
+        setConfirmModalOpen(false);
+        setCurrentVenta(prev => ({
+            ...prev,
+            cliente: { nombre: '', documento: '' }
+        }));
+    };
+
+    const registrarClienteAutomatico = async (documento: string) => {
+        try {
+            const esDNI = /^\d{8}$/.test(documento);
+            const esRUC = /^\d{11}$/.test(documento);
+
+            if (!esDNI && !esRUC) {
+                showToast('Documento inválido para registro', 'error', 'Error');
+                return;
+            }
+
+            const tipoDocumento = esDNI ? 'DNI' : 'RUC';
+            const tipoPersona = esDNI ? 'cliente_natural' : 'cliente_juridico';
+
+            const personaData: Omit<Persona, 'id_persona' | 'historial'> = {
+                id_empresa,
+                tipo_persona: tipoPersona,
+                tipo_documento: tipoDocumento,
+                numero_documento: documento,
+                razon_social: esRUC ? 'CLIENTE GENÉRICO' : null,
+                nombre: esDNI ? 'CLIENTE GENÉRICO' : null,
+                apellido: esDNI ? '' : null,
+                email: '',
+                celular: '000000000',
+                estado: true
+            };
+
+            const nuevaPersona = await personaApi.create(personaData);
+
+            if (nuevaPersona) {
+                setClienteSeleccionado(nuevaPersona);
+                const nombreCompleto = esDNI
+                    ? `${nuevaPersona.nombre || 'CLIENTE GENÉRICO'} ${nuevaPersona.apellido || ''}`.trim()
+                    : nuevaPersona.razon_social || 'CLIENTE GENÉRICO';
+
+                setCurrentVenta(prev => ({
+                    ...prev,
+                    cliente: {
+                        nombre: nombreCompleto,
+                        documento: nuevaPersona.numero_documento
+                    }
+                }));
+
+                showToast(`Cliente registrado automáticamente: ${nombreCompleto}`, 'success', 'Cliente registrado');
+            }
+        } catch (error) {
+            showToast('Error al registrar el cliente automáticamente', 'error', 'Error');
+        }
+    };
+
+    const cargarClienteVarios = () => {
+        setCurrentVenta(prev => ({
+            ...prev,
+            cliente: {
+                nombre: CLIENTE_VARIOS_NOMBRE,
+                documento: CLIENTE_VARIOS_DOCUMENTO
+            }
+        }));
+        setClienteSeleccionado(null);
+        showToast('Cliente VARIOS cargado', 'info', 'Cliente cargado');
+    };
 
     const agregarNuevoServicio = () => {
         const select = document.getElementById('nuevoServicioSelect') as HTMLSelectElement;
@@ -353,11 +512,15 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
             return;
         }
 
-        const clienteNombre = (document.getElementById('clienteNombre') as HTMLInputElement)?.value.trim();
-        const clienteDoc = (document.getElementById('clienteDoc') as HTMLInputElement)?.value || "";
+        const clienteNombre = currentVenta.cliente.nombre?.trim() || '';
+        const clienteDoc = currentVenta.cliente.documento?.trim() || '';
 
         if (!clienteNombre) {
             showToast("Ingrese el nombre del cliente", "warning", "Campos incompletos");
+            return;
+        }
+        if (!clienteDoc) {
+            showToast("Ingrese el documento del cliente", "warning", "Campos incompletos");
             return;
         }
         if (currentVenta.servicios.length === 0 && currentVenta.materiales.length === 0) {
@@ -371,21 +534,18 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
             return;
         }
 
-        const eventoFecha = (document.getElementById('eventoFecha') as HTMLInputElement)?.value || "";
-        const eventoHorario = (document.getElementById('eventoHorario') as HTMLInputElement)?.value || "12:00";
-        const eventoPersonas = parseInt((document.getElementById('eventoPersonas') as HTMLInputElement)?.value) || 1;
-        const eventoTipoDesayuno = (document.getElementById('eventoTipoDesayuno') as HTMLSelectElement)?.value || "Clásico";
+        const { fecha, horario } = separarFechaHora(currentVenta.eventoData.fechaHora);
+        const eventoPersonas = currentVenta.eventoData.personas || 1;
+        const eventoTipoDesayuno = currentVenta.eventoData.tipoDesayuno || "Clásico";
 
         setIsSubmitting(true);
         try {
-            const numero = await getNextNumeroVenta();
-
             const payload = {
                 cliente_documento: clienteDoc,
                 cliente_nombre: clienteNombre,
                 cliente_apellido: '',
                 cliente_email: '',
-                cliente_celular: '',
+                cliente_celular: '000000000',
                 servicios: currentVenta.servicios.map(serv => ({
                     id_empresa: serv.id_empresa,
                     tipoKey: serv.tipoKey,
@@ -403,8 +563,8 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                     cantidad: m.cantidad
                 })),
                 eventoData: {
-                    fecha: eventoFecha,
-                    horario: eventoHorario,
+                    fecha: fecha,
+                    horario: horario,
                     personas: eventoPersonas,
                     tipoDesayuno: eventoTipoDesayuno
                 },
@@ -427,10 +587,10 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
             generarPDF(nuevaVenta as any, tipoComprobante);
             showToast(`Venta ${nuevaVenta.numero} registrada y PDF generado`, "success", "Venta registrada");
 
+            resetForm();
             onSuccess();
             onClose();
         } catch (error) {
-            console.error('[NewCateringModal] Error al registrar venta:', error);
             showToast('Error al registrar la venta', 'error', 'Error');
         } finally {
             setIsSubmitting(false);
@@ -439,7 +599,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
 
     const ventaPreview = {
         id_empresa,
-        cliente: (document.getElementById('clienteNombre') as HTMLInputElement)?.value || "Cliente",
+        cliente: currentVenta.cliente.nombre || "Cliente",
         servicios: currentVenta.servicios,
         materiales: currentVenta.materiales,
         subtotal: currentVenta.subtotal,
@@ -447,14 +607,6 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         igv: currentVenta.igv,
         total: currentVenta.total,
         numero: 'V-XXXXXX'
-    };
-
-    const actualizarPrevisualizacion = () => {
-        const previewDiv = document.getElementById('vistaPreviaContenido');
-        if (previewDiv) {
-            const tipo = (document.getElementById('tipoComprobantePreview') as HTMLSelectElement)?.value as 'ticket' | 'factura' || 'ticket';
-            previewDiv.innerHTML = generarVistaPreviaHTML(ventaPreview as any, tipo);
-        }
     };
 
     const renderServicios = () => {
@@ -628,226 +780,345 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         </>
     );
 
+    const mostrarBotonVarios = !clienteSeleccionado && !currentVenta.cliente.documento;
+
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Nueva Venta - Catering" icon="fa-shopping-cart" footer={modalFooter}>
-            <div className="split-layout">
-                <div className="split-left">
-                    {/* Fase 1: Datos del Cliente */}
-                    <div className="fase">
-                        <div className="fase-header" onClick={() => toggleFase(1)}>
-                            <span><i className="fas fa-user"></i>Fase 1: Datos del Cliente</span>
-                            <i className="fas fa-chevron-down"></i>
-                        </div>
-                        {fasesAbiertas[1] && (
-                            <div className="fase-body">
-                                <div className="dc-form-grid">
-                                    <div className="dc-input-group">
-                                        <label>Nombre del Cliente:</label>
-                                        <input type="text" id="clienteNombre" onChange={actualizarPrevisualizacion} />
-                                    </div>
-                                    <div className="dc-input-group">
-                                        <label>Documento:</label>
-                                        <input type="text" id="clienteDoc" />
-                                    </div>
-                                </div>
+        <>
+            <Modal isOpen={isOpen} onClose={onClose} title="Nueva Venta - Catering" icon="fa-shopping-cart" footer={modalFooter}>
+                <div className="split-layout">
+                    <div className="split-left">
+                        <div className="fase">
+                            <div className="fase-header" onClick={() => toggleFase(1)}>
+                                <span><i className="fas fa-user"></i> Fase 1: Datos del Cliente</span>
+                                <i className="fas fa-chevron-down"></i>
                             </div>
-                        )}
-                    </div>
-
-                    {/* Fase 2: Servicios de Catering */}
-                    <div className="fase">
-                        <div className="fase-header" onClick={() => toggleFase(2)}>
-                            <span><i className="fas fa-boxes"></i> Fase 2: Servicios de Catering</span>
-                            <i className="fas fa-chevron-down"></i>
-                        </div>
-                        {fasesAbiertas[2] && (
-                            <div className="fase-body">
-                                <div className="dc-form-grid">
-                                    <div className="dc-input-group">
-                                        <label>Servicio</label>
-                                        <select id="nuevoServicioSelect" dangerouslySetInnerHTML={{ __html: serviciosOptions }} />
-                                    </div>
-                                    <button className="dc-btn info" onClick={agregarNuevoServicio}>
-                                        <i className="fas fa-plus"></i> Agregar Servicio
-                                    </button>
-                                </div>
-                                <div id="fase-body">
-                                    {renderServicios()}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Fase 3: Materiales y Equipamiento */}
-                    <div className="fase">
-                        <div className="fase-header" onClick={() => toggleFase(3)}>
-                            <span><i className="fas fa-chair"></i> Fase 3: Materiales y Equipamiento</span>
-                            <i className="fas fa-chevron-down"></i>
-                        </div>
-                        {fasesAbiertas[3] && (
-                            <div className="fase-body">
-                                <div className="dc-form-grid">
-                                    <div className="dc-input-group">
-                                        <label htmlFor="materialSelect">Material</label>
-                                        <select id="materialSelect" dangerouslySetInnerHTML={{ __html: materialesOptions }} />
-                                    </div>
-                                    <div className="dc-input-group">
-                                        <label htmlFor="cantidadMaterial">Cantidad</label>
-                                        <input type="number" id="cantidadMaterial" defaultValue="1" min="1" />
-                                    </div>
-                                    <button className="dc-btn info" onClick={agregarMaterial}>
-                                        <i className="fas fa-plus"></i> Agregar Material
-                                    </button>
-                                </div>
-                                <div id="materialesContainer">
-                                    {renderMateriales()}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Fase 4: Planificación del Evento */}
-                    <div className="fase">
-                        <div className="fase-header" onClick={() => toggleFase(4)}>
-                            <span><i className="fas fa-calendar-alt"></i> Fase 4: Planificación del Evento</span>
-                            <i className="fas fa-chevron-down"></i>
-                        </div>
-                        {fasesAbiertas[4] && (
-                            <div className="fase-body">
-                                <div className="dc-info-grid">
-                                    <div className="dc-input-group">
-                                        <label>Fecha</label>
-                                        <input type="date" id="eventoFecha" onChange={actualizarPrevisualizacion} />
-                                    </div>
-                                    <div className="dc-input-group">
-                                        <label>Horario</label>
-                                        <input type="time" id="eventoHorario" defaultValue="12:00" />
-                                    </div>
-                                    <div className="dc-input-group">
-                                        <label>Personas</label>
-                                        <input type="number" id="eventoPersonas" min="1" defaultValue="1" />
-                                    </div>
-                                    <div className="dc-input-group">
-                                        <label>Tipo Desayuno</label>
-                                        <select id="eventoTipoDesayuno" defaultValue="Clásico">
-                                            <option>Clásico</option>
-                                            <option>Light</option>
-                                            <option>Premium</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Fase 5: Descuentos y Promociones */}
-                    <div className="fase">
-                        <div className="fase-header" onClick={() => toggleFase(5)}>
-                            <span><i className="fas fa-tags"></i> Fase 5: Descuentos y Promociones</span>
-                            <i className="fas fa-chevron-down"></i>
-                        </div>
-                        {fasesAbiertas[5] && (
-                            <div className="fase-body">
-                                <div className="componentes-grid">
-                                    <div className="componente-card">
-                                        <div className="componente-header">
-                                            <strong>💰 Descuento</strong>
-                                            <div className={`toggle-componente ${currentVenta.descuentoActivo ? 'active' : ''}`} onClick={toggleDescuento}>
-                                                <div className="toggle-slider"></div>
+                            {fasesAbiertas[1] && (
+                                <div className="fase-body">
+                                    <div className="dc-form-grid">
+                                        <div className="dc-input-group">
+                                            <label>Documento (DNI/RUC):</label>
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                <input
+                                                    type="text"
+                                                    id="clienteDoc"
+                                                    placeholder="Ingrese DNI o RUC"
+                                                    value={currentVenta.cliente.documento}
+                                                    onChange={(e) => {
+                                                        const valor = e.target.value;
+                                                        setCurrentVenta(prev => ({
+                                                            ...prev,
+                                                            cliente: { ...prev.cliente, documento: valor }
+                                                        }));
+                                                        if (valor.length === 8 || valor.length === 11) {
+                                                            buscarClientePorDocumento(valor);
+                                                        }
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            const valor = (e.target as HTMLInputElement).value;
+                                                            if (valor.length === 8 || valor.length === 11) {
+                                                                buscarClientePorDocumento(valor);
+                                                            } else {
+                                                                showToast('Ingrese DNI (8 dígitos) o RUC (11 dígitos)', 'warning', 'Formato inválido');
+                                                            }
+                                                        }
+                                                    }}
+                                                    disabled={isSearching}
+                                                />
+                                                {mostrarBotonVarios && (
+                                                    <button
+                                                        className="dc-btn secondary"
+                                                        onClick={cargarClienteVarios}
+                                                        style={{ padding: '8px 12px' }}
+                                                    >
+                                                        <i className="fas fa-users"></i> Varios
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
-                                        {currentVenta.descuentoActivo && (
-                                            <div className="dc-input-group">
-                                                <select id="descTipo" onChange={actualizarDescuento}>
-                                                    <option value="porcentaje">% Porcentaje</option>
-                                                    <option value="monto">S/ Monto fijo</option>
-                                                </select>
-                                                <input type="number" id="descValor" placeholder="Valor" defaultValue={currentVenta.descuentoValor} onChange={actualizarDescuento} />
+                                        <div className="dc-input-group">
+                                            <label>Nombre del Cliente:</label>
+                                            <input
+                                                type="text"
+                                                id="clienteNombre"
+                                                placeholder="Nombre completo"
+                                                value={currentVenta.cliente.nombre}
+                                                onChange={(e) => {
+                                                    setCurrentVenta(prev => ({
+                                                        ...prev,
+                                                        cliente: { ...prev.cliente, nombre: e.target.value }
+                                                    }));
+                                                }}
+                                                readOnly={!!clienteSeleccionado}
+                                            />
+                                        </div>
+                                    </div>
+                                    {isSearching && (
+                                        <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                                            <i className="fas fa-spinner fa-spin"></i> Buscando cliente...
+                                        </div>
+                                    )}
+                                    {clienteSeleccionado && (
+                                        <div style={{ fontSize: '0.8rem', color: '#2e7d32' }}>
+                                            <i className="fas fa-check-circle"></i> Cliente seleccionado: {currentVenta.cliente.nombre}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="fase">
+                            <div className="fase-header" onClick={() => toggleFase(2)}>
+                                <span><i className="fas fa-boxes"></i> Fase 2: Servicios de Catering</span>
+                                <i className="fas fa-chevron-down"></i>
+                            </div>
+                            {fasesAbiertas[2] && (
+                                <div className="fase-body">
+                                    <div className="dc-form-grid">
+                                        <div className="dc-input-group">
+                                            <label>Servicio</label>
+                                            <select id="nuevoServicioSelect" dangerouslySetInnerHTML={{ __html: serviciosOptions }} />
+                                        </div>
+                                        <button className="dc-btn info" onClick={agregarNuevoServicio}>
+                                            <i className="fas fa-plus"></i> Agregar Servicio
+                                        </button>
+                                    </div>
+                                    <div id="fase-body">
+                                        {renderServicios()}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="fase">
+                            <div className="fase-header" onClick={() => toggleFase(3)}>
+                                <span><i className="fas fa-chair"></i> Fase 3: Materiales y Equipamiento</span>
+                                <i className="fas fa-chevron-down"></i>
+                            </div>
+                            {fasesAbiertas[3] && (
+                                <div className="fase-body">
+                                    <div className="dc-form-grid">
+                                        <div className="dc-input-group">
+                                            <label htmlFor="materialSelect">Material</label>
+                                            <select id="materialSelect" dangerouslySetInnerHTML={{ __html: materialesOptions }} />
+                                        </div>
+                                        <div className="dc-input-group">
+                                            <label htmlFor="cantidadMaterial">Cantidad</label>
+                                            <input type="number" id="cantidadMaterial" defaultValue="1" min="1" />
+                                        </div>
+                                        <button className="dc-btn info" onClick={agregarMaterial}>
+                                            <i className="fas fa-plus"></i> Agregar Material
+                                        </button>
+                                    </div>
+                                    <div id="materialesContainer">
+                                        {renderMateriales()}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="fase">
+                            <div className="fase-header" onClick={() => toggleFase(4)}>
+                                <span><i className="fas fa-calendar-alt"></i> Fase 4: Planificación del Evento</span>
+                                <i className="fas fa-chevron-down"></i>
+                            </div>
+                            {fasesAbiertas[4] && (
+                                <div className="fase-body">
+                                    <div className="dc-info-grid">
+                                        <div className="dc-input-group" style={{ gridColumn: 'span 2' }}>
+                                            <label>📅 Fecha y Hora del Evento</label>
+                                            <input
+                                                type="datetime-local"
+                                                id="eventoFechaHora"
+                                                value={currentVenta.eventoData.fechaHora}
+                                                onChange={(e) => {
+                                                    setCurrentVenta(prev => ({
+                                                        ...prev,
+                                                        eventoData: {
+                                                            ...prev.eventoData,
+                                                            fechaHora: e.target.value
+                                                        }
+                                                    }));
+                                                }}
+                                                onClick={(e) => {
+                                                    (e.target as HTMLInputElement).showPicker?.();
+                                                }}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '10px',
+                                                    fontSize: '1rem',
+                                                    borderRadius: '4px',
+                                                    border: '1px solid #ccc',
+                                                    cursor: 'pointer'
+                                                }}
+                                            />
+                                            {currentVenta.eventoData.fechaHora && (
+                                                <div style={{
+                                                    fontSize: '0.85rem',
+                                                    color: '#2e7d32',
+                                                    marginTop: '4px',
+                                                    fontWeight: 'bold'
+                                                }}>
+                                                    <i className="fas fa-check-circle"></i> Evento programado para: {formatLocalDateTime(currentVenta.eventoData.fechaHora)}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="dc-input-group">
+                                            <label>👥 Número de Personas</label>
+                                            <input
+                                                type="number"
+                                                id="eventoPersonas"
+                                                min="1"
+                                                value={currentVenta.eventoData.personas}
+                                                onChange={(e) => {
+                                                    const valor = parseInt(e.target.value) || 1;
+                                                    setCurrentVenta(prev => ({
+                                                        ...prev,
+                                                        eventoData: { ...prev.eventoData, personas: valor }
+                                                    }));
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="dc-input-group">
+                                            <label>🍽️ Tipo de Desayuno</label>
+                                            <select
+                                                id="eventoTipoDesayuno"
+                                                value={currentVenta.eventoData.tipoDesayuno}
+                                                onChange={(e) => {
+                                                    setCurrentVenta(prev => ({
+                                                        ...prev,
+                                                        eventoData: { ...prev.eventoData, tipoDesayuno: e.target.value }
+                                                    }));
+                                                }}
+                                            >
+                                                <option value="Clásico">Clásico</option>
+                                                <option value="Light">Light</option>
+                                                <option value="Premium">Premium</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="fase">
+                            <div className="fase-header" onClick={() => toggleFase(5)}>
+                                <span><i className="fas fa-tags"></i> Fase 5: Descuentos y Promociones</span>
+                                <i className="fas fa-chevron-down"></i>
+                            </div>
+                            {fasesAbiertas[5] && (
+                                <div className="fase-body">
+                                    <div className="componentes-grid">
+                                        <div className="componente-card">
+                                            <div className="componente-header">
+                                                <strong>💰 Descuento</strong>
+                                                <div className={`toggle-componente ${currentVenta.descuentoActivo ? 'active' : ''}`} onClick={toggleDescuento}>
+                                                    <div className="toggle-slider"></div>
+                                                </div>
+                                            </div>
+                                            {currentVenta.descuentoActivo && (
+                                                <div className="dc-input-group">
+                                                    <select id="descTipo" onChange={actualizarDescuento}>
+                                                        <option value="porcentaje">% Porcentaje</option>
+                                                        <option value="monto">S/ Monto fijo</option>
+                                                    </select>
+                                                    <input type="number" id="descValor" placeholder="Valor" defaultValue={currentVenta.descuentoValor} onChange={actualizarDescuento} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="componente-card">
+                                            <div className="componente-header">
+                                                <strong>🎫 Cupón</strong>
+                                                <div className={`toggle-componente ${currentVenta.cuponActivo ? 'active' : ''}`} onClick={toggleCupon}>
+                                                    <div className="toggle-slider"></div>
+                                                </div>
+                                            </div>
+                                            {currentVenta.cuponActivo && (
+                                                <div className="dc-input-group">
+                                                    <input type="text" id="cuponCodigo" placeholder="DESCUENTO10 o BIENVENIDO" onBlur={aplicarCupon} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="fase">
+                            <div className="fase-header" onClick={() => toggleFase(6)}>
+                                <span><i className="fas fa-credit-card"></i> Fase 6: Método de Pago</span>
+                                <i className="fas fa-chevron-down"></i>
+                            </div>
+                            {fasesAbiertas[6] && (
+                                <div className="fase-body">
+                                    <div className="metodos-pago">
+                                        {['EFECTIVO', 'TARJETA', 'YAPE', 'PLIN'].map(m => (
+                                            <div key={m} className={`metodo-btn ${currentVenta.metodoPago === m ? 'selected' : ''}`} onClick={() => seleccionarMetodo(m)}>
+                                                <i className={`fas ${m === 'EFECTIVO' ? 'fa-money-bill' : m === 'TARJETA' ? 'fa-credit-card' : 'fa-mobile-alt'}`}></i> {m}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div id="pagoDetalle" className="dc-input-group">
+                                        {currentVenta.metodoPago === 'EFECTIVO' && (
+                                            <div>
+                                                <label>💰 Monto recibido:</label>
+                                                <input type="number" id="montoPago" placeholder="S/ " />
+                                                <div className="info-note">
+                                                    <strong>Vuelto:</strong> S/ <span id="vuelto">0.00</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {currentVenta.metodoPago === 'YAPE' && (
+                                            <div className="qr-container">
+                                                <i className="fab fa-yape"></i>
+                                                <p><strong>Yape</strong> - 999 888 777</p>
+                                                <p>Total: S/ {currentVenta.total.toFixed(2)}</p>
+                                            </div>
+                                        )}
+                                        {currentVenta.metodoPago === 'PLIN' && (
+                                            <div className="qr-container">
+                                                <i className="fas fa-mobile-alt"></i>
+                                                <p><strong>Plin</strong> - 999 888 777</p>
+                                                <p>Total: S/ {currentVenta.total.toFixed(2)}</p>
                                             </div>
                                         )}
                                     </div>
-                                    <div className="componente-card">
-                                        <div className="componente-header">
-                                            <strong>🎫 Cupón</strong>
-                                            <div className={`toggle-componente ${currentVenta.cuponActivo ? 'active' : ''}`} onClick={toggleCupon}>
-                                                <div className="toggle-slider"></div>
-                                            </div>
-                                        </div>
-                                        {currentVenta.cuponActivo && (
-                                            <div className="dc-input-group">
-                                                <input type="text" id="cuponCodigo" placeholder="DESCUENTO10 o BIENVENIDO" onBlur={aplicarCupon} />
-                                            </div>
-                                        )}
-                                    </div>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Fase 6: Método de Pago */}
-                    <div className="fase">
-                        <div className="fase-header" onClick={() => toggleFase(6)}>
-                            <span><i className="fas fa-credit-card"></i> Fase 6: Método de Pago</span>
-                            <i className="fas fa-chevron-down"></i>
+                            )}
                         </div>
-                        {fasesAbiertas[6] && (
-                            <div className="fase-body">
-                                <div className="metodos-pago">
-                                    {['EFECTIVO', 'TARJETA', 'YAPE', 'PLIN'].map(m => (
-                                        <div key={m} className={`metodo-btn ${currentVenta.metodoPago === m ? 'selected' : ''}`} onClick={() => seleccionarMetodo(m)}>
-                                            <i className={`fas ${m === 'EFECTIVO' ? 'fa-money-bill' : m === 'TARJETA' ? 'fa-credit-card' : 'fa-mobile-alt'}`}></i> {m}
-                                        </div>
-                                    ))}
-                                </div>
-                                <div id="pagoDetalle" className="dc-input-group">
-                                    {currentVenta.metodoPago === 'EFECTIVO' && (
-                                        <div>
-                                            <label>💰 Monto recibido:</label>
-                                            <input type="number" id="montoPago" placeholder="S/ " />
-                                            <div className="info-note">
-                                                <strong>Vuelto:</strong> S/ <span id="vuelto">0.00</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {currentVenta.metodoPago === 'YAPE' && (
-                                        <div className="qr-container">
-                                            <i className="fab fa-yape"></i>
-                                            <p><strong>Yape</strong> - 999 888 777</p>
-                                            <p>Total: S/ {currentVenta.total.toFixed(2)}</p>
-                                        </div>
-                                    )}
-                                    {currentVenta.metodoPago === 'PLIN' && (
-                                        <div className="qr-container">
-                                            <i className="fas fa-mobile-alt"></i>
-                                            <p><strong>Plin</strong> - 999 888 777</p>
-                                            <p>Total: S/ {currentVenta.total.toFixed(2)}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+
+                        <div className="totales">
+                            <div className="total-line">Subtotal: <span>S/ {currentVenta.subtotal.toFixed(2)}</span></div>
+                            <div className="total-line">Descuento: <span>S/ {(currentVenta.descuentoActivo ? currentVenta.descuentoValor : 0).toFixed(2)}</span></div>
+                            <div className="total-line">IGV: <span>S/ {currentVenta.igv.toFixed(2)}</span></div>
+                            <div className="total-line total-grande">TOTAL: <span>S/ {currentVenta.total.toFixed(2)}</span></div>
+                        </div>
                     </div>
 
-                    {/* Totales */}
-                    <div className="totales">
-                        <div className="total-line">Subtotal: <span>S/ {currentVenta.subtotal.toFixed(2)}</span></div>
-                        <div className="total-line">Descuento: <span>S/ {(currentVenta.descuentoActivo ? currentVenta.descuentoValor : 0).toFixed(2)}</span></div>
-                        <div className="total-line">IGV: <span>S/ {currentVenta.igv.toFixed(2)}</span></div>
-                        <div className="total-line total-grande">TOTAL: <span>S/ {currentVenta.total.toFixed(2)}</span></div>
+                    <div className="split-right">
+                        <div className="dc-input-group" style={{ marginBottom: '15px' }}>
+                            <label><strong>Tipo de comprobante:</strong></label>
+                            <select id="tipoComprobantePreview" value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value as any)}>
+                                <option value="ticket">Ticket</option>
+                                <option value="factura">Factura Electrónica</option>
+                            </select>
+                        </div>
+                        <div id="vistaPreviaContenido" dangerouslySetInnerHTML={{ __html: generarVistaPreviaHTML(ventaPreview as any, tipoComprobante) }} />
                     </div>
                 </div>
+            </Modal>
 
-                <div className="split-right">
-                    <div className="dc-input-group" style={{ marginBottom: '15px' }}>
-                        <label><strong>Tipo de comprobante:</strong></label>
-                        <select id="tipoComprobantePreview" value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value as any)}>
-                            <option value="ticket">Ticket</option>
-                            <option value="factura">Factura Electrónica</option>
-                        </select>
-                    </div>
-                    <div id="vistaPreviaContenido" dangerouslySetInnerHTML={{ __html: generarVistaPreviaHTML(ventaPreview as any, tipoComprobante) }} />
-                </div>
-            </div>
-        </Modal>
+            <ConfirmModal
+                isOpen={confirmModalOpen}
+                onClose={cancelarRegistroAutomatico}
+                onConfirm={confirmarRegistroAutomatico}
+                title="Cliente no encontrado"
+                message={`No se encontró un cliente con el documento ${documentoPendiente}. ¿Desea registrarlo automáticamente como nuevo cliente?`}
+                confirmText="Sí, registrar"
+                cancelText="Cancelar"
+                confirmVariant="success"
+                icon="fa-user-plus"
+            />
+        </>
     );
 };

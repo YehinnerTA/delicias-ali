@@ -5,6 +5,28 @@ import { HistorialEntry } from '../../../../features/types/hist_act';
 import { historialApi } from '../../../../services/api/historialApi';
 import { useToast } from '../../../../hooks/base/useToast';
 
+const formatLocalDate = (isoString: string): string => {
+    if (!isoString) return '-';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const año = date.getFullYear();
+    return `${dia}/${mes}/${año}`;
+};
+
+const formatLocalDateTime = (isoString: string): string => {
+    if (!isoString) return '-';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const año = date.getFullYear();
+    const horas = String(date.getHours()).padStart(2, '0');
+    const minutos = String(date.getMinutes()).padStart(2, '0');
+    return `${dia}/${mes}/${año} || ${horas}:${minutos}`;
+};
+
 interface CateringDetailsModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -31,7 +53,6 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
             const data = await historialApi.getByEntity('ventas', ventaId);
             setHistorial(data);
         } catch (error) {
-            console.error('[CateringDetailsModal] Error al cargar historial:', error);
             showToast('Error al cargar el historial', 'error', 'Error');
             setHistorial([]);
         } finally {
@@ -95,11 +116,11 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
         <div className="dc-info-grid">
             <div className="dc-info-item">
                 <div className="dc-info-label">Fecha Evento</div>
-                <div className="dc-info-value">{venta.eventoData.fecha || 'No especificada'}</div>
+                <div className="dc-info-value">{formatLocalDate(venta.eventoData.fecha) || 'No especificada'}</div>
             </div>
             <div className="dc-info-item">
                 <div className="dc-info-label">Horario</div>
-                <div className="dc-info-value">{venta.eventoData.horario || '12:00'}</div>
+                <div className="dc-info-value">{venta.eventoData.horario || '00:00'}</div>
             </div>
             <div className="dc-info-item">
                 <div className="dc-info-label">Personas</div>
@@ -114,7 +135,6 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Detalle de Venta - ${venta.numero}`} icon="fa-receipt">
-            {/* Tabs */}
             <div className="dc-tabs">
                 <button
                     className={`dc-tab-btn ${activeTab === 'detalle' ? 'active' : ''}`}
@@ -130,7 +150,6 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
                 </button>
             </div>
 
-            {/* TAB DETALLE */}
             {activeTab === 'detalle' && (
                 <>
                     <div className="detalle-venta-card">
@@ -143,7 +162,7 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
                                 </div>
                                 <div className="dc-info-item">
                                     <div className="dc-info-label">Fecha</div>
-                                    <div className="dc-info-value">{venta.fecha}</div>
+                                    <div className="dc-info-value">{formatLocalDateTime(venta.fecha)}</div>
                                 </div>
                                 <div className="dc-info-item">
                                     <div className="dc-info-label">Cliente</div>
@@ -202,7 +221,6 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
                 </>
             )}
 
-            {/* TAB HISTORIAL */}
             {activeTab === 'historial' && (
                 <div className="dc-history-card">
                     <h4>{venta.numero} - {venta.cliente}</h4>

@@ -645,7 +645,7 @@ export const registrarDevolucion = async (req: Request, res: Response) => {
 export const updateVenta = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { id_empresa, productos, subtotal, igv, total } = req.body;
+        const { id_empresa, id_cliente, productos, subtotal, igv, total } = req.body;
 
         if (!id_empresa) {
             return res.status(400).json({ message: 'id_empresa es requerido' });
@@ -744,10 +744,18 @@ export const updateVenta = async (req: Request, res: Response) => {
             }
         }
 
-        await executeMutation(
-            `UPDATE ventas SET subtotal = ?, igv = ?, total = ? WHERE id = ? AND id_empresa = ?`,
-            [subtotal || 0, igv || 0, total || 0, id, id_empresa]
-        );
+        let query = `UPDATE ventas SET subtotal = ?, igv = ?, total = ?`;
+        const params: any[] = [subtotal || 0, igv || 0, total || 0];
+
+        if (id_cliente) {
+            query += `, id_cliente = ?`;
+            params.push(id_cliente);
+        }
+
+        query += ` WHERE id = ? AND id_empresa = ?`;
+        params.push(id, id_empresa);
+
+        await executeMutation(query, params);
 
         const ventaActualizada = await executeQuerySingle<any>(
             `SELECT * FROM ventas WHERE id = ? AND id_empresa = ?`,

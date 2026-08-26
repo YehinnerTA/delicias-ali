@@ -299,7 +299,6 @@ export const getNextNumeroVentaCatering = async (req: Request, res: Response) =>
 
 export const getCatalogosCatering = async (req: Request, res: Response) => {
     try {
-        // Estos catálogos son globales (sin id_empresa), no filtramos
         const tiposServicio = await executeQuery<any[]>(`
             SELECT id, nombre, clave FROM catering_service_tipos
         `);
@@ -534,7 +533,7 @@ export const createVentaCatering = async (req: Request, res: Response) => {
 export const updateVentaCatering = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { id_empresa, servicios, materiales, eventoData, subtotal, igv, total, metodo_pago } = req.body;
+        const { id_empresa, id_cliente, servicios, materiales, eventoData, subtotal, igv, total, metodo_pago } = req.body;
 
         if (!id_empresa) {
             return res.status(400).json({ message: 'id_empresa es requerido' });
@@ -548,10 +547,18 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Venta no encontrada' });
         }
 
-        await executeMutation(
-            `UPDATE ventas SET subtotal = ?, igv = ?, total = ?, metodo_pago = ? WHERE id = ? AND id_empresa = ?`,
-            [subtotal || 0, igv || 0, total || 0, metodo_pago || 'EFECTIVO', id, id_empresa]
-        );
+        let query = `UPDATE ventas SET subtotal = ?, igv = ?, total = ?, metodo_pago = ?`;
+        const params: any[] = [subtotal || 0, igv || 0, total || 0, metodo_pago || 'EFECTIVO'];
+
+        if (id_cliente) {
+            query += `, id_cliente = ?`;
+            params.push(id_cliente);
+        }
+
+        query += ` WHERE id = ? AND id_empresa = ?`;
+        params.push(id, id_empresa);
+
+        await executeMutation(query, params);
 
         if (eventoData) {
             await executeMutation(
@@ -568,7 +575,6 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
             );
         }
 
-        // Eliminar servicios antiguos (con filtro de empresa)
         const serviciosAntiguos = await executeQuery<any[]>(
             `SELECT id FROM catering_service_ventas WHERE id_venta = ? AND id_empresa = ?`,
             [id, id_empresa]
@@ -584,7 +590,6 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
             [id, id_empresa]
         );
 
-        // Insertar nuevos servicios
         for (const serv of servicios) {
             const tipoServicio = await executeQuerySingle<any>(
                 `SELECT id FROM catering_service_tipos WHERE clave = ?`,
@@ -621,7 +626,6 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
             }
         }
 
-        // Eliminar materiales antiguos
         await executeMutation(
             `DELETE FROM catering_materiales_venta WHERE id_venta = ? AND id_empresa = ?`,
             [id, id_empresa]

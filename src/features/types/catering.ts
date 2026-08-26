@@ -57,6 +57,24 @@ export interface VentaCatering {
     historial: HistorialEntry[];
 }
 
+export interface VentaTemporal {
+    id_empresa: number;
+    cliente: { nombre: string; documento: string };
+    servicios: ServicioCatering[];
+    materiales: MaterialVenta[];
+    eventoData: { fechaHora: string; personas: number; tipoDesayuno: string };
+    descuentoActivo: boolean;
+    descuentoTipo: 'porcentaje' | 'monto';
+    descuentoValor: number;
+    cuponActivo: boolean;
+    cuponCodigo: string;
+    cuponValor: number;
+    metodoPago: string;
+    subtotal: number;
+    igv: number;
+    total: number;
+}
+
 export interface CateringFilters {
     search: string;
     estado: string;

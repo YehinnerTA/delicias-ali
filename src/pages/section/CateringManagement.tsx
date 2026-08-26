@@ -17,6 +17,31 @@ import { useToast } from '../../hooks/base/useToast';
 import { Toast } from '../../components/common/Toast';
 import '../../theme/section/management.css';
 
+const formatLocalDateTime = (isoString: string): string => {
+    if (!isoString) return '-';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const año = date.getFullYear();
+    return `${dia}/${mes}/${año}`;
+};
+
+const parseDateFilter = (filterValue: string): string => {
+    if (!filterValue) return '';
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(filterValue)) {
+        return filterValue;
+    }
+
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(filterValue)) {
+        const partes = filterValue.split('/');
+        return `${partes[2]}-${partes[1]}-${partes[0]}`;
+    }
+
+    return filterValue;
+};
+
 const ventasFiltersConfig: FilterField[] = [
     { id: 'search', label: 'Buscar', type: 'text', placeholder: 'N° venta, cliente...' },
     {
@@ -28,7 +53,7 @@ const ventasFiltersConfig: FilterField[] = [
             { value: 'anulada', label: 'Anuladas' }
         ]
     },
-    { id: 'fecha', label: 'Fecha', type: 'text', placeholder: 'YYYY-MM-DD' }
+    { id: 'fecha', label: 'Fecha', type: 'text', placeholder: 'DD/MM/YYYY' }
 ];
 
 const CateringSalesContent: React.FC = () => {
@@ -66,8 +91,30 @@ const CateringSalesContent: React.FC = () => {
                 v.numero.toLowerCase().includes(filterValues.search.toLowerCase()) ||
                 v.cliente.toLowerCase().includes(filterValues.search.toLowerCase());
             const matchEstado = !filterValues.estado || v.estado === filterValues.estado;
-            const matchFecha = !filterValues.fecha ||
-                (v.fechaObj ? v.fechaObj.toISOString().split('T')[0] : v.fecha.split(',')[0]).includes(filterValues.fecha);
+            let matchFecha = true;
+            if (filterValues.fecha) {
+                const fechaFiltro = filterValues.fecha.trim();
+                let fechaVentaStr = '';
+                if (v.fechaObj) {
+                    fechaVentaStr = v.fechaObj.toISOString().split('T')[0];
+                } else if (v.fecha) {
+                    if (v.fecha.includes('T')) {
+                        fechaVentaStr = v.fecha.split('T')[0];
+                    } else {
+                        fechaVentaStr = v.fecha.split(',')[0];
+                    }
+                }
+
+                const fechaFiltroNormalizada = parseDateFilter(fechaFiltro);
+
+                matchFecha = fechaVentaStr.includes(fechaFiltroNormalizada) ||
+                    fechaVentaStr === fechaFiltroNormalizada;
+
+                if (/^\d{2}\/\d{2}\/\d{4}$/.test(fechaFiltro)) {
+                    const fechaVentaFormateada = formatLocalDateTime(v.fecha).split(' ')[0];
+                    matchFecha = matchFecha || fechaVentaFormateada === fechaFiltro;
+                }
+            }
             return matchSearch && matchEstado && matchFecha;
         });
         setFilteredData(filtered);
@@ -107,7 +154,7 @@ const CateringSalesContent: React.FC = () => {
 
     const columns: Column<VentaCatering>[] = [
         { key: 'numero', header: 'N° Venta', render: (v) => <strong>{v.numero}</strong> },
-        { key: 'fecha', header: 'Fecha' },
+        { key: 'fecha', header: 'Fecha', render: (v) => formatLocalDateTime(v.fecha) },
         { key: 'cliente', header: 'Cliente' },
         { key: 'total', header: 'Total', render: (v) => `S/ ${v.total.toFixed(2)}` },
         { key: 'estado', header: 'Estado', render: (v) => getEstadoBadge(v.estado) }
@@ -171,7 +218,6 @@ const CateringSalesContent: React.FC = () => {
                 ))}
             </div>
 
-            {/* Modales de Catering */}
             <NewCateringModal isOpen={nuevaVentaOpen} onClose={() => setNuevaVentaOpen(false)} onSuccess={handleNuevaVentaSuccess} />
             <CateringDetailsModal isOpen={detalleVentaOpen} onClose={() => setDetalleVentaOpen(false)} venta={selectedVenta} />
             <CateringModifyModal isOpen={editarVentaOpen} onClose={() => setEditarVentaOpen(false)} venta={selectedVenta} onSuccess={() => setEditarVentaOpen(false)} />
