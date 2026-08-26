@@ -5,7 +5,6 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { testConnection } from './config/database';
 
-// Importar rutas
 import routes from './routes/index.Routes';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -13,7 +12,6 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const app = express();
 const PORT = Number(process.env.PORT);
 
-// Middleware
 app.use(helmet());
 app.use(cors({
     origin: process.env.NODE_ENV === 'production'
@@ -23,10 +21,8 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rutas
 app.use('/api', routes);
 
-// Health check
 app.get('/api/health', async (req, res) => {
     const dbConnected = await testConnection();
     res.json({
@@ -35,7 +31,6 @@ app.get('/api/health', async (req, res) => {
     });
 });
 
-// Iniciar servidor
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
 }).on('error', (err) => {

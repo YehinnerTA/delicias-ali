@@ -261,14 +261,12 @@ export const createBulkPostres = async (req: Request, res: Response) => {
                 const nombre = item.nombre.trim();
                 const precio = parseFloat(item.precio) || 0;
 
-                // Insertar solo en postres
                 const postreResult = await executeMutation(
                     `INSERT INTO postres (id_empresa, nombre, precio) VALUES (?, ?, ?)`,
                     [id_empresa, nombre, precio]
                 );
                 const postreId = postreResult.insertId;
 
-                // Obtener el postre creado
                 const newPostre = await executeQuerySingle(
                     'SELECT * FROM postres WHERE id = ? AND id_empresa = ?',
                     [postreId, id_empresa]

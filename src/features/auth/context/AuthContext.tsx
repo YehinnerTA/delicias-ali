@@ -18,7 +18,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated: false
     });
 
-    // Verificar sesión al cargar la app
     useEffect(() => {
         verifySession();
     }, []);
@@ -63,7 +62,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const response = await loginApi({ email, password, rememberMe });
 
             if (response.success && response.token && response.user) {
-                // El loginApi ya guarda en localStorage/sessionStorage
                 setState({
                     user: response.user,
                     token: response.token,

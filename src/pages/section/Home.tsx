@@ -174,7 +174,6 @@ const DashboardContent: React.FC = () => {
                     </div>
                 ) : (
                     <>
-                        {/* ===== KPIs ===== */}
                         <div className="stats-grid">
                             <div className="stat-card">
                                 <div className="stat-icon bg-blue"><i className="fas fa-shopping-cart"></i></div>
@@ -230,7 +229,6 @@ const DashboardContent: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* ===== GRÁFICO DE TENDENCIA (7 días) ===== */}
                         <div className="chart-card">
                             <h3><i className="fas fa-chart-bar"></i> Ventas últimas 7 días</h3>
                             <div className="chart-bars">
@@ -257,7 +255,6 @@ const DashboardContent: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* ===== TOP PRODUCTOS + DISTRIBUCIÓN ===== */}
                         <div className="two-columns">
                             <div className="card">
                                 <h3><i className="fas fa-trophy"></i> Top 5 productos</h3>
@@ -308,7 +305,6 @@ const DashboardContent: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* ===== STOCK CRÍTICO + ACTIVIDAD RECIENTE ===== */}
                         <div className="two-columns">
                             <div className="card">
                                 <h3><i className="fas fa-exclamation-triangle"></i> Stock crítico</h3>

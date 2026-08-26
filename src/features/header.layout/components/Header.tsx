@@ -53,7 +53,6 @@ const Header: React.FC = () => {
                         </a>
                     </div>
 
-                    {/* Navegación desktop */}
                     <nav className="delicias-nav-center">
                         <ul className="delicias-nav-links">
                             {navLinks.map((link) => (
@@ -72,9 +71,7 @@ const Header: React.FC = () => {
                         </ul>
                     </nav>
 
-                    {/* Acciones derecha */}
                     <div className="delicias-right-actions">
-                        {/* Company Selector Desktop */}
                         <div className="delicias-company-selector">
                             <label htmlFor="companySelect" className="company-selector-label">
                                 <i className="fas fa-building"></i>
@@ -117,17 +114,14 @@ const Header: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Hamburguesa */}
                     <button className="delicias-hamburger btn-reset" id="deliciasHamburgerBtn" ref={hamburgerBtnRef} aria-expanded={isMenuOpen} onClick={openMobileMenu} >
                         <span></span><span></span><span></span>
                     </button>
                 </div>
             </header>
 
-            {/* Overlay */}
             <div className={`overlay ${isMenuOpen ? 'active' : ''}`} id="deliciasMenuOverlay" aria-hidden={!isMenuOpen} onClick={closeMobileMenu} />
 
-            {/* Menú lateral móvil */}
             <div className={`delicias-mobile-menu ${isMenuOpen ? 'active' : ''}`} id="deliciasMobileMenu" aria-hidden={!isMenuOpen} >
                 <div className="delicias-mobile-menu-header">
                     <span className="delicias-menu-title">Menú</span>
@@ -137,7 +131,6 @@ const Header: React.FC = () => {
                 </div>
 
                 <div className="delicias-mobile-menu-scroll" ref={mobileMenuScrollRef}>
-                    {/* Company Selector Mobile */}
                     <div className="delicias-mobile-company-selector">
                         <div className="mobile-selector-header">
                             <i className="fas fa-building"></i>
@@ -214,9 +207,6 @@ const Header: React.FC = () => {
                 </div>
             </div>
 
-            {/* ============================================================ */}
-            {/* MODAL DE PERFIL */}
-            {/* ============================================================ */}
             <Modal
                 isOpen={isProfileModalOpen}
                 onClose={() => setIsProfileModalOpen(false)}
@@ -278,9 +268,6 @@ const Header: React.FC = () => {
                 )}
             </Modal>
 
-            {/* ============================================================ */}
-            {/* MODAL DE NOTIFICACIONES (agrupadas por área) */}
-            {/* ============================================================ */}
             <Modal
                 isOpen={isNotificationModalOpen}
                 onClose={() => setIsNotificationModalOpen(false)}
@@ -357,9 +344,6 @@ const Header: React.FC = () => {
                 )}
             </Modal>
 
-            {/* ============================================================ */}
-            {/* MODAL DE CERRAR SESIÓN */}
-            {/* ============================================================ */}
             <Modal
                 isOpen={isLogoutModalOpen}
                 onClose={() => setIsLogoutModalOpen(false)}

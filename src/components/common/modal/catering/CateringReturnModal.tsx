@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useCateringService } from '../../../../context/CateringContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
-import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
+import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { VentaCatering } from '../../../../features/types/catering';
 import { generarPDFNotaCredito } from '../../../../services/pdf/pdfService';
@@ -38,8 +38,8 @@ interface MaterialDevolucion {
 export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
     const { addActivity, addToHistory, refreshData } = useCateringService();
     const { user } = useAuth();
-    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
-    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
+    const { getSelectedCompanyId } = useCompany();
+    const id_empresa = getSelectedCompanyId() ?? 0;
     const { showToast } = useToast();
 
     const [productosDevolucion, setProductosDevolucion] = useState<ProductoDevolucion[]>([]);
@@ -146,7 +146,7 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
         setIsSubmitting(true);
         try {
             const payload = {
-                id_empresa, // ← AGREGADO (el controlador lo espera en el body)
+                id_empresa,
                 productos_devueltos: productosDevueltos.map(p => ({
                     id_item: p.detalleId,
                     cantidad: p.cantidadDevuelta
@@ -161,7 +161,7 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
             };
 
             const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
-            const resultado = await cateringServiceApi.devolver(venta.id, id_empresa, payload); // ← PASAMOS id_empresa
+            const resultado = await cateringServiceApi.devolver(venta.id, id_empresa, payload);
 
             await refreshData();
 

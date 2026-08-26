@@ -4,7 +4,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const mapVentaCatering = (data: any): VentaCatering => ({
     id: data.id,
-    id_empresa: data.id_empresa, // ← AGREGADO
+    id_empresa: data.id_empresa,
     numero: data.numero,
     fecha: data.fecha,
     fechaObj: new Date(data.fecha),
@@ -12,7 +12,7 @@ const mapVentaCatering = (data: any): VentaCatering => ({
     clienteDoc: data.clienteDoc || '',
     servicios: (data.servicios || []).map((s: any) => ({
         id: s.id,
-        id_empresa: s.id_empresa, // ← AGREGADO
+        id_empresa: s.id_empresa,
         tipoKey: s.tipoKey,
         tipoNombre: s.tipoNombre,
         productos: (s.productos || []).map((p: any) => ({
@@ -64,7 +64,6 @@ export const cateringServiceApi = {
     },
 
     getCatalogos: async (): Promise<any> => {
-        // Los catálogos son globales, no requieren id_empresa
         const res = await fetch(`${API_URL}/catering-service/catalogos`);
         if (!res.ok) throw new Error('Error al obtener catálogos de catering');
         return await res.json();

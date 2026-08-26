@@ -208,7 +208,7 @@ export const descartarLote = async (req: Request, res: Response) => {
 export const createBulkLotes = async (req: Request, res: Response) => {
     try {
         const {
-            items,      // Array de lotes: { postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro }
+            items,
             usuario_id,
             id_empresa
         } = req.body;
@@ -272,7 +272,6 @@ export const createBulkLotes = async (req: Request, res: Response) => {
                 const dias_duracion = parseInt(item.dias_duracion) || 0;
                 const fecha_registro = item.fecha_registro || new Date().toISOString().split('T')[0];
 
-                // Insertar lote
                 const result = await executeMutation(
                     `INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por, descartado) 
                      VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
@@ -287,7 +286,6 @@ export const createBulkLotes = async (req: Request, res: Response) => {
                     ]
                 );
 
-                // Obtener el lote creado
                 const newLote = await executeQuerySingle(
                     'SELECT * FROM lotes WHERE id = ? AND id_empresa = ?',
                     [result.insertId, id_empresa]

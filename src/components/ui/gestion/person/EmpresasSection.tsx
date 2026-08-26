@@ -276,7 +276,6 @@ export const EmpresasSection: React.FC = () => {
     return (
         <div data-tab="empresas">
             <div>
-                {/* Botón para abrir el modal de creación */}
                 <div style={{ marginBottom: '1.5rem' }}>
                     <button className="dc-btn" onClick={openCreateModal}>
                         <i className="fas fa-plus-circle"></i> Nueva Empresa
@@ -310,7 +309,6 @@ export const EmpresasSection: React.FC = () => {
 
                 <ActivityLog logs={empresaActivityLogs} title="Actividad reciente · Empresas" />
 
-                {/* Modal para ver/editar/eliminar */}
                 <Modal
                     isOpen={modalOpen}
                     onClose={() => setModalOpen(false)}
@@ -321,7 +319,6 @@ export const EmpresasSection: React.FC = () => {
                     {modalContent?.children}
                 </Modal>
 
-                {/* Modal para creación de empresa */}
                 <Modal
                     isOpen={isCreateModalOpen}
                     onClose={() => setIsCreateModalOpen(false)}

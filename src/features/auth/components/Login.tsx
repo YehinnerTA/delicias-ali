@@ -65,7 +65,6 @@ export const Login: React.FC = () => {
     return (
         <div className="login-page-body">
             <div className="login-container">
-                {/* Panel Izquierdo - Decorativo (visible solo en desktop) */}
                 <div className="login-decoration">
                     <div className="login-decoration-overlay"></div>
                     <div className="login-decoration-content">
@@ -93,10 +92,8 @@ export const Login: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Panel Derecho - Formulario de Login */}
                 <div className="login-form-panel">
                     <div className="login-form-wrapper">
-                        {/* Logo móvil (visible solo en responsive) */}
                         <div className="login-logo-mobile">
                             <img src="https://deliciasali.com/wp-content/uploads/2023/08/logo.png" alt="Delicias Ali" className="login-logo-mobile-img" />
                         </div>
@@ -106,7 +103,6 @@ export const Login: React.FC = () => {
                             <p className="login-subtitle">Ingresa a tu cuenta para continuar</p>
                         </div>
 
-                        {/* Alerta de error/success general */}
                         {generalMessage && (
                             <div ref={alertRef} className={`login-alert ${generalType === 'error' ? 'login-alert-error' : 'login-alert-success'}`} style={{ display: 'flex' }}>
                                 <i className={`fa-solid ${generalType === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check'}`}></i>
@@ -115,7 +111,6 @@ export const Login: React.FC = () => {
                         )}
 
                         <form className="login-form" onSubmit={handleSubmit} noValidate>
-                            {/* Campo Email */}
                             <div className="login-input-group">
                                 <label className="login-label" htmlFor="email">
                                     <i className="fa-solid fa-envelope login-label-icon"></i>
@@ -146,7 +141,6 @@ export const Login: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Campo Contraseña */}
                             <div className="login-input-group">
                                 <label className="login-label" htmlFor="password">
                                     <i className="fa-solid fa-lock login-label-icon"></i>
@@ -177,7 +171,6 @@ export const Login: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Opciones adicionales */}
                             <div className="login-options">
                                 <label className="login-remember">
                                     <input
@@ -192,14 +185,12 @@ export const Login: React.FC = () => {
                                 <a href="#" className="login-forgot">¿Olvidaste tu contraseña?</a>
                             </div>
 
-                            {/* Botón de ingreso */}
                             <button type="submit" className="login-submit" disabled={isLoading}>
                                 <span className="login-submit-text">{isLoading ? 'Iniciando...' : 'Iniciar Sesión'}</span>
                                 <i className={`fa-solid ${isLoading ? 'fa-spinner fa-spin' : 'fa-arrow-right'}`}></i>
                             </button>
                         </form>
 
-                        {/* Separador visual solo móvil */}
                         <div className="login-mobile-info">
                             <i className="fa-solid fa-shield-halved"></i>
                             <span>Sistema seguro de gestión</span>

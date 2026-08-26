@@ -77,7 +77,6 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Requerimientos Cocina & Logística" icon="fa-clipboard-list">
-            {/* Información principal de la venta */}
             <div className="dc-info-card">
                 <h4><i className="fas fa-clipboard-list"></i> ORDEN PARA COCINA Y LOGÍSTICA</h4>
                 <div className="dc-info-grid">
@@ -100,8 +99,6 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
                 </div>
             </div>
 
-            {/* Servicios y sus insumos */}
-            {/* Servicios e insumos agrupados por servicio */}
             {venta.servicios && venta.servicios.length > 0 && (
                 <>
                     {isLoading ? (
@@ -163,7 +160,6 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
                 </>
             )}
 
-            {/* Materiales y Equipamiento */}
             <div className="dc-info-card">
                 <h4><i className="fas fa-chair"></i> MATERIALES Y EQUIPAMIENTO</h4>
                 {venta.materiales && venta.materiales.length > 0 ? (
@@ -178,7 +174,6 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
                 )}
             </div>
 
-            {/* Recomendaciones */}
             <div className="dc-info-card">
                 <h4><i className="fas fa-clipboard-check"></i> RECOMENDACIONES</h4>
                 <ul className="recomendaciones-lista">

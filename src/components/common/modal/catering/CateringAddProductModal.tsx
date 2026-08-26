@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../Modal';
 import { useCateringService } from '../../../../context/CateringContext';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
-import { useCompany } from '../../../../features/company/context/CompanyContext'; // ← AGREGADO
+import { useCompany } from '../../../../features/company/context/CompanyContext';
 import { useToast } from '../../../../hooks/base/useToast';
 import { VentaCatering, ServicioCatering, MaterialVenta, ProductoVenta, ProductoCarta, CANTIDAD_MINIMA_PRODUCTOS } from '../../../../features/types/catering';
 
@@ -16,8 +16,8 @@ interface CateringAddProductsModalProps {
 export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
     const { serviciosDisponibles, catalogoMateriales, addActivity, addToHistory, refreshData } = useCateringService();
     const { user } = useAuth();
-    const { getSelectedCompanyId } = useCompany(); // ← AGREGADO
-    const id_empresa = getSelectedCompanyId() ?? 0; // ← AGREGADO
+    const { getSelectedCompanyId } = useCompany();
+    const id_empresa = getSelectedCompanyId() ?? 0;
     const { showToast } = useToast();
 
     const [nuevosServicios, setNuevosServicios] = useState<ServicioCatering[]>([]);
@@ -41,7 +41,7 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
 
         const nuevoServicio: ServicioCatering = {
             id: Date.now(),
-            id_empresa: id_empresa, // ← AGREGADO
+            id_empresa: id_empresa,
             tipoKey: tipoKey,
             tipoNombre: servicioInfo.nombre,
             productos: []
@@ -207,11 +207,11 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
             const nuevoTotal = nuevoSubtotal + nuevoIgv;
 
             const payload = {
-                id_empresa, // ← AGREGADO (aunque la función update lo recibe por separado, se incluye por consistencia)
+                id_empresa,
                 cliente: venta.cliente,
                 clienteDoc: venta.clienteDoc,
                 servicios: serviciosActualizados.map(serv => ({
-                    id_empresa: serv.id_empresa, // ← AGREGADO
+                    id_empresa: serv.id_empresa,
                     tipoKey: serv.tipoKey,
                     productos: serv.productos.map(p => ({
                         id: p.id,
@@ -235,7 +235,7 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
             };
 
             const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
-            await cateringServiceApi.update(venta.id, id_empresa, payload); // ← PASAMOS id_empresa
+            await cateringServiceApi.update(venta.id, id_empresa, payload);
 
             await refreshData();
 
@@ -406,7 +406,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Agregar Servicios y Materiales a Venta" icon="fa-plus-circle" footer={modalFooter}>
-            {/* Selector de tipo de agregado */}
             <div className="dc-tabs">
                 <button
                     className={`dc-tab-btn ${tipoAgregar === 'servicio' ? 'active' : ''}`}
@@ -422,7 +421,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
                 </button>
             </div>
 
-            {/* Panel de Servicios */}
             {tipoAgregar === 'servicio' && (
                 <div className="fase">
                     <div className="fase-body">
@@ -447,7 +445,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
                 </div>
             )}
 
-            {/* Panel de Materiales */}
             {tipoAgregar === 'material' && (
                 <div className="fase">
                     <div className="fase-body">
@@ -476,7 +473,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
                 </div>
             )}
 
-            {/* Totales de lo que se va a agregar */}
             <div className="totales">
                 <div className="total-line">
                     Subtotal a agregar: <span>S/ {subtotal.toFixed(2)}</span>
@@ -489,7 +485,6 @@ export const CateringAddProductsModal: React.FC<CateringAddProductsModalProps> =
                 </div>
             </div>
 
-            {/* Información de la venta actual */}
             <div className="dc-info-card">
                 <p><strong>Venta actual:</strong> {venta?.numero} - {venta?.cliente}</p>
                 <p><strong>Total actual:</strong> S/ {venta?.total.toFixed(2)}</p>

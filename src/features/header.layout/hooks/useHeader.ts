@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/context/AuthContext';
 import { Notificacion } from '../types/index.header';
 import { useCompany } from '../../company/context/CompanyContext';
 const ROLE_PERMISSIONS: Record<number, string[]> = {
-    1: ['/home', '/person-management', '/sales-management', '/inventory-management', '/catering-management'], // Administrador
+    1: ['/home', '/person-management', '/sales-management', '/inventory-management', '/catering-management'],
     2: ['/home', '/inventory-management'],
     3: ['/home', '/sales-management', '/catering-management'],
     4: ['/home', '/inventory-management'],
