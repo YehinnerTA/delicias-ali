@@ -85,10 +85,34 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                 const devoluciones = await executeQuery<any[]>(`
                     SELECT 
                         d.*,
-                        u.usuario AS usuario_nombre
+                        u.usuario AS usuario_nombre,
+                        GROUP_CONCAT(
+                            JSON_OBJECT(
+                                'id', dd.id,
+                                'nombre', 
+                                    CASE 
+                                        WHEN dd.tipo_item = 'servicio' THEN pc.nombre
+                                        WHEN dd.tipo_item = 'material' THEN mc.nombre
+                                        ELSE 'Producto'
+                                    END,
+                                'precio', 
+                                    CASE 
+                                        WHEN dd.cantidad > 0 THEN ROUND(dd.monto / dd.cantidad, 2)
+                                        ELSE 0
+                                    END,
+                                'cantidad', dd.cantidad,
+                                'tipo_item', dd.tipo_item
+                            )
+                        ) AS productos_json
                     FROM catering_devoluciones d
                     JOIN usuarios u ON d.id_usuario = u.id
+                    LEFT JOIN catering_detalle_devolucion dd ON d.id = dd.id_devolucion AND d.id_empresa = dd.id_empresa
+                    LEFT JOIN catering_service_detalle sd ON dd.tipo_item = 'servicio' AND dd.id_item = sd.id AND d.id_empresa = sd.id_empresa
+                    LEFT JOIN catering_service_productos_carta pc ON sd.id_producto_carta = pc.id
+                    LEFT JOIN catering_materiales_venta mv ON dd.tipo_item = 'material' AND dd.id_item = mv.id AND d.id_empresa = mv.id_empresa
+                    LEFT JOIN catering_materiales_catalogo mc ON mv.id_material_catalogo = mc.id
                     WHERE d.id_venta = ? AND d.id_empresa = ?
+                    GROUP BY d.id
                 `, [venta.id, id_empresa]);
 
                 return {
@@ -115,7 +139,8 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                         motivo: d.motivo,
                         notaCredito: d.nota_credito,
                         monto: parseFloat(d.monto),
-                        usuario: d.usuario_nombre
+                        usuario: d.usuario_nombre,
+                        productos: d.productos_json ? JSON.parse(`[${d.productos_json}]`) : []
                     })),
                     subtotal: parseFloat(venta.subtotal),
                     descuento: parseFloat(venta.descuento || 0),
@@ -219,11 +244,35 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
         const devoluciones = await executeQuery<any[]>(`
             SELECT 
                 d.*,
-                u.usuario AS usuario_nombre
+                u.usuario AS usuario_nombre,
+                GROUP_CONCAT(
+                    JSON_OBJECT(
+                        'id', dd.id,
+                        'nombre', 
+                            CASE 
+                                WHEN dd.tipo_item = 'servicio' THEN pc.nombre
+                                WHEN dd.tipo_item = 'material' THEN mc.nombre
+                                ELSE 'Producto'
+                            END,
+                        'precio', 
+                            CASE 
+                                WHEN dd.cantidad > 0 THEN ROUND(dd.monto / dd.cantidad, 2)
+                                ELSE 0
+                            END,
+                        'cantidad', dd.cantidad,
+                        'tipo_item', dd.tipo_item
+                    )
+                ) AS productos_json
             FROM catering_devoluciones d
             JOIN usuarios u ON d.id_usuario = u.id
+            LEFT JOIN catering_detalle_devolucion dd ON d.id = dd.id_devolucion AND d.id_empresa = dd.id_empresa
+            LEFT JOIN catering_service_detalle sd ON dd.tipo_item = 'servicio' AND dd.id_item = sd.id AND d.id_empresa = sd.id_empresa
+            LEFT JOIN catering_service_productos_carta pc ON sd.id_producto_carta = pc.id
+            LEFT JOIN catering_materiales_venta mv ON dd.tipo_item = 'material' AND dd.id_item = mv.id AND d.id_empresa = mv.id_empresa
+            LEFT JOIN catering_materiales_catalogo mc ON mv.id_material_catalogo = mc.id
             WHERE d.id_venta = ? AND d.id_empresa = ?
-        `, [id, id_empresa]);
+            GROUP BY d.id
+        `, [venta.id, id_empresa]);
 
         const result = {
             ...venta,
@@ -249,7 +298,8 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
                 motivo: d.motivo,
                 notaCredito: d.nota_credito,
                 monto: parseFloat(d.monto),
-                usuario: d.usuario_nombre
+                usuario: d.usuario_nombre,
+                productos: d.productos_json ? JSON.parse(`[${d.productos_json}]`) : []
             })),
             subtotal: parseFloat(venta.subtotal),
             descuento: parseFloat(venta.descuento || 0),

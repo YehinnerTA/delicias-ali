@@ -45,6 +45,16 @@ const separarFechaHora = (fechaHora: string): { fecha: string; horario: string }
     }
 };
 
+const getCurrentDateTimeLocal = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen, onClose, venta, onSuccess }) => {
     const { serviciosDisponibles, catalogoMateriales, addActivity, addToHistory, refreshData } = useCateringService();
     const { user } = useAuth();
@@ -79,7 +89,12 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
 
     useEffect(() => {
         if (venta) {
-            setServicios(JSON.parse(JSON.stringify(venta.servicios || [])));
+            const serviciosFiltrados = (venta.servicios || []).map(serv => ({
+                ...serv,
+                productos: serv.productos.filter(p => p.cantidad > 0)
+            })).filter(serv => serv.productos.length > 0);
+
+            setServicios(JSON.parse(JSON.stringify(serviciosFiltrados)));
             setMateriales(JSON.parse(JSON.stringify(venta.materiales || [])));
             setClienteNombre(venta.cliente);
             setClienteDoc(venta.clienteDoc || '');
@@ -358,8 +373,12 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
 
     const calcularTotales = () => {
         let subtotalServicios = servicios.reduce((s, serv) =>
-            s + serv.productos.reduce((sum, p) => sum + p.cantidad * p.precio, 0), 0);
-        let subtotalMateriales = materiales.reduce((s, m) => s + m.cantidad * m.precio, 0);
+            s + serv.productos
+                .filter(p => p.cantidad > 0)
+                .reduce((sum, p) => sum + p.cantidad * p.precio, 0), 0);
+        let subtotalMateriales = materiales
+            .filter(m => m.cantidad > 0)
+            .reduce((s, m) => s + m.cantidad * m.precio, 0);
         let subtotal = subtotalServicios + subtotalMateriales;
         const igv = subtotal * 0.18;
         const total = subtotal + igv;
@@ -372,8 +391,12 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
             showToast('No se ha seleccionado una empresa', 'warning', 'Advertencia');
             return;
         }
-        if (servicios.length === 0 && materiales.length === 0) {
-            showToast("Agregue al menos un servicio o material", "warning", "Campos incompletos");
+        const totalProductosActivos = servicios.reduce((count, serv) =>
+            count + serv.productos.filter(p => p.cantidad > 0).length, 0);
+        const materialesActivos = materiales.filter(m => m.cantidad > 0).length;
+
+        if (totalProductosActivos === 0 && materialesActivos === 0) {
+            showToast("Agregue al menos un servicio o material con cantidad mayor a 0", "warning", "Campos incompletos");
             return;
         }
         if (!clienteDoc || clienteDoc.trim() === '') {
@@ -411,19 +434,23 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                 servicios: servicios.map(serv => ({
                     id_empresa: serv.id_empresa,
                     tipoKey: serv.tipoKey,
-                    productos: serv.productos.map(p => ({
-                        id: p.id,
-                        nombre: p.nombre,
-                        precio: p.precio,
-                        cantidad: p.cantidad
-                    }))
-                })),
-                materiales: materiales.map(m => ({
-                    id: m.id,
-                    nombre: m.nombre,
-                    precio: m.precio,
-                    cantidad: m.cantidad
-                })),
+                    productos: serv.productos
+                        .filter(p => p.cantidad > 0)
+                        .map(p => ({
+                            id: p.id,
+                            nombre: p.nombre,
+                            precio: p.precio,
+                            cantidad: p.cantidad
+                        }))
+                })).filter(serv => serv.productos.length > 0),
+                materiales: materiales
+                    .filter(m => m.cantidad > 0)
+                    .map(m => ({
+                        id: m.id,
+                        nombre: m.nombre,
+                        precio: m.precio,
+                        cantidad: m.cantidad
+                    })),
                 eventoData: {
                     fecha: fecha,
                     horario: horario,
@@ -568,12 +595,22 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                 ) : (
                                     servicios.map(serv => {
                                         const catalogoServ = serviciosDisponibles[serv.tipoKey];
+                                        const productosActivos = serv.productos.filter(p => p.cantidad > 0);
+                                        const productosInactivos = serv.productos.filter(p => p.cantidad <= 0);
 
                                         return (
                                             <div key={serv.id} className="dc-container">
                                                 <div className='service-divider'>
                                                     <div className="service-label-header">
                                                         <span className="service-name">{serv.tipoNombre}</span>
+                                                        <span className="service-badge">
+                                                            {productosActivos.length} producto(s) activo(s)
+                                                            {productosInactivos.length > 0 && (
+                                                                <span style={{ color: '#ff9800', marginLeft: '8px' }}>
+                                                                    ({productosInactivos.length} eliminado(s))
+                                                                </span>
+                                                            )}
+                                                        </span>
                                                         <button className="dc-btn-default dc-eliminar" onClick={() => eliminarServicio(serv.id)}>
                                                             <i className="fas fa-trash-alt"></i>
                                                         </button>
@@ -610,33 +647,51 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {serv.productos.map((p, idx) => (
-                                                                    <tr key={idx}>
-                                                                        <td>{p.nombre}</td>
-                                                                        <td>
-                                                                            <input
-                                                                                type="number"
-                                                                                value={p.cantidad}
-                                                                                className="cantidad-input"
-                                                                                min={CANTIDAD_MINIMA_PRODUCTOS}
-                                                                                onChange={(e) => actualizarCantProdServicio(serv.id, idx, e.target.value)}
-                                                                            />
-                                                                        </td>
-                                                                        <td>
-                                                                            <input
-                                                                                type="number"
-                                                                                className="cantidad-input"
-                                                                                value={p.precio}
-                                                                                step="0.01"
-                                                                                onChange={(e) => actualizarPrecioProducto(serv.id, idx, e.target.value)}
-                                                                            />
-                                                                        </td>
-                                                                        <td>S/ {(p.cantidad * p.precio).toFixed(2)}</td>
-                                                                        <td>
-                                                                            <i className="fas fa-trash dc-eliminar" onClick={() => eliminarProductoDeServicio(serv.id, idx)}></i>
+                                                                {productosActivos.length > 0 ? (
+                                                                    productosActivos.map((p, idx) => {
+                                                                        const realIndex = serv.productos.indexOf(p);
+                                                                        return (
+                                                                            <tr key={idx}>
+                                                                                <td>{p.nombre}</td>
+                                                                                <td>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        value={p.cantidad}
+                                                                                        className="cantidad-input"
+                                                                                        min={CANTIDAD_MINIMA_PRODUCTOS}
+                                                                                        onChange={(e) => actualizarCantProdServicio(serv.id, realIndex, e.target.value)}
+                                                                                    />
+                                                                                </td>
+                                                                                <td>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        className="cantidad-input"
+                                                                                        value={p.precio}
+                                                                                        step="0.01"
+                                                                                        onChange={(e) => actualizarPrecioProducto(serv.id, realIndex, e.target.value)}
+                                                                                    />
+                                                                                </td>
+                                                                                <td>S/ {(p.cantidad * p.precio).toFixed(2)}</td>
+                                                                                <td>
+                                                                                    <i className="fas fa-trash dc-eliminar" onClick={() => eliminarProductoDeServicio(serv.id, realIndex)}></i>
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })
+                                                                ) : (
+                                                                    <tr>
+                                                                        <td colSpan={5} className="text-center" style={{ color: '#999' }}>
+                                                                            No hay productos activos en este servicio
                                                                         </td>
                                                                     </tr>
-                                                                ))}
+                                                                )}
+                                                                {productosInactivos.length > 0 && (
+                                                                    <tr>
+                                                                        <td colSpan={5} className="text-center" style={{ color: '#ff9800', fontSize: '0.85rem' }}>
+                                                                            <i className="fas fa-info-circle"></i> {productosInactivos.length} producto(s) eliminado(s) (cantidad 0)
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
                                                             </tbody>
                                                         </table>
                                                     </div>
@@ -691,32 +746,35 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {materiales.map((m, idx) => (
-                                                    <tr key={idx}>
-                                                        <td>{m.nombre}</td>
-                                                        <td>
-                                                            <input
-                                                                type="number"
-                                                                value={m.cantidad}
-                                                                className="cantidad-input"
-                                                                onChange={(e) => actualizarCantMaterial(idx, e.target.value)}
-                                                            />
-                                                        </td>
-                                                        <td>
-                                                            <input
-                                                                type="number"
-                                                                className="cantidad-input"
-                                                                value={m.precio}
-                                                                step="0.01"
-                                                                onChange={(e) => actualizarPrecioMaterial(idx, e.target.value)}
-                                                            />
-                                                        </td>
-                                                        <td>S/ {(m.cantidad * m.precio).toFixed(2)}</td>
-                                                        <td>
-                                                            <i className="fas fa-trash dc-eliminar" onClick={() => eliminarMaterial(idx)}></i>
-                                                        </td>
-                                                    </tr>
-                                                ))}
+                                                {materiales.map((m, idx) => {
+                                                    const esInactivo = m.cantidad <= 0;
+                                                    return (
+                                                        <tr key={idx} style={{ opacity: esInactivo ? 0.5 : 1 }}>
+                                                            <td>{m.nombre} {esInactivo && <span style={{ color: '#ff9800', fontSize: '0.8rem' }}>(eliminado)</span>}</td>
+                                                            <td>
+                                                                <input
+                                                                    type="number"
+                                                                    value={m.cantidad}
+                                                                    className="cantidad-input"
+                                                                    onChange={(e) => actualizarCantMaterial(idx, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td>
+                                                                <input
+                                                                    type="number"
+                                                                    className="cantidad-input"
+                                                                    value={m.precio}
+                                                                    step="0.01"
+                                                                    onChange={(e) => actualizarPrecioMaterial(idx, e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td>S/ {(m.cantidad * m.precio).toFixed(2)}</td>
+                                                            <td>
+                                                                <i className="fas fa-trash dc-eliminar" onClick={() => eliminarMaterial(idx)}></i>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
@@ -740,6 +798,7 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                         type="datetime-local"
                                         id="eventoFechaHoraEditar"
                                         value={eventoData.fechaHora}
+                                        min={getCurrentDateTimeLocal()}
                                         onChange={(e) => {
                                             setEventoData({
                                                 ...eventoData,
@@ -748,14 +807,6 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                         }}
                                         onClick={(e) => {
                                             (e.target as HTMLInputElement).showPicker?.();
-                                        }}
-                                        style={{
-                                            width: '100%',
-                                            padding: '10px',
-                                            fontSize: '1rem',
-                                            borderRadius: '4px',
-                                            border: '1px solid #ccc',
-                                            cursor: 'pointer'
                                         }}
                                     />
                                 </div>

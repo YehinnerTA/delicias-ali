@@ -37,6 +37,16 @@ const separarFechaHora = (fechaHora: string): { fecha: string; horario: string }
     };
 };
 
+const getCurrentDateTimeLocal = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onClose, onSuccess }) => {
     const { serviciosDisponibles, catalogoMateriales, addActivity, addToHistory, getNextNumeroVenta, refreshData } = useCateringService();
     const { user } = useAuth();
@@ -926,11 +936,12 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                                 <div className="fase-body">
                                     <div className="dc-info-grid">
                                         <div className="dc-input-group" style={{ gridColumn: 'span 2' }}>
-                                            <label>📅 Fecha y Hora del Evento</label>
+                                            <label>Fecha y Hora del Evento</label>
                                             <input
                                                 type="datetime-local"
                                                 id="eventoFechaHora"
                                                 value={currentVenta.eventoData.fechaHora}
+                                                min={getCurrentDateTimeLocal()}
                                                 onChange={(e) => {
                                                     setCurrentVenta(prev => ({
                                                         ...prev,
@@ -943,28 +954,10 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                                                 onClick={(e) => {
                                                     (e.target as HTMLInputElement).showPicker?.();
                                                 }}
-                                                style={{
-                                                    width: '100%',
-                                                    padding: '10px',
-                                                    fontSize: '1rem',
-                                                    borderRadius: '4px',
-                                                    border: '1px solid #ccc',
-                                                    cursor: 'pointer'
-                                                }}
                                             />
-                                            {currentVenta.eventoData.fechaHora && (
-                                                <div style={{
-                                                    fontSize: '0.85rem',
-                                                    color: '#2e7d32',
-                                                    marginTop: '4px',
-                                                    fontWeight: 'bold'
-                                                }}>
-                                                    <i className="fas fa-check-circle"></i> Evento programado para: {formatLocalDateTime(currentVenta.eventoData.fechaHora)}
-                                                </div>
-                                            )}
                                         </div>
                                         <div className="dc-input-group">
-                                            <label>👥 Número de Personas</label>
+                                            <label>Número de Personas</label>
                                             <input
                                                 type="number"
                                                 id="eventoPersonas"
@@ -980,7 +973,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                                             />
                                         </div>
                                         <div className="dc-input-group">
-                                            <label>🍽️ Tipo de Desayuno</label>
+                                            <label>Tipo de Desayuno</label>
                                             <select
                                                 id="eventoTipoDesayuno"
                                                 value={currentVenta.eventoData.tipoDesayuno}

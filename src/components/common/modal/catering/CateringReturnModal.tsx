@@ -7,6 +7,18 @@ import { useToast } from '../../../../hooks/base/useToast';
 import { VentaCatering } from '../../../../features/types/catering';
 import { generarPDFNotaCredito } from '../../../../services/pdf/pdfService';
 
+const formatLocalDateTime = (isoString: string): string => {
+    if (!isoString) return '-';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const año = date.getFullYear();
+    const horas = String(date.getHours()).padStart(2, '0');
+    const minutos = String(date.getMinutes()).padStart(2, '0');
+    return `${dia}/${mes}/${año} || ${horas}:${minutos}`;
+};
+
 interface CateringReturnModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -42,55 +54,85 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
     const id_empresa = getSelectedCompanyId() ?? 0;
     const { showToast } = useToast();
 
-    const [productosDevolucion, setProductosDevolucion] = useState<ProductoDevolucion[]>([]);
-    const [materialesDevolucion, setMaterialesDevolucion] = useState<MaterialDevolucion[]>([]);
+    const [productosAgrupados, setProductosAgrupados] = useState<{
+        nombre: string;
+        detalles: { detalleId: number; cantidad: number; precio: number }[];
+        precioPromedio: number;
+        cantidadTotal: number;
+        cantidadDevuelta: number;
+        maxDevolver: number;
+        tipo: 'servicio' | 'material';
+    }[]>([]);
     const [motivo, setMotivo] = useState('Producto defectuoso');
     const [notaCreditoNumero, setNotaCreditoNumero] = useState('');
     const [faseAbierta, setFaseAbierta] = useState(true);
-    const [tipoDevolucion, setTipoDevolucion] = useState<'servicios' | 'materiales'>('servicios');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (venta && isOpen) {
-            const nuevosProductosDev: ProductoDevolucion[] = [];
+            const map = new Map<string, {
+                detalles: { detalleId: number; cantidad: number; precio: number }[];
+                precios: number[];
+                cantidades: number[];
+                tipo: 'servicio' | 'material';
+            }>();
+
+            // ✅ Agrupar servicios (igual que ReturnModal agrupa productos)
             venta.servicios?.forEach(serv => {
                 serv.productos.forEach(p => {
-                    const detalleId = p.detalleId;
-                    if (!detalleId) {
-                        console.warn(`Producto ${p.nombre} no tiene detalleId`);
+                    if (!p.detalleId) return;
+                    const key = p.nombre;
+                    if (!map.has(key)) {
+                        map.set(key, { detalles: [], precios: [], cantidades: [], tipo: 'servicio' });
                     }
-                    nuevosProductosDev.push({
-                        detalleId: detalleId || 0,
-                        id: p.id,
-                        nombre: p.nombre,
-                        precio: p.precio,
-                        cantidad: p.cantidad,
-                        cantidadDevuelta: 0,
-                        maxDevolver: p.cantidad,
-                        servicioId: serv.id,
-                        servicioNombre: serv.tipoNombre
-                    });
+                    const grupo = map.get(key)!;
+                    grupo.detalles.push({ detalleId: p.detalleId, cantidad: p.cantidad, precio: p.precio });
+                    grupo.precios.push(p.precio);
+                    grupo.cantidades.push(p.cantidad);
                 });
             });
-            setProductosDevolucion(nuevosProductosDev);
 
-            const nuevosMaterialesDev: MaterialDevolucion[] = [];
+            // ✅ Agrupar materiales (igual que ReturnModal agrupa productos)
             venta.materiales?.forEach(m => {
-                nuevosMaterialesDev.push({
-                    id: m.id,
-                    nombre: m.nombre,
-                    precio: m.precio,
-                    cantidad: m.cantidad,
+                const key = m.nombre;
+                if (!map.has(key)) {
+                    map.set(key, { detalles: [], precios: [], cantidades: [], tipo: 'material' });
+                }
+                const grupo = map.get(key)!;
+                // Para materiales, usamos el ID del material como detalleId
+                grupo.detalles.push({ detalleId: m.id, cantidad: m.cantidad, precio: m.precio });
+                grupo.precios.push(m.precio);
+                grupo.cantidades.push(m.cantidad);
+            });
+
+            const agrupados: {
+                nombre: string;
+                detalles: { detalleId: number; cantidad: number; precio: number }[];
+                precioPromedio: number;
+                cantidadTotal: number;
+                cantidadDevuelta: number;
+                maxDevolver: number;
+                tipo: 'servicio' | 'material';
+            }[] = [];
+
+            map.forEach((value, nombre) => {
+                const totalCantidad = value.cantidades.reduce((a, b) => a + b, 0);
+                const precioPromedio = value.precios.reduce((a, b) => a + b, 0) / value.precios.length;
+                agrupados.push({
+                    nombre,
+                    detalles: value.detalles,
+                    precioPromedio: Math.round(precioPromedio * 100) / 100,
+                    cantidadTotal: totalCantidad,
                     cantidadDevuelta: 0,
-                    maxDevolver: m.cantidad
+                    maxDevolver: totalCantidad,
+                    tipo: value.tipo
                 });
             });
-            setMaterialesDevolucion(nuevosMaterialesDev);
 
+            setProductosAgrupados(agrupados);
             const devCount = (venta.devoluciones?.length || 0) + 1;
             setNotaCreditoNumero(`NC-${venta.numero}-${devCount}`);
             setMotivo('Producto defectuoso');
-            setTipoDevolucion('servicios');
         }
     }, [venta, isOpen]);
 
@@ -98,26 +140,16 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
         setFaseAbierta(!faseAbierta);
     };
 
-    const actualizarCantidadDevuelta = (detalleId: number, cantidad: number, tipo: 'servicio' | 'material') => {
-        if (tipo === 'servicio') {
-            setProductosDevolucion(prev =>
-                prev.map(p =>
-                    p.detalleId === detalleId ? { ...p, cantidadDevuelta: Math.min(Math.max(0, cantidad), p.maxDevolver) } : p
-                )
-            );
-        } else {
-            setMaterialesDevolucion(prev =>
-                prev.map(m =>
-                    m.id === detalleId ? { ...m, cantidadDevuelta: Math.min(Math.max(0, cantidad), m.maxDevolver) } : m
-                )
-            );
-        }
+    const actualizarCantidadDevuelta = (index: number, cantidad: number) => {
+        setProductosAgrupados(prev =>
+            prev.map((p, i) =>
+                i === index ? { ...p, cantidadDevuelta: Math.min(cantidad, p.maxDevolver) } : p
+            )
+        );
     };
 
     const calcularTotalDevolucion = (): number => {
-        const totalProductos = productosDevolucion.reduce((total, p) => total + (p.cantidadDevuelta * p.precio), 0);
-        const totalMateriales = materialesDevolucion.reduce((total, m) => total + (m.cantidadDevuelta * m.precio), 0);
-        return totalProductos + totalMateriales;
+        return productosAgrupados.reduce((total, p) => total + (p.cantidadDevuelta * p.precioPromedio), 0);
     };
 
     const procesarDevolucion = async () => {
@@ -127,11 +159,9 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
             return;
         }
 
-        const productosDevueltos = productosDevolucion.filter(p => p.cantidadDevuelta > 0);
-        const materialesDevueltos = materialesDevolucion.filter(m => m.cantidadDevuelta > 0);
-
-        if (productosDevueltos.length === 0 && materialesDevueltos.length === 0) {
-            showToast("Seleccione al menos un producto o material", "warning", "Campos incompletos");
+        const productosDevueltos = productosAgrupados.filter(p => p.cantidadDevuelta > 0);
+        if (productosDevueltos.length === 0) {
+            showToast("Seleccione al menos un producto", "warning", "Campos incompletos");
             return;
         }
 
@@ -143,25 +173,50 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
 
         const montoTotal = calcularTotalDevolucion();
 
+        // ✅ Construir payload para servicios y materiales (igual que ReturnModal)
+        const productosParaAPI: { id_item: number; cantidad: number }[] = [];
+        const materialesParaAPI: { id_item: number; cantidad: number }[] = [];
+
+        productosDevueltos.forEach(grupo => {
+            let cantidadRestante = grupo.cantidadDevuelta;
+            const detallesOrdenados = [...grupo.detalles].sort((a, b) => b.cantidad - a.cantidad);
+
+            for (const det of detallesOrdenados) {
+                if (cantidadRestante <= 0) break;
+                const tomar = Math.min(cantidadRestante, det.cantidad);
+
+                if (grupo.tipo === 'servicio') {
+                    productosParaAPI.push({
+                        id_item: det.detalleId,
+                        cantidad: tomar
+                    });
+                } else {
+                    materialesParaAPI.push({
+                        id_item: det.detalleId,
+                        cantidad: tomar
+                    });
+                }
+                cantidadRestante -= tomar;
+            }
+
+            if (cantidadRestante > 0) {
+                throw new Error(`No hay suficiente stock para devolver ${grupo.cantidadDevuelta} de ${grupo.nombre}`);
+            }
+        });
+
         setIsSubmitting(true);
         try {
             const payload = {
                 id_empresa,
-                productos_devueltos: productosDevueltos.map(p => ({
-                    id_item: p.detalleId,
-                    cantidad: p.cantidadDevuelta
-                })),
-                materiales_devueltos: materialesDevueltos.map(m => ({
-                    id_item: m.id,
-                    cantidad: m.cantidadDevuelta
-                })),
+                productos_devueltos: productosParaAPI,
+                materiales_devueltos: materialesParaAPI,
                 motivo,
                 nota_credito: notaCreditoNumero,
                 usuario_id: userId
             };
 
             const { cateringServiceApi } = await import('../../../../services/api/cateringServiceApi');
-            const resultado = await cateringServiceApi.devolver(venta.id, id_empresa, payload);
+            await cateringServiceApi.devolver(venta.id, id_empresa, payload);
 
             await refreshData();
 
@@ -171,9 +226,9 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
             generarPDFNotaCredito(venta as any, {
                 fecha: new Date().toLocaleString(),
                 productos: productosDevueltos.map(p => ({
-                    id: p.id,
+                    id: 0,
                     nombre: p.nombre,
-                    precio: p.precio,
+                    precio: p.precioPromedio,
                     cantidad: p.cantidadDevuelta
                 })),
                 monto: montoTotal,
@@ -187,7 +242,7 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
             onClose();
         } catch (error) {
             console.error('[CateringReturnModal] Error al procesar devolución:', error);
-            showToast('Error al procesar la devolución', 'error', 'Error');
+            showToast(error instanceof Error ? error.message : 'Error al procesar la devolución', 'error', 'Error');
         } finally {
             setIsSubmitting(false);
         }
@@ -224,106 +279,72 @@ export const CateringReturnModal: React.FC<CateringReturnModalProps> = ({ isOpen
                 </div>
             </div>
 
+            {/* ✅ Devoluciones previas - IGUAL que ReturnModal */}
             {devolucionesPrevias.length > 0 && (
                 <div className="notas-credito">
                     <h4>Devoluciones previas</h4>
                     {devolucionesPrevias.map((d, idx) => (
                         <div key={idx} className="devolucion-card">
-                            <small>{d.fecha}</small><br />
+                            <small>{formatLocalDateTime(d.fecha)}</small><br />
                             <strong>NC: {d.notaCredito}</strong><br />
                             Monto: S/ {d.monto.toFixed(2)}<br />
                             Motivo: {d.motivo}<br />
-                            Productos: {d.productos?.map((p: any) => `${p.nombre} x${p.cantidad}`).join(', ')}
-                            {d.materiales?.map((m: any) => `${m.nombre} x${m.cantidad}`).join(', ')}
+                            Productos: {d.productos && d.productos.length > 0
+                                ? d.productos.map((p: any) => `${p.nombre} x${p.cantidad}`).join(', ')
+                                : 'Sin productos devueltos'}
                         </div>
                     ))}
                 </div>
             )}
 
-            <div className="dc-tabs">
-                <button
-                    className={`dc-tab-btn ${tipoDevolucion === 'servicios' ? 'active' : ''}`}
-                    onClick={() => setTipoDevolucion('servicios')}
-                >
-                    <i className="fas fa-utensils"></i> Servicios
-                </button>
-                <button
-                    className={`dc-tab-btn ${tipoDevolucion === 'materiales' ? 'active' : ''}`}
-                    onClick={() => setTipoDevolucion('materiales')}
-                >
-                    <i className="fas fa-chair"></i> Materiales
-                </button>
+            {/* ✅ Selección de productos - IGUAL que ReturnModal (agrupado por nombre) */}
+            <div className="fase">
+                <div className="fase-header" onClick={toggleFase}>
+                    <span><i className="fas fa-boxes"></i> Seleccione productos a devolver</span>
+                    <i className={`fas fa-chevron-${faseAbierta ? 'down' : 'right'}`}></i>
+                </div>
+
+                {faseAbierta && (
+                    <div className="fase-body">
+                        {productosAgrupados.length === 0 ? (
+                            <div className="empty-servicios">No hay productos disponibles para devolver</div>
+                        ) : (
+                            productosAgrupados.map((p, idx) => (
+                                <div key={idx} className="detalle-producto-item">
+                                    <div>
+                                        <strong className="dc-info-label">{p.nombre}</strong>
+                                        {p.tipo === 'servicio' ? ' (Servicio)' : ' (Material)'}
+                                    </div>
+                                    <div>
+                                        <strong className="dc-info-label">Precio promedio:</strong> S/ {p.precioPromedio.toFixed(2)}
+                                    </div>
+                                    <div>
+                                        <strong className="dc-info-label">Disponible:</strong> {p.maxDevolver} unidades
+                                    </div>
+                                    <div>
+                                        <strong className="dc-info-label">Valor total:</strong> S/ {(p.maxDevolver * p.precioPromedio).toFixed(2)}
+                                    </div>
+                                    <div>
+                                        <strong className="dc-info-label">Devolver:</strong>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max={p.maxDevolver}
+                                            value={p.cantidadDevuelta}
+                                            onChange={(e) => actualizarCantidadDevuelta(idx, parseInt(e.target.value) || 0)}
+                                            className="cantidad-input"
+                                            style={{ width: '80px', marginLeft: '8px' }}
+                                        /> de {p.maxDevolver}
+                                    </div>
+                                    <div className="producto-devolucion-monto">
+                                        Monto a devolver: <strong className="dc-eliminar">S/ {(p.cantidadDevuelta * p.precioPromedio).toFixed(2)}</strong>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                )}
             </div>
-
-            {tipoDevolucion === 'servicios' && (
-                <div className="fase">
-                    <div className="fase-header" onClick={toggleFase}>
-                        <span><i className="fas fa-boxes"></i> Seleccione productos a devolver</span>
-                        <i className={`fas fa-chevron-${faseAbierta ? 'down' : 'right'}`}></i>
-                    </div>
-                    {faseAbierta && (
-                        <div className="fase-body">
-                            {productosDevolucion.length === 0 ? (
-                                <div className="empty-servicios">No hay productos en los servicios</div>
-                            ) : (
-                                productosDevolucion.map(p => (
-                                    <div key={p.detalleId} className="detalle-producto-item">
-                                        <div><strong className="dc-info-label">{p.nombre}: </strong>S/ {p.precio.toFixed(2)}</div>
-                                        <div><strong className="dc-info-label">Stock: </strong>{p.maxDevolver} unidades</div>
-                                        <div><strong className="dc-info-label">Valor: </strong>S/ {(p.maxDevolver * p.precio).toFixed(2)}</div>
-                                        <div><strong className="dc-info-label">Devolver:</strong>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max={p.maxDevolver}
-                                                value={p.cantidadDevuelta}
-                                                onChange={(e) => actualizarCantidadDevuelta(p.detalleId, parseInt(e.target.value) || 0, 'servicio')}
-                                                className="cantidad-input"
-                                            /> de {p.maxDevolver}
-                                        </div>
-                                        <div className="producto-devolucion-monto">Monto a devolver: <strong className='dc-eliminar'>S/ {(p.cantidadDevuelta * p.precio).toFixed(2)}</strong></div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {tipoDevolucion === 'materiales' && (
-                <div className="fase">
-                    <div className="fase-header" onClick={toggleFase}>
-                        <span><i className="fas fa-chair"></i> Seleccione materiales a devolver</span>
-                        <i className={`fas fa-chevron-${faseAbierta ? 'down' : 'right'}`}></i>
-                    </div>
-                    {faseAbierta && (
-                        <div className="fase-body">
-                            {materialesDevolucion.length === 0 ? (
-                                <div className="empty-servicios">No hay materiales registrados</div>
-                            ) : (
-                                materialesDevolucion.map(m => (
-                                    <div key={m.id} className="detalle-producto-item">
-                                        <div><strong className="dc-info-label">{m.nombre}: </strong>S/ {m.precio.toFixed(2)}</div>
-                                        <div><strong className="dc-info-label">Stock: {m.maxDevolver} unidades</strong></div>
-                                        <div><strong className="dc-info-label">Valor: </strong>S/{(m.maxDevolver * m.precio).toFixed(2)}</div>
-                                        <div><strong className="dc-info-label">Devolver: </strong>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max={m.maxDevolver}
-                                                value={m.cantidadDevuelta}
-                                                onChange={(e) => actualizarCantidadDevuelta(m.id, parseInt(e.target.value) || 0, 'material')}
-                                                className="cantidad-input"
-                                            />de {m.maxDevolver}
-                                        </div>
-                                        <div className="producto-devolucion-monto">Monto a devolver: <strong className='dc-eliminar'>S/{(m.cantidadDevuelta * m.precio).toFixed(2)}</strong></div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
 
             <div className="resumen-devolucion">
                 <div><strong>TOTAL A DEVOLVER:</strong> <strong className="dc-eliminar">S/ {totalDevolucion.toFixed(2)}</strong></div>

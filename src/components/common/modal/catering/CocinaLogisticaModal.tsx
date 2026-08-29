@@ -42,7 +42,11 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
         try {
             const productos = new Set<string>();
             venta.servicios?.forEach(serv => {
-                serv.productos.forEach(p => productos.add(p.nombre));
+                serv.productos.forEach(p => {
+                    if (p.cantidad > 0) {
+                        productos.add(p.nombre);
+                    }
+                });
             });
 
             for (const nombre of productos) {
@@ -106,56 +110,61 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
                             <i className="fas fa-spinner fa-spin"></i> Cargando recetas...
                         </div>
                     ) : (
-                        venta.servicios.map((serv, servIdx) => (
-                            <div key={servIdx} className="dc-container">
-                                <div className="service-divider">
-                                    <div className="service-label-header">
-                                        <span className="service-name">{serv.tipoNombre}</span>
-                                    </div>
-                                </div>
-                                <br />
-                                {serv.productos.map((p, prodIdx) => {
-                                    const ingredientes = recetasCargadas.get(p.nombre) || [];
-                                    return (
-                                        <div key={prodIdx} className="service-body">
-                                            <div className="insumo-header">
-                                                <strong>▸ Producto: {p.nombre} (Cantidad: {p.cantidad})</strong>
-                                            </div>
-                                            <div className="insumo-ingredientes">
-                                                {ingredientes.map((ing, ingIdx) => {
-                                                    const total = ing.cantidadPorUnidad * p.cantidad;
-                                                    return (
-                                                        <div key={ingIdx} className="insumo-ingrediente">
-                                                            <span>
-                                                                <strong>• {ing.nombre}</strong> — {total.toFixed(2)} {ing.unidad}
-                                                            </span>
-                                                            <div className="insumo-proveedores">
-                                                                {ing.proveedores && ing.proveedores.length > 0 ? (
-                                                                    ing.proveedores.map((prov, provIdx) => {
-                                                                        const telefono = prov.match(/\d{9}/)?.[0] || '';
-                                                                        return (
-                                                                            <button
-                                                                                key={provIdx}
-                                                                                className="dc-btn dc-btn-whatsapp info"
-                                                                                onClick={() => handleEnviarWhatsApp(telefono, ing.nombre, total)}
-                                                                            >
-                                                                                <i className="fab fa-whatsapp"></i> {prov.substring(0, 15)}
-                                                                            </button>
-                                                                        );
-                                                                    })
-                                                                ) : (
-                                                                    <span>Sin proveedor</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
+                        venta.servicios.map((serv, servIdx) => {
+                            const productosFiltrados = serv.productos.filter(p => p.cantidad > 0);
+
+                            if (productosFiltrados.length === 0) return null;
+
+                            return (
+                                <div key={servIdx} className="dc-container">
+                                    <div className="service-divider">
+                                        <div className="service-label-header">
+                                            <span className="service-name">{serv.tipoNombre}</span>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        ))
+                                    </div>
+                                    {productosFiltrados.map((p, prodIdx) => {
+                                        const ingredientes = recetasCargadas.get(p.nombre) || [];
+                                        return (
+                                            <div key={prodIdx} className="service-body">
+                                                <div className="insumo-header">
+                                                    <strong>▸ Producto: {p.nombre} (Cantidad: {p.cantidad})</strong>
+                                                </div>
+                                                <div className="insumo-ingredientes">
+                                                    {ingredientes.map((ing, ingIdx) => {
+                                                        const total = ing.cantidadPorUnidad * p.cantidad;
+                                                        return (
+                                                            <div key={ingIdx} className="insumo-ingrediente">
+                                                                <span>
+                                                                    <strong>• {ing.nombre}</strong> — {total.toFixed(2)} {ing.unidad}
+                                                                </span>
+                                                                <div className="insumo-proveedores">
+                                                                    {ing.proveedores && ing.proveedores.length > 0 ? (
+                                                                        ing.proveedores.map((prov, provIdx) => {
+                                                                            const telefono = prov.match(/\d{9}/)?.[0] || '';
+                                                                            return (
+                                                                                <button
+                                                                                    key={provIdx}
+                                                                                    className="dc-btn dc-btn-whatsapp info"
+                                                                                    onClick={() => handleEnviarWhatsApp(telefono, ing.nombre, total)}
+                                                                                >
+                                                                                    <i className="fab fa-whatsapp"></i> {prov.substring(0, 15)}
+                                                                                </button>
+                                                                            );
+                                                                        })
+                                                                    ) : (
+                                                                        <span>Sin proveedor</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })
                     )}
                 </>
             )}

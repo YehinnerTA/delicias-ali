@@ -62,15 +62,25 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
 
     if (!venta) return null;
 
-    const serviciosHtml = venta.servicios && venta.servicios.length > 0 ? (
-        venta.servicios.map((serv, servIdx) => (
-            <div key={servIdx} className="detalle-producto-item">
-                <div className="servicio-header">
-                    <strong className="servicio-titulo">{serv.tipoNombre}</strong>
+    const serviciosFiltrados = venta.servicios?.map(serv => ({
+        ...serv,
+        productos: serv.productos.filter(p => p.cantidad > 0)
+    })).filter(serv => serv.productos.length > 0) || [];
+
+    const materialesFiltrados = venta.materiales?.filter(m => m.cantidad > 0) || [];
+
+    const serviciosHtml = serviciosFiltrados.length > 0 ? (
+        serviciosFiltrados.map((serv, servIdx) => (
+            <div key={servIdx} className="dc-container">
+                <div className="service-divider">
+                    <div className="service-label-header">
+                        <strong className="service-name">{serv.tipoNombre}</strong>
+                    </div>
                 </div>
+
                 {serv.productos.map((p, prodIdx) => (
-                    <div key={prodIdx} className="detalle-producto-item">
-                        <div><strong>{p.nombre}</strong> - S/ {p.precio.toFixed(2)}</div>
+                    <div key={prodIdx} className="insumo-ingrediente">
+                        <div>▸ <strong>{p.nombre}</strong> - S/ {p.precio.toFixed(2)}</div>
                         <div>Cant: {p.cantidad} | Subtotal: S/ {(p.cantidad * p.precio).toFixed(2)}</div>
                     </div>
                 ))}
@@ -80,10 +90,10 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
         <div className="detalle-producto-item">No hay servicios registrados</div>
     );
 
-    const materialesHtml = venta.materiales && venta.materiales.length > 0 ? (
-        venta.materiales.map((m, idx) => (
-            <div key={idx} className="detalle-producto-item">
-                <div><strong>{m.nombre}</strong> - S/ {m.precio.toFixed(2)}</div>
+    const materialesHtml = materialesFiltrados.length > 0 ? (
+        materialesFiltrados.map((m, idx) => (
+            <div key={idx} className="insumo-ingrediente">
+                <div>▸ <strong>{m.nombre}</strong> - S/ {m.precio.toFixed(2)}</div>
                 <div>Cant: {m.cantidad} | Subtotal: S/ {(m.cantidad * m.precio).toFixed(2)}</div>
             </div>
         ))
@@ -93,7 +103,7 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
 
     const devHtml = (venta.devoluciones || []).map((d, idx) => (
         <div key={idx} className="devolucion-card">
-            <small>{d.fecha}</small><br />
+            <small>{formatLocalDateTime(d.fecha)}</small><br />
             <strong>NC: {d.notaCredito}</strong><br />
             Monto: S/ {d.monto.toFixed(2)}<br />
             Motivo: {d.motivo}<br />
@@ -104,7 +114,7 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
     const histHtml = (historial.length > 0 ? historial : venta.historial || []).map((h, idx) => (
         <div key={idx} className="dc-history-entry">
             <div>
-                <span className="dc-history-date">{h.fecha}</span>
+                <span className="dc-history-date">{formatLocalDateTime(h.fecha)}</span>
                 <span className="dc-history-user"><i className="fas fa-user-circle"></i> {h.usuario}</span>
             </div>
             <div className="dc-history-action">{h.accion}</div>
@@ -194,6 +204,13 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
                             </div>
                         )}
 
+                        {devHtml.length > 0 && (
+                            <div className="detalle-venta-card notas-credito">
+                                <h4>Notas de Crédito</h4>
+                                {devHtml}
+                            </div>
+                        )}
+
                         <div className="dc-info-card">
                             <h4><i className="fas fa-utensils"></i> Servicios de Catering</h4>
                             {serviciosHtml}
@@ -204,20 +221,13 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
                             {materialesHtml}
                         </div>
 
-                        <div className="detalle-totales">
-                            <div>Subtotal: S/ {venta.subtotal.toFixed(2)}</div>
-                            <div>Descuento: S/ {(venta.descuento || 0).toFixed(2)}</div>
-                            <div>IGV (18%): S/ {venta.igv.toFixed(2)}</div>
-                            <div className="total-grande"><strong>TOTAL: S/ {venta.total.toFixed(2)}</strong></div>
+                        <div className="totales">
+                            <div className="total-line">Subtotal: <span>S/ {venta.subtotal.toFixed(2)}</span></div>
+                            <div className="total-line">Descuento: <span>S/ {(venta.descuento || 0).toFixed(2)}</span></div>
+                            <div className="total-line">IGV (18%): <span>S/ {venta.igv.toFixed(2)}</span></div>
+                            <div className="total-line total-grande">TOTAL: <span>S/ {venta.total.toFixed(2)}</span></div>
                         </div>
                     </div>
-
-                    {devHtml.length > 0 && (
-                        <div className="detalle-venta-card notas-credito">
-                            <h4>Notas de Crédito</h4>
-                            {devHtml}
-                        </div>
-                    )}
                 </>
             )}
 

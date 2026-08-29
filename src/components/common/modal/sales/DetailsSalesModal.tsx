@@ -61,7 +61,7 @@ export const DetalleVentaModal: React.FC<DetalleVentaModalProps> = ({ isOpen, on
 
     const devHtml = (venta.devoluciones || []).map((d, idx) => (
         <div key={idx} className="devolucion-card">
-            <small>{d.fecha}</small><br />
+            <small>{formatLocalDateTime(d.fecha)}</small><br />
             <strong>NC: {d.notaCredito}</strong><br />
             Monto: S/ {d.monto.toFixed(2)}<br />
             Motivo: {d.motivo}<br />
