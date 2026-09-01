@@ -5,6 +5,32 @@ import { useCompany } from '../../../../features/company/context/CompanyContext'
 import { recetaApi } from '../../../../services/api/recetaApi';
 import { useToast } from '../../../../hooks/base/useToast';
 
+const formatFechaHoraEvento = (fecha: string, horario: string): string => {
+    if (!fecha) return 'No especificada';
+
+    let fechaLimpia = fecha;
+    if (fechaLimpia.includes('T')) {
+        fechaLimpia = fechaLimpia.split('T')[0];
+    }
+    if (fechaLimpia.includes('Z')) {
+        fechaLimpia = fechaLimpia.split('Z')[0];
+    }
+
+    const partesFecha = fechaLimpia.split('-');
+    const dia = partesFecha[2] || '';
+    const mes = partesFecha[1] || '';
+    const año = partesFecha[0] || '';
+    const fechaFormateada = `${dia}/${mes}/${año}`;
+
+    let horaFormateada = '00:00';
+    if (horario) {
+        const partesHora = horario.split(':');
+        horaFormateada = `${partesHora[0]}:${partesHora[1]}`;
+    }
+
+    return `${fechaFormateada} || ${horaFormateada}`;
+};
+
 interface CocinaLogisticaModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -79,6 +105,10 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
 
     if (!venta) return null;
 
+    const fechaHoraEvento = venta.eventoData?.fecha
+        ? formatFechaHoraEvento(venta.eventoData.fecha, venta.eventoData.horario || '00:00')
+        : 'No especificada';
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Requerimientos Cocina & Logística" icon="fa-clipboard-list">
             <div className="dc-info-card">
@@ -94,7 +124,7 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
                     </div>
                     <div className="dc-info-item">
                         <div className="dc-info-label">Fecha evento</div>
-                        <div className="dc-info-value">{venta.eventoData?.fecha || 'No especificada'}</div>
+                        <div className="dc-info-value">{fechaHoraEvento}</div>
                     </div>
                     <div className="dc-info-item">
                         <div className="dc-info-label">Personas</div>
