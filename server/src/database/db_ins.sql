@@ -1,6 +1,7 @@
 -- =====================================================
 -- DATOS INICIALES (maestros y pruebas)
 -- =====================================================
+USE sistema_eventos_catering;
 
 -- Insertar roles
 INSERT INTO roles (nombre, descripcion) VALUES
@@ -18,7 +19,14 @@ INSERT INTO empresas (ruc, nombre, creado_por) VALUES
 INSERT INTO personas (id_empresa, tipo_persona, tipo_documento, numero_documento, nombre, apellido, email, celular) VALUES
                      (1, 'empleado', 'DNI', '12345678', 'Administrador', 'Del Sistema', 'admin@deliciasali.com', '911111111'),
                      (1, 'cliente_natural', 'DNI', '00000000', 'VARIOS', ' ', ' ', '000000000'),
-                     (2, 'cliente_natural', 'DNI', '00000000', 'VARIOS', ' ', ' ', '000000000');
+                     (2, 'cliente_natural', 'DNI', '00000000', 'VARIOS', ' ', ' ', '000000000'),
+                     (1, 'proveedor', 'RUC', '10412743879', 'Panadería Central', NULL, 'panaderia@central.com', '995123456'),
+                     (1, 'proveedor', 'RUC', '10412743880', 'Carnes Premium', NULL, 'carnes@premium.com', '995345678'),
+                     (1, 'proveedor', 'RUC', '10412743881', 'Lácteos Andinos', NULL, 'lacteos@andinos.com', '995456789'),
+                     (1, 'proveedor', 'RUC', '10412743882', 'Avícola San Fernando', NULL, 'avicola@sanfernando.com', '994123456'),
+                     (1, 'proveedor', 'RUC', '10412743883', 'Frutas del Valle', NULL, 'frutas@valle.com', '999123456'),
+                     (1, 'proveedor', 'RUC', '10412743884', 'Café Altura', NULL, 'cafe@altura.com', '998765432'),
+                     (1, 'proveedor', 'RUC', '10412743885', 'Granos Andinos', NULL, 'granos@andinos.com', '997123456');
                      
 -- Insertar el usuario asociado a esa persona (contraseña: 123456)
 INSERT INTO usuarios (id_persona, usuario, password_hash, firma, id_rol) VALUES
@@ -156,17 +164,6 @@ VALUES ('catering', 'VENTA', CONCAT('Venta ', (SELECT numero FROM ventas WHERE i
 -- =====================================================
 -- DATOS DE PROVEEDORES, INGREDIENTES Y RECETAS (empresa 1)
 -- =====================================================
-
--- Insertar proveedores (en tabla personas) - empresa 1
-INSERT INTO personas (id_empresa, tipo_persona, tipo_documento, numero_documento, nombre, apellido, email, celular)
-VALUES 
-(1, 'proveedor', 'RUC', '10412743879', 'Panadería Central', NULL, 'panaderia@central.com', '995123456'),
-(1, 'proveedor', 'RUC', '10412743880', 'Carnes Premium', NULL, 'carnes@premium.com', '995345678'),
-(1, 'proveedor', 'RUC', '10412743881', 'Lácteos Andinos', NULL, 'lacteos@andinos.com', '995456789'),
-(1, 'proveedor', 'RUC', '10412743882', 'Avícola San Fernando', NULL, 'avicola@sanfernando.com', '994123456'),
-(1, 'proveedor', 'RUC', '10412743883', 'Frutas del Valle', NULL, 'frutas@valle.com', '999123456'),
-(1, 'proveedor', 'RUC', '10412743884', 'Café Altura', NULL, 'cafe@altura.com', '998765432'),
-(1, 'proveedor', 'RUC', '10412743885', 'Granos Andinos', NULL, 'granos@andinos.com', '997123456');
 
 -- Insertar ingredientes - empresa 1
 INSERT INTO ingredientes (id_empresa, nombre, unidad) VALUES
