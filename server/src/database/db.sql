@@ -1,8 +1,5 @@
 -- =====================================================
--- SISTEMA DE EVENTOS Y CATERING - ESTRUCTURA DE TABLAS
--- =====================================================
--- Este script solo crea las tablas. Los datos iniciales
--- se insertan desde migrate.ts (o manualmente).
+-- SISTEMA DE EVENTOS Y CATERING
 -- =====================================================
 
 -- Eliminar base de datos si existe y crearla nuevamente
@@ -10,7 +7,7 @@ DROP DATABASE IF EXISTS sistema_eventos_catering;
 CREATE DATABASE sistema_eventos_catering;
 USE sistema_eventos_catering;
 
--- Clave de encriptación (usada para hash de contraseñas y otros cifrados)
+-- Clave de encriptación
 SET @encryption_key = SHA2('ClaveSeguraParaEventosPeru2024!', 256);
 
 -- =====================================================
@@ -30,15 +27,15 @@ CREATE TABLE empresas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     ruc CHAR(11) NOT NULL UNIQUE,
     nombre VARCHAR(100) NOT NULL,
-    estado TINYINT(1) DEFAULT 1 COMMENT '1=Activa, 0=Inactiva',
-    creado_por INT NULL COMMENT 'ID del usuario que creó la empresa',
+    estado TINYINT(1) DEFAULT 1,
+    creado_por INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_ruc (ruc)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 3. PERSONAS (Datos personales)
+-- 3. PERSONAS
 -- =====================================================
 CREATE TABLE personas (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -60,14 +57,14 @@ CREATE TABLE personas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 4. USUARIOS (Autenticación)
+-- 4. USUARIOS
 -- =====================================================
 CREATE TABLE usuarios (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    id_persona INT NOT NULL COMMENT 'ID de la persona asociada',
+    id_persona INT NOT NULL,
     usuario VARCHAR(50) NOT NULL UNIQUE,
-    password_hash CHAR(64) NOT NULL COMMENT 'Hash SHA-256 con la clave de encriptación',
-    firma VARCHAR(255) NULL COMMENT 'Ruta de la imagen de la firma digital',
+    password_hash CHAR(64) NOT NULL,
+    firma VARCHAR(255) NULL,
     id_rol INT NOT NULL DEFAULT 1,
     estado TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -78,13 +75,13 @@ CREATE TABLE usuarios (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 5. RELACIÓN USUARIO - EMPRESA (ahora con persona)
+-- 5. USUARIO - EMPRESA
 -- =====================================================
 CREATE TABLE usuario_empresa (
     id INT AUTO_INCREMENT PRIMARY KEY,
     usuario_id INT NOT NULL,
     empresa_id INT NOT NULL,
-    es_predeterminada TINYINT(1) DEFAULT 0 COMMENT 'Empresa por defecto al iniciar sesión',
+    es_predeterminada TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
     FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE,
@@ -94,7 +91,7 @@ CREATE TABLE usuario_empresa (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 6. HISTORIAL DE CAMBIOS (Auditoría)
+-- 6. HISTORIAL
 -- =====================================================
 CREATE TABLE historial (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -110,7 +107,7 @@ CREATE TABLE historial (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 7. ACTIVIDAD DEL SISTEMA (Logs)
+-- 7. ACTIVIDAD
 -- =====================================================
 CREATE TABLE actividad (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -125,7 +122,39 @@ CREATE TABLE actividad (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 8. INSUMOS Y UTENSILIOS (con multiempresa)
+-- 8. CATEGORÍAS DE ALIMENTOS
+-- =====================================================
+CREATE TABLE categorias_alimentos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    INDEX idx_nombre (nombre)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- 9. PROVEEDOR - CATEGORÍA
+-- =====================================================
+CREATE TABLE proveedor_categoria (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
+    id_proveedor INT NOT NULL,
+    id_categoria INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    FOREIGN KEY (id_proveedor) REFERENCES personas(id) ON DELETE CASCADE,
+    FOREIGN KEY (id_categoria) REFERENCES categorias_alimentos(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_proveedor_categoria (id_proveedor, id_categoria),
+    INDEX idx_proveedor (id_proveedor),
+    INDEX idx_categoria (id_categoria)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- 10. INSUMOS Y UTENSILIOS (Inventario)
 -- =====================================================
 CREATE TABLE catering_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -136,10 +165,10 @@ CREATE TABLE catering_items (
     unidad_medida VARCHAR(50) NOT NULL DEFAULT 'unidad',
     tiene_vencimiento BOOLEAN DEFAULT FALSE,
     fecha_vencimiento DATE NULL,
-    dias_vida_util INT NULL COMMENT 'Días estimados para productos sin fecha',
+    dias_vida_util INT NULL,
     precio_compra DECIMAL(10,2) NULL,
-    id_proveedor INT NULL COMMENT 'ID de persona (proveedor)',
-    registrado_por INT NOT NULL COMMENT 'ID de la persona que registró',
+    id_proveedor INT NULL,
+    registrado_por INT NOT NULL,
     ultima_edicion DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -152,15 +181,15 @@ CREATE TABLE catering_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 9. LOTES INSUMOS
+-- 11. LOTES INSUMOS
 -- =====================================================
 CREATE TABLE catering_lotes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_empresa INT NOT NULL,
-    id_item INT NOT NULL COMMENT 'ID de catering_items',
+    id_item INT NOT NULL,
     stock INT NOT NULL DEFAULT 0,
     fecha_vencimiento DATE NULL,
-    dias_vida_util INT NULL COMMENT 'Días de duración (si no se usa fecha directa)',
+    dias_vida_util INT NULL,
     fecha_registro DATE NOT NULL,
     registrado_por INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -174,7 +203,7 @@ CREATE TABLE catering_lotes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 10. CATÁLOGO DE POSTRES (con multiempresa)
+-- 12. POSTRES
 -- =====================================================
 CREATE TABLE postres (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -188,7 +217,7 @@ CREATE TABLE postres (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 11. LOTES POSTRES X VENCIMIENTO (con multiempresa)
+-- 13. LOTES POSTRES
 -- =====================================================
 CREATE TABLE lotes (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -196,10 +225,10 @@ CREATE TABLE lotes (
     postre_id INT NOT NULL,
     stock INT NOT NULL DEFAULT 0,
     fecha_vencimiento DATE NOT NULL,
-    dias_duracion INT NOT NULL COMMENT 'Días de duración desde la fecha de registro',
+    dias_duracion INT NOT NULL,
     descartado TINYINT(1) DEFAULT 0,
     fecha_registro DATE NOT NULL,
-    registrado_por INT NOT NULL COMMENT 'ID de la persona que registró',
+    registrado_por INT NOT NULL,
     ultima_edicion DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -211,15 +240,15 @@ CREATE TABLE lotes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 12. VENTAS (cabecera común para general y catering, con multiempresa)
+-- 14. VENTAS
 -- =====================================================
 CREATE TABLE ventas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_empresa INT NOT NULL,
     numero VARCHAR(20) NOT NULL UNIQUE,
     fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    id_cliente INT NOT NULL COMMENT 'ID de persona (cliente)',
-    id_usuario INT NOT NULL COMMENT 'Usuario que registra la venta',
+    id_cliente INT NOT NULL,
+    id_usuario INT NOT NULL,
     subtotal DECIMAL(10,2) NOT NULL,
     descuento DECIMAL(10,2) DEFAULT 0,
     igv DECIMAL(10,2) NOT NULL,
@@ -236,14 +265,14 @@ CREATE TABLE ventas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 13. DETALLE DE VENTAS (para ventas generales con lotes, con multiempresa)
+-- 15. DETALLE VENTAS
 -- =====================================================
 CREATE TABLE detalle_venta (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_empresa INT NOT NULL,
     id_venta INT NOT NULL,
-    id_lote INT NOT NULL COMMENT 'Lote del producto vendido',
-    nombre_producto VARCHAR(100) NOT NULL COMMENT 'Snapshot del nombre',
+    id_lote INT NOT NULL,
+    nombre_producto VARCHAR(100) NOT NULL,
     precio_unitario DECIMAL(10,2) NOT NULL,
     cantidad INT NOT NULL,
     subtotal DECIMAL(10,2) NOT NULL,
@@ -254,7 +283,7 @@ CREATE TABLE detalle_venta (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 14. DEVOLUCIONES (para ventas generales, con multiempresa)
+-- 16. DEVOLUCIONES
 -- =====================================================
 CREATE TABLE devoluciones (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -272,13 +301,13 @@ CREATE TABLE devoluciones (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 15. DETALLE DE DEVOLUCIONES (para ventas generales, con multiempresa)
+-- 17. DETALLE DEVOLUCIONES
 -- =====================================================
 CREATE TABLE detalle_devolucion (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_empresa INT NOT NULL,
     id_devolucion INT NOT NULL,
-    id_detalle_venta INT NOT NULL COMMENT 'Producto original devuelto',
+    id_detalle_venta INT NOT NULL,
     cantidad INT NOT NULL,
     FOREIGN KEY (id_empresa) REFERENCES empresas(id),
     FOREIGN KEY (id_devolucion) REFERENCES devoluciones(id) ON DELETE CASCADE,
@@ -286,8 +315,7 @@ CREATE TABLE detalle_devolucion (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 16. CATÁLOGO DE TIPOS DE SERVICIO CATERING (global o multiempresa según necesidad)
--- Aquí lo dejamos global, pero si cada empresa requiere sus propios servicios, se debe agregar id_empresa
+-- 18. CATÁLOGO TIPOS DE SERVICIO CATERING
 -- =====================================================
 CREATE TABLE catering_service_tipos (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -299,21 +327,122 @@ CREATE TABLE catering_service_tipos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 17. PRODUCTOS DE CARTA POR TIPO DE SERVICIO (global o multiempresa)
+-- 19. INGREDIENTES
+-- =====================================================
+CREATE TABLE ingredientes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    unidad VARCHAR(20) NOT NULL,
+    id_categoria INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    FOREIGN KEY (id_categoria) REFERENCES categorias_alimentos(id) ON DELETE SET NULL,
+    INDEX idx_nombre (nombre),
+    INDEX idx_categoria (id_categoria)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- 20. RECETAS
+-- =====================================================
+CREATE TABLE recetas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT NULL,
+    categoria_receta ENUM('entrada', 'plato_principal', 'postre', 'bebida', 'salsa', 'panificado') DEFAULT 'plato_principal',
+    tipo_preparacion ENUM('por_unidad', 'por_molde', 'por_lote') DEFAULT 'por_unidad',
+    cantidad_base DECIMAL(10,2) NOT NULL DEFAULT 1,
+    porciones_por_unidad INT NOT NULL DEFAULT 1,
+    porciones_total INT GENERATED ALWAYS AS (cantidad_base * porciones_por_unidad) STORED,
+    tiempo_preparacion INT NULL,
+    tiempo_coccion INT NULL,
+    dificultad ENUM('fácil', 'media', 'difícil') DEFAULT 'media',
+    rendimiento DECIMAL(5,2) DEFAULT 100.00,
+    costo_estimado DECIMAL(10,2) NULL,
+    estado TINYINT(1) DEFAULT 1,
+    created_by VARCHAR(100) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    INDEX idx_nombre (nombre)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- 21. RECETA - INGREDIENTES
+-- =====================================================
+CREATE TABLE receta_ingredientes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
+    id_receta INT NOT NULL,
+    id_ingrediente INT NOT NULL,
+    cantidad_por_unidad DECIMAL(10,4) NOT NULL,
+    unidad VARCHAR(20) NOT NULL,
+    notas TEXT NULL,
+    es_opcional TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    FOREIGN KEY (id_receta) REFERENCES recetas(id) ON DELETE CASCADE,
+    FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id),
+    UNIQUE KEY uk_receta_ingrediente (id_receta, id_ingrediente)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- 22. RECETA - PASOS
+-- =====================================================
+CREATE TABLE receta_pasos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
+    id_receta INT NOT NULL,
+    orden INT NOT NULL,
+    descripcion TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    FOREIGN KEY (id_receta) REFERENCES recetas(id) ON DELETE CASCADE,
+    INDEX idx_receta (id_receta),
+    UNIQUE KEY uk_receta_orden (id_receta, orden)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- 23. INGREDIENTE - PROVEEDORES
+-- =====================================================
+CREATE TABLE ingrediente_proveedores (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
+    id_ingrediente INT NOT NULL,
+    id_proveedor INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id) ON DELETE CASCADE,
+    FOREIGN KEY (id_proveedor) REFERENCES personas(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_ingrediente_proveedor (id_ingrediente, id_proveedor),
+    INDEX idx_ingrediente (id_ingrediente),
+    INDEX idx_proveedor (id_proveedor)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- 24. PRODUCTOS CARTA (ahora sí puede referenciar recetas)
 -- =====================================================
 CREATE TABLE catering_service_productos_carta (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_tipo_servicio INT NOT NULL,
-    nombre VARCHAR(100) NOT NULL,
+    id_receta INT NULL COMMENT 'FK a recetas (permite que una receta esté en varios servicios)',
+    nombre VARCHAR(100) NOT NULL COMMENT 'Nombre comercial del producto',
     precio DECIMAL(10,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (id_tipo_servicio) REFERENCES catering_service_tipos(id) ON DELETE CASCADE,
-    INDEX idx_tipo (id_tipo_servicio)
+    FOREIGN KEY (id_receta) REFERENCES recetas(id) ON DELETE SET NULL,
+    INDEX idx_tipo (id_tipo_servicio),
+    INDEX idx_receta (id_receta)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 18. CATÁLOGO DE MATERIALES (global o multiempresa)
+-- 25. CATÁLOGO MATERIALES
 -- =====================================================
 CREATE TABLE catering_materiales_catalogo (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -324,7 +453,7 @@ CREATE TABLE catering_materiales_catalogo (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 19. EVENTOS DE CATERING (datos específicos, con multiempresa)
+-- 26. EVENTOS CATERING
 -- =====================================================
 CREATE TABLE catering_eventos (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -342,7 +471,7 @@ CREATE TABLE catering_eventos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 20. SERVICIOS DE CATERING ASOCIADOS A UNA VENTA (con multiempresa)
+-- 27. SERVICIOS CATERING VENTAS
 -- =====================================================
 CREATE TABLE catering_service_ventas (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -358,7 +487,7 @@ CREATE TABLE catering_service_ventas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 21. DETALLE DE PRODUCTOS POR SERVICIO (con multiempresa)
+-- 28. DETALLE SERVICIOS CATERING
 -- =====================================================
 CREATE TABLE catering_service_detalle (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -376,7 +505,7 @@ CREATE TABLE catering_service_detalle (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 22. MATERIALES UTILIZADOS EN UNA VENTA DE CATERING (con multiempresa)
+-- 29. MATERIALES VENTA CATERING
 -- =====================================================
 CREATE TABLE catering_materiales_venta (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -394,7 +523,7 @@ CREATE TABLE catering_materiales_venta (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 23. DEVOLUCIONES DE CATERING (específicas, con multiempresa)
+-- 30. DEVOLUCIONES CATERING
 -- =====================================================
 CREATE TABLE catering_devoluciones (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -413,67 +542,18 @@ CREATE TABLE catering_devoluciones (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 24. DETALLE DE DEVOLUCIONES DE CATERING (con multiempresa)
+-- 31. DETALLE DEVOLUCIONES CATERING
 -- =====================================================
 CREATE TABLE catering_detalle_devolucion (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_empresa INT NOT NULL,
     id_devolucion INT NOT NULL,
     tipo_item ENUM('servicio', 'material') NOT NULL,
-    id_item INT NOT NULL COMMENT 'ID de catering_service_detalle o catering_materiales_venta',
+    id_item INT NOT NULL,
     cantidad INT NOT NULL,
     monto DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (id_empresa) REFERENCES empresas(id),
     FOREIGN KEY (id_devolucion) REFERENCES catering_devoluciones(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- =====================================================
--- 25. RECETAS (con multiempresa)
--- =====================================================
-CREATE TABLE recetas (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    id_empresa INT NOT NULL,
-    nombre VARCHAR(100) NOT NULL,
-    descripcion TEXT NULL,
-    id_producto_carta INT NULL COMMENT 'Relación opcional con producto de carta (catering_service_productos_carta.id)',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
-    FOREIGN KEY (id_producto_carta) REFERENCES catering_service_productos_carta(id) ON DELETE SET NULL,
-    INDEX idx_nombre (nombre)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- =====================================================
--- 26. INGREDIENTES (con multiempresa)
--- =====================================================
-CREATE TABLE ingredientes (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    id_empresa INT NOT NULL,
-    nombre VARCHAR(100) NOT NULL UNIQUE,
-    unidad VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
-    INDEX idx_nombre (nombre)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- =====================================================
--- 27. RECETA_INGREDIENTES (con multiempresa)
--- =====================================================
-CREATE TABLE receta_ingredientes (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    id_empresa INT NOT NULL,
-    id_receta INT NOT NULL,
-    id_ingrediente INT NOT NULL,
-    cantidad_por_unidad DECIMAL(10,4) NOT NULL COMMENT 'Cantidad del ingrediente por unidad de producto final',
-    id_proveedor INT NULL COMMENT 'Proveedor recomendado (id de personas con tipo proveedor)',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
-    FOREIGN KEY (id_receta) REFERENCES recetas(id) ON DELETE CASCADE,
-    FOREIGN KEY (id_ingrediente) REFERENCES ingredientes(id),
-    FOREIGN KEY (id_proveedor) REFERENCES personas(id) ON DELETE SET NULL,
-    UNIQUE KEY uk_receta_ingrediente (id_receta, id_ingrediente)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

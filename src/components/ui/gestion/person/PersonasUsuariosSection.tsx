@@ -6,11 +6,12 @@ import { Modal } from '../../../common/modal/Modal';
 import { DataTable, Column } from '../../../common/DataTable';
 import { FilterSection, FilterField } from '../../../common/FilterSection';
 import { ActivityLog } from '../../../common/ActivityLog';
-import { Persona, Usuario, Empresa, TIPOS_PERSONA, ROLES } from '../../../../features/types/person';
+import { Persona, Usuario, Empresa, TIPOS_PERSONA, ROLES, CategoriaAlimento } from '../../../../features/types/person';
 import { HistorialEntry } from '../../../../features/types/hist_act';
 import { personaApi } from '../../../../services/api/personaApi';
 import { usuarioApi } from '../../../../services/api/usuarioApi';
 import { historialApi } from '../../../../services/api/historialApi';
+import { categoriaApi } from '../../../../services/api/categoriaApi';
 import { useAuth } from '../../../../features/auth/context/AuthContext';
 import { useCompany } from '../../../../features/company/context/CompanyContext';
 
@@ -87,6 +88,9 @@ export const PersonasUsuariosSection: React.FC = () => {
 
     const [rolesOptions, setRolesOptions] = useState<{ value: string; label: string }[]>([]);
     const [rolesLoading, setRolesLoading] = useState(true);
+
+    const [categoriasDisponibles, setCategoriasDisponibles] = useState<CategoriaAlimento[]>([]);
+    const [categoriasSeleccionadas, setCategoriasSeleccionadas] = useState<number[]>([]);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<{ title: string; icon: string; children: React.ReactNode; footer?: React.ReactNode } | null>(null);
@@ -169,6 +173,20 @@ export const PersonasUsuariosSection: React.FC = () => {
     }, [empresas]);
 
     useEffect(() => {
+        const loadCategorias = async () => {
+            const empresaId = getSelectedCompanyId();
+            if (!empresaId) return;
+            try {
+                const data = await categoriaApi.getAll(empresaId);
+                setCategoriasDisponibles(data);
+            } catch (error) {
+                console.error('[PersonasUsuariosSection] Error cargando categorías:', error);
+            }
+        };
+        loadCategorias();
+    }, [getSelectedCompanyId]);
+
+    useEffect(() => {
         let filtered = personas.filter(p => {
             const nombreCompleto = getNombrePersona(p).toLowerCase();
             const matchSearch = !filterValues.search ||
@@ -235,6 +253,7 @@ export const PersonasUsuariosSection: React.FC = () => {
             email: '',
             celular: ''
         });
+        setCategoriasSeleccionadas([]);
         setUsuarioFormValues({
             username: '',
             id_rol: rolesOptions.length > 0 ? rolesOptions[0].value : '1',
@@ -302,6 +321,10 @@ export const PersonasUsuariosSection: React.FC = () => {
 
         setIsSubmitting(true);
         try {
+            const categoriasSeleccionadasObj = categoriasDisponibles.filter(c =>
+                categoriasSeleccionadas.includes(c.id)
+            );
+
             const personaPayload = {
                 id_empresa: empresaId,
                 tipo_persona: formValues.tipo as any,
@@ -312,7 +335,8 @@ export const PersonasUsuariosSection: React.FC = () => {
                 apellido: formValues.apellido || null,
                 email: formValues.email || null,
                 celular: formValues.celular,
-                estado: true
+                estado: true,
+                categorias: formValues.tipo === 'proveedor' ? categoriasSeleccionadasObj : []
             };
 
             const nuevaPersona = await personaApi.create(personaPayload);
@@ -436,6 +460,21 @@ export const PersonasUsuariosSection: React.FC = () => {
                                     </div>
                                 ))}
                             </div>
+
+                            {personaConHistorial.tipo_persona === 'proveedor' && personaConHistorial.categorias && personaConHistorial.categorias.length > 0 && (
+                                <div style={{ marginTop: '1rem', borderTop: '1px solid #f0d6db', paddingTop: '1rem' }}>
+                                    <strong style={{ display: 'block', marginBottom: '0.5rem' }}>
+                                        <i className="fas fa-tags"></i> Categorías Alimenticias
+                                    </strong>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        {personaConHistorial.categorias.map(cat => (
+                                            <span key={cat.id} className="dc-badge dc-badge-active" style={{ fontSize: '0.8rem' }}>
+                                                <i className="fas fa-check-circle"></i> {cat.nombre}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {usuarioConHistorial && (
@@ -473,14 +512,16 @@ export const PersonasUsuariosSection: React.FC = () => {
                             </div>
                         </div>
 
-                        {usuarioConHistorial && (
-                            <div className="dc-history-card" style={{ marginTop: '1rem' }}>
-                                <h4><i className="fas fa-history"></i> HISTORIAL DEL USUARIO</h4>
-                                <div className="dc-history-log">
-                                    {historialHtml(usuarioConHistorial.historial)}
+                        {
+                            usuarioConHistorial && (
+                                <div className="dc-history-card" style={{ marginTop: '1rem' }}>
+                                    <h4><i className="fas fa-history"></i> HISTORIAL DEL USUARIO</h4>
+                                    <div className="dc-history-log">
+                                        {historialHtml(usuarioConHistorial.historial)}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )
+                        }
                     </>
                 )
             });
@@ -503,6 +544,9 @@ export const PersonasUsuariosSection: React.FC = () => {
             email: persona.email || '',
             celular: persona.celular
         });
+        setCategoriasSeleccionadas(
+            persona.categorias?.map(c => c.id) || []
+        );
 
         const usuario = usuarios.find(u => u.id_persona === persona.id_persona);
         if (usuario) {
@@ -566,6 +610,10 @@ export const PersonasUsuariosSection: React.FC = () => {
 
         setIsSubmitting(true);
         try {
+            const categoriasSeleccionadasObj = categoriasDisponibles.filter(c =>
+                categoriasSeleccionadas.includes(c.id)
+            );
+
             const personaPayload: any = {
                 id_empresa: empresaId,
                 tipo_persona: selectedPersona.tipo_persona,
@@ -576,7 +624,8 @@ export const PersonasUsuariosSection: React.FC = () => {
                 apellido: formValues.apellido || null,
                 email: formValues.email || null,
                 celular: formValues.celular,
-                estado: selectedPersona.estado
+                estado: selectedPersona.estado,
+                categorias: selectedPersona.tipo_persona === 'proveedor' ? categoriasSeleccionadasObj : []
             };
 
             const personaActualizada = await personaApi.update(selectedPersona.id_persona, personaPayload);
@@ -882,6 +931,42 @@ export const PersonasUsuariosSection: React.FC = () => {
                         </div>
                     </div>
 
+                    {formValues.tipo === 'proveedor' && categoriasDisponibles.length > 0 && (
+                        <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                            <label>Categorías Alimenticias</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                {categoriasDisponibles.map(cat => {
+                                    const isSelected = categoriasSeleccionadas.includes(cat.id);
+                                    return (
+                                        <button
+                                            key={cat.id}
+                                            type="button"
+                                            className={`dc-btn ${isSelected ? 'success' : 'secondary'}`}
+                                            style={{
+                                                padding: '0.25rem 0.75rem',
+                                                fontSize: '0.8rem',
+                                                borderRadius: '20px'
+                                            }}
+                                            onClick={() => {
+                                                if (isSelected) {
+                                                    setCategoriasSeleccionadas(prev => prev.filter(id => id !== cat.id));
+                                                } else {
+                                                    setCategoriasSeleccionadas(prev => [...prev, cat.id]);
+                                                }
+                                            }}
+                                        >
+                                            {isSelected ? <i className="fas fa-check-circle"></i> : <i className="fas fa-circle"></i>}
+                                            {' '}{cat.nombre}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <small style={{ color: 'var(--color-gray)', display: 'block', marginTop: '0.25rem' }}>
+                                Seleccione las categorías que este proveedor maneja
+                            </small>
+                        </div>
+                    )}
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.5rem 0', borderTop: '1px solid #f0d6db', marginTop: '0.5rem' }}>
                         <label style={{ fontWeight: '600', cursor: 'pointer' }}>
                             <input
@@ -1065,6 +1150,42 @@ export const PersonasUsuariosSection: React.FC = () => {
                             {usuarios.some(u => u.id_persona === selectedPersona?.id_persona) ? 'Editar usuario' : 'Crear usuario'}
                         </label>
                     </div>
+
+                    {formValues.tipo === 'proveedor' && categoriasDisponibles.length > 0 && (
+                        <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
+                            <label>Categorías Alimenticias</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                {categoriasDisponibles.map(cat => {
+                                    const isSelected = categoriasSeleccionadas.includes(cat.id);
+                                    return (
+                                        <button
+                                            key={cat.id}
+                                            type="button"
+                                            className={`dc-btn ${isSelected ? 'success' : 'secondary'}`}
+                                            style={{
+                                                padding: '0.25rem 0.75rem',
+                                                fontSize: '0.8rem',
+                                                borderRadius: '20px'
+                                            }}
+                                            onClick={() => {
+                                                if (isSelected) {
+                                                    setCategoriasSeleccionadas(prev => prev.filter(id => id !== cat.id));
+                                                } else {
+                                                    setCategoriasSeleccionadas(prev => [...prev, cat.id]);
+                                                }
+                                            }}
+                                        >
+                                            {isSelected ? <i className="fas fa-check-circle"></i> : <i className="fas fa-circle"></i>}
+                                            {' '}{cat.nombre}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <small style={{ color: 'var(--color-gray)', display: 'block', marginTop: '0.25rem' }}>
+                                Seleccione las categorías que este proveedor maneja
+                            </small>
+                        </div>
+                    )}
 
                     {crearUsuario && (
                         <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #f0d6db' }}>

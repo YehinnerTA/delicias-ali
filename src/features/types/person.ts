@@ -8,6 +8,13 @@ export interface Empresa {
     historial: HistorialEntry[];
 }
 
+export interface CategoriaAlimento {
+    id: number;
+    id_empresa: number;
+    nombre: string;
+    descripcion: string | null;
+}
+
 export interface Persona {
     id_persona: number;
     id_empresa: number;
@@ -21,6 +28,7 @@ export interface Persona {
     celular: string;
     estado: boolean;
     historial: HistorialEntry[];
+    categorias?: CategoriaAlimento[];
 }
 
 export interface Usuario {

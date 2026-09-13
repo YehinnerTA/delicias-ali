@@ -1,38 +1,48 @@
 -- =====================================================
--- DATOS INICIALES (maestros y pruebas)
+-- DATOS INICIALES
 -- =====================================================
 USE sistema_eventos_catering;
 
--- Insertar roles
+-- =====================================================
+-- 1. ROLES
+-- =====================================================
 INSERT INTO roles (nombre, descripcion) VALUES
-                  ('Administrador', 'Acceso total al sistema'),
-                  ('Chef', 'Gestion de cocina y recetas'),
-                  ('Cajero', 'Gestion de ventas y pagos'),
-                  ('Logistica', 'Gestion de inventario y proveedores');
+('Administrador', 'Acceso total al sistema'),
+('Chef', 'Gestion de cocina y recetas'),
+('Cajero', 'Gestion de ventas y pagos'),
+('Logistica', 'Gestion de inventario y proveedores');
 
--- Insertar empresas
+-- =====================================================
+-- 2. EMPRESAS
+-- =====================================================
 INSERT INTO empresas (ruc, nombre, creado_por) VALUES
-                     ('10412743879', 'DeliciaAli', 'SISTEMA'),
-                     ('20613823027', 'DELICIAS ALI S.A.C.', 'SISTEMA');
+('10412743879', 'DeliciaAli', 'SISTEMA'),
+('20613823027', 'DELICIAS ALI S.A.C.', 'SISTEMA');
 
--- Insertar la persona "Administrador del Sistema" (empresa 1)
+-- =====================================================
+-- 3. PERSONAS
+-- =====================================================
 INSERT INTO personas (id_empresa, tipo_persona, tipo_documento, numero_documento, nombre, apellido, email, celular) VALUES
-                     (1, 'empleado', 'DNI', '12345678', 'Administrador', 'Del Sistema', 'admin@deliciasali.com', '911111111'),
-                     (1, 'cliente_natural', 'DNI', '00000000', 'VARIOS', ' ', ' ', '000000000'),
-                     (2, 'cliente_natural', 'DNI', '00000000', 'VARIOS', ' ', ' ', '000000000'),
-                     (1, 'proveedor', 'RUC', '10412743879', 'Panadería Central', NULL, 'panaderia@central.com', '995123456'),
-                     (1, 'proveedor', 'RUC', '10412743880', 'Carnes Premium', NULL, 'carnes@premium.com', '995345678'),
-                     (1, 'proveedor', 'RUC', '10412743881', 'Lácteos Andinos', NULL, 'lacteos@andinos.com', '995456789'),
-                     (1, 'proveedor', 'RUC', '10412743882', 'Avícola San Fernando', NULL, 'avicola@sanfernando.com', '994123456'),
-                     (1, 'proveedor', 'RUC', '10412743883', 'Frutas del Valle', NULL, 'frutas@valle.com', '999123456'),
-                     (1, 'proveedor', 'RUC', '10412743884', 'Café Altura', NULL, 'cafe@altura.com', '998765432'),
-                     (1, 'proveedor', 'RUC', '10412743885', 'Granos Andinos', NULL, 'granos@andinos.com', '997123456');
-                     
--- Insertar el usuario asociado a esa persona (contraseña: 123456)
-INSERT INTO usuarios (id_persona, usuario, password_hash, firma, id_rol) VALUES
-                     (1, 'admin', SHA2(CONCAT('123456', @encryption_key), 256), NULL, 1);
+(1, 'empleado', 'DNI', '12345678', 'Administrador', 'Del Sistema', 'admin@deliciasali.com', '911111111'),
+(1, 'cliente_natural', 'DNI', '00000000', 'VARIOS', ' ', ' ', '000000000'),
+(2, 'cliente_natural', 'DNI', '00000000', 'VARIOS', ' ', ' ', '000000000'),
+(1, 'proveedor', 'RUC', '10412743879', 'Panadería Central', NULL, 'panaderia@central.com', '995123456'),
+(1, 'proveedor', 'RUC', '10412743880', 'Carnes Premium', NULL, 'carnes@premium.com', '995345678'),
+(1, 'proveedor', 'RUC', '10412743881', 'Lácteos Andinos', NULL, 'lacteos@andinos.com', '995456789'),
+(1, 'proveedor', 'RUC', '10412743882', 'Avícola San Fernando', NULL, 'avicola@sanfernando.com', '994123456'),
+(1, 'proveedor', 'RUC', '10412743883', 'Frutas del Valle', NULL, 'frutas@valle.com', '999123456'),
+(1, 'proveedor', 'RUC', '10412743884', 'Café Altura', NULL, 'cafe@altura.com', '998765432'),
+(1, 'proveedor', 'RUC', '10412743885', 'Granos Andinos', NULL, 'granos@andinos.com', '997123456');
 
--- Asignar el usuario a ambas empresas, marcando la primera como predeterminada
+-- =====================================================
+-- 4. USUARIOS
+-- =====================================================
+INSERT INTO usuarios (id_persona, usuario, password_hash, firma, id_rol) VALUES
+(1, 'admin', SHA2(CONCAT('123456', @encryption_key), 256), NULL, 1);
+
+-- =====================================================
+-- 5. USUARIO - EMPRESA
+-- =====================================================
 INSERT INTO usuario_empresa (usuario_id, empresa_id, es_predeterminada)
 SELECT 
     (SELECT id FROM usuarios WHERE usuario = 'admin'),
@@ -41,47 +51,215 @@ SELECT
 FROM empresas
 WHERE ruc IN ('10412743879', '20613823027');
 
--- Insertar datos de inventory (insumos y utensilios) - empresa 1
-INSERT INTO catering_items (id_empresa, nombre, stock, tipo, registrado_por) VALUES
-(1, 'Harina de trigo', 28, 'materia prima', 1),
-(1, 'Batidora planetaria', 2, 'utensilio', 1),
-(1, 'Azúcar morena', 45, 'materia prima', 1);
-
--- Insertar postres (para ventas generales) - empresa 1
-INSERT INTO postres (id_empresa, nombre, precio) VALUES
-(1, 'Cheesecake', 6.2),
-(1, 'Brownies', 6);
-
--- Insertar lotes (para ventas generales) - empresa 1
-INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) VALUES
-(1, 1, 12, DATE_ADD(CURDATE(), INTERVAL 5 DAY), 5, CURDATE(), 1),
-(1, 1, 6, DATE_ADD(CURDATE(), INTERVAL 12 DAY), 12, CURDATE(), 1),
-(1, 2, 8, DATE_ADD(CURDATE(), INTERVAL -2 DAY), -2, CURDATE(), 1);
+-- =====================================================
+-- 6. CATEGORÍAS DE ALIMENTOS
+-- =====================================================
+INSERT INTO categorias_alimentos (id_empresa, nombre, descripcion) VALUES
+(1, 'Lácteos', 'Leche, queso, yogurt y derivados'),
+(1, 'Carnes Rojas', 'Carne de res, cerdo, cordero'),
+(1, 'Panificados', 'Pan, pan de hamburguesa, productos de panadería'),
+(1, 'Aves', 'Pollo, pavo y otras aves'),
+(1, 'Frutas y Verduras', 'Frutas, verduras y hortalizas frescas'),
+(1, 'Granos y Cereales', 'Quinoa, arroz, legumbres'),
+(1, 'Bebidas', 'Café, jugos, infusiones');
 
 -- =====================================================
--- DATOS MAESTROS PARA CATERING (globales, sin empresa)
+-- 7. PROVEEDOR - CATEGORÍA
 -- =====================================================
+INSERT INTO proveedor_categoria (id_empresa, id_proveedor, id_categoria) VALUES
+(1, (SELECT id FROM personas WHERE nombre = 'Lácteos Andinos'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Lácteos')),
+(1, (SELECT id FROM personas WHERE nombre = 'Carnes Premium'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Carnes Rojas')),
+(1, (SELECT id FROM personas WHERE nombre = 'Panadería Central'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Panificados')),
+(1, (SELECT id FROM personas WHERE nombre = 'Avícola San Fernando'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Aves')),
+(1, (SELECT id FROM personas WHERE nombre = 'Frutas del Valle'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Frutas y Verduras')),
+(1, (SELECT id FROM personas WHERE nombre = 'Granos Andinos'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Granos y Cereales')),
+(1, (SELECT id FROM personas WHERE nombre = 'Café Altura'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Bebidas'));
 
--- Insertar tipos de servicio (globales, se comparten entre empresas)
+-- =====================================================
+-- 8. INGREDIENTES
+-- =====================================================
+INSERT INTO ingredientes (id_empresa, nombre, unidad, id_categoria) VALUES
+(1, 'Pan', 'unidades', (SELECT id FROM categorias_alimentos WHERE nombre = 'Panificados')),
+(1, 'Pan de hamburguesa', 'unidades', (SELECT id FROM categorias_alimentos WHERE nombre = 'Panificados')),
+(1, 'Carne molida', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Carnes Rojas')),
+(1, 'Jamón', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Carnes Rojas')),
+(1, 'Queso', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Lácteos')),
+(1, 'Leche', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Lácteos')),
+(1, 'Pechuga de pollo', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Aves')),
+(1, 'Pimiento', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Frutas y Verduras')),
+(1, 'Lechuga', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Frutas y Verduras')),
+(1, 'Tomate', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Frutas y Verduras')),
+(1, 'Naranja', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Frutas y Verduras')),
+(1, 'Quinoa', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Granos y Cereales')),
+(1, 'Café en grano', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Bebidas'));
+
+-- =====================================================
+-- 9. INGREDIENTE - PROVEEDOR
+-- =====================================================
+INSERT INTO ingrediente_proveedores (id_empresa, id_ingrediente, id_proveedor) VALUES
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Pan'), (SELECT id FROM personas WHERE nombre = 'Panadería Central')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Pan de hamburguesa'), (SELECT id FROM personas WHERE nombre = 'Panadería Central')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Carne molida'), (SELECT id FROM personas WHERE nombre = 'Carnes Premium')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Jamón'), (SELECT id FROM personas WHERE nombre = 'Carnes Premium')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Queso'), (SELECT id FROM personas WHERE nombre = 'Lácteos Andinos')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Leche'), (SELECT id FROM personas WHERE nombre = 'Lácteos Andinos')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Pechuga de pollo'), (SELECT id FROM personas WHERE nombre = 'Avícola San Fernando')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Pimiento'), (SELECT id FROM personas WHERE nombre = 'Frutas del Valle')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Lechuga'), (SELECT id FROM personas WHERE nombre = 'Frutas del Valle')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Tomate'), (SELECT id FROM personas WHERE nombre = 'Frutas del Valle')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Naranja'), (SELECT id FROM personas WHERE nombre = 'Frutas del Valle')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Quinoa'), (SELECT id FROM personas WHERE nombre = 'Granos Andinos')),
+(1, (SELECT id FROM ingredientes WHERE nombre = 'Café en grano'), (SELECT id FROM personas WHERE nombre = 'Café Altura'));
+
+-- =====================================================
+-- 10. TIPOS DE SERVICIO
+-- =====================================================
 INSERT INTO catering_service_tipos (clave, nombre, descripcion) VALUES
 ('Corporativo', 'Corporativo Ejecutivo', 'Servicio corporativo con sándwiches premium y ensaladas'),
 ('Social', 'Social / Fiestas', 'Servicio para eventos sociales con mini hamburguesas y brochetas'),
 ('Desayuno', 'Desayuno Corporativo', 'Servicio de desayuno con café, tostadas y yogurt');
 
--- Insertar productos de carta para cada tipo (globales)
-INSERT INTO catering_service_productos_carta (id_tipo_servicio, nombre, precio) VALUES
-(1, 'Sándwich Premium', 18.00),
-(1, 'Ensalada de Quinoa', 22.00),
-(1, 'Jugo Natural', 9.00),
-(1, 'Café Americano', 7.00),
-(2, 'Mini Hamburguesas', 15.00),
-(2, 'Brochetas de Pollo', 20.00),
-(2, 'Postre Variado', 12.00),
-(3, 'Café Americano', 8.00),
-(3, 'Tostada Francesa', 12.00),
-(3, 'Yogurt con Granola', 10.00);
+-- =====================================================
+-- 11. RECETAS (SIN id_producto_carta)
+-- =====================================================
+INSERT INTO recetas (
+    id_empresa, nombre, descripcion,
+    categoria_receta, tipo_preparacion, cantidad_base, porciones_por_unidad,
+    tiempo_preparacion, tiempo_coccion, dificultad, rendimiento,
+    estado, created_by
+) VALUES
+(1, 'Sándwich Premium', 'Receta para sándwich premium',
+    'plato_principal', 'por_unidad', 10, 1,
+    15, 5, 'fácil', 95.00, 1, 'admin'),
+(1, 'Mini Hamburguesas', 'Receta para mini hamburguesas',
+    'plato_principal', 'por_unidad', 8, 1,
+    20, 10, 'media', 95.00, 1, 'admin'),
+(1, 'Brochetas de Pollo', 'Receta para brochetas de pollo',
+    'plato_principal', 'por_unidad', 10, 1,
+    25, 15, 'media', 90.00, 1, 'admin'),
+(1, 'Jugo Natural', 'Receta para jugo natural',
+    'bebida', 'por_lote', 1, 15,
+    10, 0, 'fácil', 100.00, 1, 'admin'),
+(1, 'Café Americano', 'Receta para café americano',
+    'bebida', 'por_lote', 1, 15,
+    5, 5, 'fácil', 100.00, 1, 'admin'),
+(1, 'Ensalada de Quinoa', 'Receta para ensalada de quinoa',
+    'entrada', 'por_lote', 1, 10,
+    15, 0, 'fácil', 95.00, 1, 'admin');
 
--- Insertar materiales de catálogo (globales)
+-- =====================================================
+-- 12. RECETA - INGREDIENTES
+-- =====================================================
+-- Sándwich Premium
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.2, 'unidades', 'Pan artesanal, no industrial', 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Sándwich Premium' AND i.nombre = 'Pan';
+
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.005, 'kg', NULL, 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Sándwich Premium' AND i.nombre = 'Jamón';
+
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.004, 'kg', NULL, 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Sándwich Premium' AND i.nombre = 'Queso';
+
+-- Mini Hamburguesas
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.125, 'unidades', NULL, 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Mini Hamburguesas' AND i.nombre = 'Pan de hamburguesa';
+
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.0125, 'kg', NULL, 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Mini Hamburguesas' AND i.nombre = 'Carne molida';
+
+-- Brochetas de Pollo
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.01, 'kg', NULL, 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Brochetas de Pollo' AND i.nombre = 'Pechuga de pollo';
+
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.002, 'kg', 'Pimiento rojo', 1
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Brochetas de Pollo' AND i.nombre = 'Pimiento';
+
+-- Jugo Natural
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.02, 'kg', 'Naranja de jugo', 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Jugo Natural' AND i.nombre = 'Naranja';
+
+-- Café Americano
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.0013, 'kg', NULL, 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Café Americano' AND i.nombre = 'Café en grano';
+
+-- Ensalada de Quinoa
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.015, 'kg', 'Quinoa lavada', 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Quinoa';
+
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.005, 'kg', NULL, 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Lechuga';
+
+INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
+SELECT 1, r.id, i.id, 0.005, 'kg', NULL, 0
+FROM recetas r, ingredientes i
+WHERE r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Tomate';
+
+-- =====================================================
+-- 13. RECETA - PASOS
+-- =====================================================
+INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
+SELECT 1, r.id, 1, 'Cortar el pan por la mitad' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
+INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
+SELECT 1, r.id, 2, 'Untar mantequilla en ambas mitades' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
+INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
+SELECT 1, r.id, 3, 'Colocar jamón y queso' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
+INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
+SELECT 1, r.id, 4, 'Cerrar el sándwich y cortar en diagonal' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
+
+INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
+SELECT 1, r.id, 1, 'Lavar y cocinar la quinoa por 15 minutos' FROM recetas r WHERE r.nombre = 'Ensalada de Quinoa';
+INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
+SELECT 1, r.id, 2, 'Picar la lechuga y el tomate en cubos' FROM recetas r WHERE r.nombre = 'Ensalada de Quinoa';
+INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
+SELECT 1, r.id, 3, 'Mezclar todos los ingredientes y aderezar' FROM recetas r WHERE r.nombre = 'Ensalada de Quinoa';
+
+-- =====================================================
+-- 14. PRODUCTOS DE CARTA (CON id_receta)
+-- =====================================================
+-- Tipo 1: Corporativo Ejecutivo
+INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, nombre, precio) VALUES
+(1, (SELECT id FROM recetas WHERE nombre = 'Sándwich Premium'), 'Sándwich Premium', 18.00),
+(1, (SELECT id FROM recetas WHERE nombre = 'Ensalada de Quinoa'), 'Ensalada de Quinoa', 22.00),
+(1, (SELECT id FROM recetas WHERE nombre = 'Jugo Natural'), 'Jugo Natural', 9.00),
+(1, (SELECT id FROM recetas WHERE nombre = 'Café Americano'), 'Café Americano', 7.00);
+
+-- Tipo 2: Social / Fiestas
+INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, nombre, precio) VALUES
+(2, (SELECT id FROM recetas WHERE nombre = 'Mini Hamburguesas'), 'Mini Hamburguesas', 15.00),
+(2, (SELECT id FROM recetas WHERE nombre = 'Brochetas de Pollo'), 'Brochetas de Pollo', 20.00),
+(2, NULL, 'Postre Variado', 12.00);
+
+-- Tipo 3: Desayuno Corporativo
+INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, nombre, precio) VALUES
+(3, (SELECT id FROM recetas WHERE nombre = 'Café Americano'), 'Café Americano', 8.00),
+(3, NULL, 'Tostada Francesa', 12.00),
+(3, NULL, 'Yogurt con Granola', 10.00);
+
+-- =====================================================
+-- 15. MATERIALES DE CATÁLOGO
+-- =====================================================
 INSERT INTO catering_materiales_catalogo (nombre, precio) VALUES
 ('Plato Cerámico (x10)', 45.00),
 ('Vaso Vidrio (x12)', 28.00),
@@ -91,58 +269,78 @@ INSERT INTO catering_materiales_catalogo (nombre, precio) VALUES
 ('Silla Estándar (unidad)', 12.00);
 
 -- =====================================================
--- INSERTS DE PRUEBA PARA VENTAS DE CATERING (empresa 1)
+-- 16. INVENTARIO
 -- =====================================================
+INSERT INTO catering_items (id_empresa, nombre, stock, tipo, registrado_por) VALUES
+(1, 'Harina de trigo', 28, 'materia prima', 1),
+(1, 'Batidora planetaria', 2, 'utensilio', 1),
+(1, 'Azúcar morena', 45, 'materia prima', 1);
 
--- 1. Cliente de prueba (empresa 1)
+-- =====================================================
+-- 17. POSTRES
+-- =====================================================
+INSERT INTO postres (id_empresa, nombre, precio) VALUES
+(1, 'Cheesecake', 6.2),
+(1, 'Brownies', 6);
+
+INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) VALUES
+(1, 1, 12, DATE_ADD(CURDATE(), INTERVAL 5 DAY), 5, CURDATE(), 1),
+(1, 1, 6, DATE_ADD(CURDATE(), INTERVAL 12 DAY), 12, CURDATE(), 1),
+(1, 2, 8, DATE_ADD(CURDATE(), INTERVAL -2 DAY), -2, CURDATE(), 1);
+
+-- =====================================================
+-- 18. VENTA DE PRUEBA CATERING
+-- =====================================================
 SET @cliente_catering = (SELECT id FROM personas WHERE numero_documento = '12345678' AND id_empresa = 1 LIMIT 1);
 SET @usuario_catering = (SELECT id FROM usuarios WHERE usuario = 'admin' LIMIT 1);
 
--- Insertar una venta de catering (cabecera en ventas) - empresa 1
 INSERT INTO ventas (id_empresa, numero, fecha, id_cliente, id_usuario, subtotal, descuento, igv, total, metodo_pago, estado)
 VALUES (1, 'V-00001', '2026-08-21 20:38:04', @cliente_catering, @usuario_catering, 0.00, 0.00, 0.00, 0.00, 'EFECTIVO', 'completada');
 
 SET @venta_cat = LAST_INSERT_ID();
 
--- Insertar datos del evento - empresa 1
 INSERT INTO catering_eventos (id_empresa, id_venta, fecha_evento, horario, personas, tipo_desayuno)
 VALUES (1, @venta_cat, DATE_ADD(CURDATE(), INTERVAL 3 DAY), '12:00:00', 20, 'Clásico');
 
--- Insertar servicios asociados a la venta - empresa 1
--- Servicio Corporativo (id_tipo_servicio = 1)
+-- Servicio Corporativo
 INSERT INTO catering_service_ventas (id_empresa, id_venta, id_tipo_servicio, subtotal_servicio)
 VALUES (1, @venta_cat, 1, 0.00);
 SET @serv_cat_1 = LAST_INSERT_ID();
 
--- Detalle del servicio: Sándwich Premium (id_producto_carta = 1) y Café Americano (id = 4) - empresa 1
 INSERT INTO catering_service_detalle (id_empresa, id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal)
 VALUES 
-(1, @serv_cat_1, 1, 10, 18.00, 180.00),
-(1, @serv_cat_1, 4, 15, 7.00, 105.00);
+(1, @serv_cat_1, 
+    (SELECT id FROM catering_service_productos_carta WHERE nombre = 'Sándwich Premium' AND id_tipo_servicio = 1 LIMIT 1),
+    10, 18.00, 180.00),
+(1, @serv_cat_1, 
+    (SELECT id FROM catering_service_productos_carta WHERE nombre = 'Café Americano' AND id_tipo_servicio = 1 LIMIT 1),
+    15, 7.00, 105.00);
 
--- Actualizar subtotal del servicio
 UPDATE catering_service_ventas SET subtotal_servicio = 285.00 WHERE id = @serv_cat_1;
 
--- Servicio Social (id_tipo_servicio = 2) - empresa 1
+-- Servicio Social
 INSERT INTO catering_service_ventas (id_empresa, id_venta, id_tipo_servicio, subtotal_servicio)
 VALUES (1, @venta_cat, 2, 0.00);
 SET @serv_cat_2 = LAST_INSERT_ID();
 
--- Detalle: Mini Hamburguesas (id = 5) y Brochetas (id = 6) - empresa 1
 INSERT INTO catering_service_detalle (id_empresa, id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal)
 VALUES 
-(1, @serv_cat_2, 5, 8, 15.00, 120.00),
-(1, @serv_cat_2, 6, 10, 20.00, 200.00);
+(1, @serv_cat_2, 
+    (SELECT id FROM catering_service_productos_carta WHERE nombre = 'Mini Hamburguesas' AND id_tipo_servicio = 2 LIMIT 1),
+    8, 15.00, 120.00),
+(1, @serv_cat_2, 
+    (SELECT id FROM catering_service_productos_carta WHERE nombre = 'Brochetas de Pollo' AND id_tipo_servicio = 2 LIMIT 1),
+    10, 20.00, 200.00);
 
 UPDATE catering_service_ventas SET subtotal_servicio = 320.00 WHERE id = @serv_cat_2;
 
--- Insertar materiales de la venta - empresa 1
+-- Materiales
 INSERT INTO catering_materiales_venta (id_empresa, id_venta, id_material_catalogo, cantidad, precio_unitario, subtotal)
 VALUES 
 (1, @venta_cat, 1, 2, 45.00, 90.00),
 (1, @venta_cat, 3, 1, 35.00, 35.00);
 
--- Calcular totales de la venta
+-- Calcular totales
 SET @subtotal_cat = (SELECT COALESCE(SUM(subtotal_servicio),0) FROM catering_service_ventas WHERE id_venta = @venta_cat)
                   + (SELECT COALESCE(SUM(subtotal),0) FROM catering_materiales_venta WHERE id_venta = @venta_cat);
 SET @igv_cat = @subtotal_cat * 0.18;
@@ -154,7 +352,7 @@ SET subtotal = @subtotal_cat,
     total = @total_cat
 WHERE id = @venta_cat;
 
--- Registrar historial y actividad
+-- Historial y actividad
 INSERT INTO historial (entidad, id_entidad, accion, descripcion, usuario)
 VALUES ('ventas', @venta_cat, 'CREACIÓN', 'Venta de catering creada', 'admin');
 
@@ -162,109 +360,40 @@ INSERT INTO actividad (modulo, accion, detalle, usuario)
 VALUES ('catering', 'VENTA', CONCAT('Venta ', (SELECT numero FROM ventas WHERE id = @venta_cat), ' - Total S/', @total_cat), 'admin');
 
 -- =====================================================
--- DATOS DE PROVEEDORES, INGREDIENTES Y RECETAS (empresa 1)
+-- VERIFICACIÓN FINAL
 -- =====================================================
+SELECT '=== TIPOS DE SERVICIO ===' AS '';
+SELECT * FROM catering_service_tipos;
 
--- Insertar ingredientes - empresa 1
-INSERT INTO ingredientes (id_empresa, nombre, unidad) VALUES
-(1, 'Pan', 'unidades'),
-(1, 'Jamón', 'kg'),
-(1, 'Queso', 'kg'),
-(1, 'Pechuga de pollo', 'kg'),
-(1, 'Pimiento', 'kg'),
-(1, 'Naranja', 'kg'),
-(1, 'Café en grano', 'kg'),
-(1, 'Quinoa', 'kg'),
-(1, 'Lechuga', 'kg'),
-(1, 'Tomate', 'kg'),
-(1, 'Carne molida', 'kg'),
-(1, 'Pan de hamburguesa', 'unidades');
+SELECT '=== PRODUCTOS DE CARTA CON RECETA ===' AS '';
+SELECT 
+    pc.id,
+    pc.nombre AS producto,
+    pc.precio,
+    st.nombre AS tipo_servicio,
+    r.nombre AS receta_vinculada
+FROM catering_service_productos_carta pc
+JOIN catering_service_tipos st ON pc.id_tipo_servicio = st.id
+LEFT JOIN recetas r ON pc.id_receta = r.id
+ORDER BY st.id, pc.id;
 
--- Insertar recetas - empresa 1
-INSERT INTO recetas (id_empresa, nombre, descripcion, id_producto_carta) VALUES
-(1, 'Sándwich Premium', 'Receta para sándwich premium', 1),
-(1, 'Mini Hamburguesas', 'Receta para mini hamburguesas', 5),
-(1, 'Brochetas de Pollo', 'Receta para brochetas de pollo', 6),
-(1, 'Jugo Natural', 'Receta para jugo natural', 3),
-(1, 'Café Americano', 'Receta para café americano', 4),
-(1, 'Ensalada de Quinoa', 'Receta para ensalada de quinoa', 2);
+SELECT '=== RECETAS ===' AS '';
+SELECT id, nombre, categoria_receta, tipo_preparacion, porciones_total FROM recetas;
 
--- Asignar ingredientes a recetas (empresa 1)
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 2.0000, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Sándwich Premium' AND i.nombre = 'Pan' AND p.nombre = 'Panadería Central' LIMIT 1;
+SELECT '=== RECETA - INGREDIENTES ===' AS '';
+SELECT 
+    r.nombre AS receta,
+    i.nombre AS ingrediente,
+    ri.cantidad_por_unidad,
+    ri.unidad,
+    ri.es_opcional
+FROM recetas r
+JOIN receta_ingredientes ri ON r.id = ri.id_receta
+JOIN ingredientes i ON ri.id_ingrediente = i.id
+ORDER BY r.nombre, i.nombre;
 
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 0.0500, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Sándwich Premium' AND i.nombre = 'Jamón' AND p.nombre = 'Carnes Premium' LIMIT 1;
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 0.0400, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Sándwich Premium' AND i.nombre = 'Queso' AND p.nombre = 'Lácteos Andinos' LIMIT 1;
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 1.0000, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Mini Hamburguesas' AND i.nombre = 'Pan de hamburguesa' AND p.nombre = 'Panadería Central' LIMIT 1;
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 0.1000, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Mini Hamburguesas' AND i.nombre = 'Carne molida' AND p.nombre = 'Carnes Premium' LIMIT 1;
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 0.1000, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Brochetas de Pollo' AND i.nombre = 'Pechuga de pollo' AND p.nombre = 'Avícola San Fernando' LIMIT 1;
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 0.0200, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Brochetas de Pollo' AND i.nombre = 'Pimiento' AND p.nombre = 'Frutas del Valle' LIMIT 1;
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 0.3000, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Jugo Natural' AND i.nombre = 'Naranja' AND p.nombre = 'Frutas del Valle' LIMIT 1;
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 0.0200, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Café Americano' AND i.nombre = 'Café en grano' AND p.nombre = 'Café Altura' LIMIT 1;
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 0.1500, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Quinoa' AND p.nombre = 'Granos Andinos' LIMIT 1;
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 0.0500, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Lechuga' AND p.nombre = 'Frutas del Valle' LIMIT 1;
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, id_proveedor)
-SELECT 1, r.id, i.id, 0.0500, p.id
-FROM recetas r, ingredientes i, personas p
-WHERE r.id_empresa = 1 AND i.id_empresa = 1 AND p.id_empresa = 1
-AND r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Tomate' AND p.nombre = 'Frutas del Valle' LIMIT 1;
-
--- =====================================================
--- VERIFICACIÓN
--- =====================================================
-SELECT * FROM ventas WHERE id = @venta_cat;
-SELECT * FROM catering_eventos WHERE id_venta = @venta_cat;
-SELECT * FROM catering_service_ventas WHERE id_venta = @venta_cat;
+SELECT '=== RECETA - PASOS ===' AS '';
+SELECT r.nombre AS receta, rp.orden, rp.descripcion
+FROM recetas r
+JOIN receta_pasos rp ON r.id = rp.id_receta
+ORDER BY r.nombre, rp.orden;

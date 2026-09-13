@@ -199,7 +199,8 @@
 }
 
 .dc-input-group input,
-.dc-input-group select {
+.dc-input-group select,
+.dc-input-group textarea {
     width: 100%;
     padding: 0.6rem .4rem;
     border: 1.5px solid #f0d6db;
@@ -211,7 +212,8 @@
 }
 
 .dc-input-group input:focus,
-.dc-input-group select:focus {
+.dc-input-group select:focus,
+.dc-input-group textarea:focus {
     outline: none;
     border-color: var(--color-secundario);
     box-shadow: 0 0 0 3px rgba(217, 10, 70, 0.15);
