@@ -37,7 +37,6 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
     const [descripcion, setDescripcion] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // ✅ Estado para el formulario de productos
     const [productoForm, setProductoForm] = useState<ProductoFormState>({
         idProductoEditando: null,
         id_receta: '',
@@ -47,23 +46,18 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
 
     const isEdit = !!serviceTipo;
 
-    // ✅ Productos del servicio actual
     const productosDelServicio = serviceTipo
         ? productosCarta.filter(p => p.id_tipo_servicio === serviceTipo.id)
         : [];
 
-    // ✅ Nombre de la receta seleccionada (para mostrar en solo lectura)
     const recetaSeleccionada = productoForm.id_receta
         ? recetas.find(r => r.id === productoForm.id_receta)
         : null;
 
-    // ✅ Recetas disponibles (excluir las que ya están en este servicio al agregar uno nuevo)
     const recetasDisponibles = recetas.filter(r => {
         if (productoForm.idProductoEditando) {
-            // Al editar: mostrar todas las recetas
             return true;
         }
-        // Al agregar: excluir las que ya están en el servicio
         return !productosDelServicio.some(p => p.id_receta === r.id);
     });
 
@@ -88,7 +82,6 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
         });
     };
 
-    // ✅ Guardar tipo de servicio
     const handleSubmit = async () => {
         if (!clave.trim() || !nombre.trim()) {
             showToast('Clave y nombre son obligatorios', 'warning', 'Campos incompletos');
@@ -120,7 +113,6 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
         }
     };
 
-    // ✅ Agregar o editar producto
     const handleSaveProducto = async () => {
         if (!serviceTipo) {
             showToast('Primero guarde el tipo de servicio', 'warning', 'Acción requerida');
@@ -157,7 +149,6 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
         }
     };
 
-    // ✅ Editar producto existente
     const handleEditProducto = (producto: ProductoCarta) => {
         setProductoForm({
             idProductoEditando: producto.id,
@@ -166,7 +157,6 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
         });
     };
 
-    // ✅ Eliminar producto
     const handleDeleteProducto = async (producto: ProductoCarta) => {
         if (!window.confirm(`¿Eliminar "${producto.nombre}" del servicio?`)) return;
 

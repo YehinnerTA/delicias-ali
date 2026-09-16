@@ -1,9 +1,6 @@
 import { Request, Response } from 'express';
 import { executeQuery, executeMutation, executeQuerySingle } from '../config/database';
 
-// =====================================================
-// GET ALL - Obtener productos de carta (con info de receta)
-// =====================================================
 export const getProductosCarta = async (req: Request, res: Response) => {
     try {
         const rows = await executeQuery<any[]>(
@@ -43,7 +40,6 @@ export const getProductosCarta = async (req: Request, res: Response) => {
                 tipo_preparacion: row.receta_tipo_preparacion,
                 porciones_total: row.receta_porciones_total
             },
-            // ✅ Nombre "virtual" (viene de la receta)
             nombre: row.receta_nombre,
             created_at: row.created_at,
             updated_at: row.updated_at
@@ -56,9 +52,6 @@ export const getProductosCarta = async (req: Request, res: Response) => {
     }
 };
 
-// =====================================================
-// GET BY ID
-// =====================================================
 export const getProductoCartaById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -105,12 +98,8 @@ export const getProductoCartaById = async (req: Request, res: Response) => {
     }
 };
 
-// =====================================================
-// CREATE - Crear producto de carta
-// =====================================================
 export const createProductoCarta = async (req: Request, res: Response) => {
     try {
-        // ✅ Solo recibe id_tipo_servicio, id_receta, precio
         const { id_tipo_servicio, id_receta, precio } = req.body;
 
         if (!id_tipo_servicio || !id_receta) {
@@ -119,7 +108,6 @@ export const createProductoCarta = async (req: Request, res: Response) => {
             });
         }
 
-        // Validar tipo de servicio
         const tipoServicio = await executeQuerySingle(
             'SELECT id FROM catering_service_tipos WHERE id = ?',
             [id_tipo_servicio]
@@ -128,7 +116,6 @@ export const createProductoCarta = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Tipo de servicio no encontrado' });
         }
 
-        // Validar receta
         const receta = await executeQuerySingle(
             'SELECT id FROM recetas WHERE id = ?',
             [id_receta]
@@ -137,7 +124,6 @@ export const createProductoCarta = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Receta no encontrada' });
         }
 
-        // Verificar que la receta no esté ya en este servicio
         const yaExiste = await executeQuerySingle(
             `SELECT id FROM catering_service_productos_carta 
              WHERE id_tipo_servicio = ? AND id_receta = ?`,
@@ -167,13 +153,9 @@ export const createProductoCarta = async (req: Request, res: Response) => {
     }
 };
 
-// =====================================================
-// UPDATE - Actualizar producto de carta
-// =====================================================
 export const updateProductoCarta = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        // ✅ Solo recibe id_tipo_servicio, id_receta, precio
         const { id_tipo_servicio, id_receta, precio } = req.body;
 
         if (!id_tipo_servicio || !id_receta) {
@@ -190,7 +172,6 @@ export const updateProductoCarta = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Producto de carta no encontrado' });
         }
 
-        // Verificar que no exista duplicado (misma receta en el mismo servicio)
         const duplicado = await executeQuerySingle(
             `SELECT id FROM catering_service_productos_carta 
              WHERE id_tipo_servicio = ? AND id_receta = ? AND id != ?`,
@@ -221,9 +202,6 @@ export const updateProductoCarta = async (req: Request, res: Response) => {
     }
 };
 
-// =====================================================
-// DELETE - Eliminar producto de carta
-// =====================================================
 export const deleteProductoCarta = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -236,7 +214,6 @@ export const deleteProductoCarta = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Producto de carta no encontrado' });
         }
 
-        // Verificar si está en alguna venta
         const enVentas = await executeQuerySingle<any>(
             'SELECT COUNT(*) as total FROM catering_service_detalle WHERE id_producto_carta = ?',
             [id]

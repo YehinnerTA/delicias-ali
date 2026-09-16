@@ -14,7 +14,7 @@ export interface ProductoCarta {
     id: number;
     id_tipo_servicio: number;
     id_receta: number;
-    nombre: string;       // ✅ Viene de la receta (solo lectura)
+    nombre: string;
     precio: number;
     tipo_servicio: ServiceTipo;
     receta: RecetaVinculada;
@@ -41,7 +41,6 @@ export const productoCartaApi = {
         return await res.json();
     },
 
-    // ✅ Sin 'nombre' (se obtiene de la receta)
     create: async (data: { id_tipo_servicio: number; id_receta: number; precio: number }): Promise<ProductoCarta> => {
         const res = await fetch(`${API_URL}/productos-carta`, {
             method: 'POST',

@@ -18,7 +18,6 @@ export const ServiceTipoList: React.FC<ServiceTipoListProps> = ({ serviceTipos, 
     const [selected, setSelected] = useState<ServiceTipo | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    // ✅ Contar productos por servicio
     const getProductosCount = (idTipoServicio: number) => {
         return productosCarta.filter(p => p.id_tipo_servicio === idTipoServicio).length;
     };
