@@ -26,7 +26,7 @@ export const getIngredientes = async (req: Request, res: Response) => {
 
         const ingredientesConProveedores = await Promise.all(
             rows.map(async (ing: any) => {
-                const proveedores = await executeQuery<any[]>(
+                const proveedoresVinculados = await executeQuery<any[]>(
                     `SELECT 
                         p.id,
                         p.nombre,
@@ -42,6 +42,25 @@ export const getIngredientes = async (req: Request, res: Response) => {
                     [ing.id, id_empresa]
                 );
 
+                let proveedoresPorCategoria: any[] = [];
+                if (ing.id_categoria) {
+                    proveedoresPorCategoria = await executeQuery<any[]>(
+                        `SELECT 
+                            p.id,
+                            p.nombre,
+                            p.apellido,
+                            p.razon_social,
+                            p.celular,
+                            p.tipo_documento,
+                            p.numero_documento
+                         FROM personas p
+                         JOIN proveedor_categoria pc ON p.id = pc.id_proveedor
+                         WHERE pc.id_categoria = ? AND pc.id_empresa = ?
+                         ORDER BY p.nombre`,
+                        [ing.id_categoria, id_empresa]
+                    );
+                }
+
                 return {
                     id: ing.id,
                     id_empresa: ing.id_empresa,
@@ -53,7 +72,16 @@ export const getIngredientes = async (req: Request, res: Response) => {
                         nombre: ing.categoria_nombre,
                         descripcion: ing.categoria_descripcion
                     } : null,
-                    proveedores: proveedores.map((p: any) => ({
+                    proveedores: proveedoresVinculados.map((p: any) => ({
+                        id_persona: p.id,
+                        nombre: p.nombre,
+                        apellido: p.apellido,
+                        razon_social: p.razon_social,
+                        celular: p.celular,
+                        tipo_documento: p.tipo_documento,
+                        numero_documento: p.numero_documento
+                    })),
+                    proveedores_sugeridos: proveedoresPorCategoria.map((p: any) => ({
                         id_persona: p.id,
                         nombre: p.nombre,
                         apellido: p.apellido,
@@ -100,7 +128,7 @@ export const getIngredienteById = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Ingrediente no encontrado' });
         }
 
-        const proveedores = await executeQuery<any[]>(
+        const proveedoresVinculados = await executeQuery<any[]>(
             `SELECT 
                 p.id,
                 p.nombre,
@@ -116,6 +144,25 @@ export const getIngredienteById = async (req: Request, res: Response) => {
             [id, id_empresa]
         );
 
+        let proveedoresPorCategoria: any[] = [];
+        if (ing.id_categoria) {
+            proveedoresPorCategoria = await executeQuery<any[]>(
+                `SELECT 
+                    p.id,
+                    p.nombre,
+                    p.apellido,
+                    p.razon_social,
+                    p.celular,
+                    p.tipo_documento,
+                    p.numero_documento
+                 FROM personas p
+                 JOIN proveedor_categoria pc ON p.id = pc.id_proveedor
+                 WHERE pc.id_categoria = ? AND pc.id_empresa = ?
+                 ORDER BY p.nombre`,
+                [ing.id_categoria, id_empresa]
+            );
+        }
+
         res.json({
             id: ing.id,
             id_empresa: ing.id_empresa,
@@ -127,7 +174,16 @@ export const getIngredienteById = async (req: Request, res: Response) => {
                 nombre: ing.categoria_nombre,
                 descripcion: ing.categoria_descripcion
             } : null,
-            proveedores: proveedores.map((p: any) => ({
+            proveedores: proveedoresVinculados.map((p: any) => ({
+                id_persona: p.id,
+                nombre: p.nombre,
+                apellido: p.apellido,
+                razon_social: p.razon_social,
+                celular: p.celular,
+                tipo_documento: p.tipo_documento,
+                numero_documento: p.numero_documento
+            })),
+            proveedores_sugeridos: proveedoresPorCategoria.map((p: any) => ({
                 id_persona: p.id,
                 nombre: p.nombre,
                 apellido: p.apellido,
@@ -143,9 +199,66 @@ export const getIngredienteById = async (req: Request, res: Response) => {
     }
 };
 
+export const sincronizarProveedoresPorCategoria = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { id_empresa } = req.body;
+
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        const ing = await executeQuerySingle<any>(
+            'SELECT id, id_categoria FROM ingredientes WHERE id = ? AND id_empresa = ?',
+            [id, id_empresa]
+        );
+        if (!ing) {
+            return res.status(404).json({ message: 'Ingrediente no encontrado' });
+        }
+
+        if (!ing.id_categoria) {
+            return res.status(400).json({ message: 'El ingrediente no tiene categoría asignada' });
+        }
+
+        await executeMutation(
+            'DELETE FROM ingrediente_proveedores WHERE id_ingrediente = ? AND id_empresa = ?',
+            [id, id_empresa]
+        );
+
+        const proveedores = await executeQuery<any[]>(
+            `SELECT id_proveedor FROM proveedor_categoria 
+            WHERE id_categoria = ? AND id_empresa = ?`,
+            [ing.id_categoria, id_empresa]
+        );
+
+        for (const prov of proveedores) {
+            await executeMutation(
+                `INSERT INTO ingrediente_proveedores (id_empresa, id_ingrediente, id_proveedor) 
+                VALUES (?, ?, ?)`,
+                [id_empresa, id, (prov as any).id_proveedor]
+            );
+        }
+
+        res.json({
+            message: 'Proveedores sincronizados por categoría',
+            proveedores_vinculados: proveedores.length
+        });
+    } catch (error) {
+        console.error('[sincronizarProveedoresPorCategoria] Error:', error);
+        res.status(500).json({ message: 'Error al sincronizar proveedores', error });
+    }
+};
+
 export const createIngrediente = async (req: Request, res: Response) => {
     try {
-        const { id_empresa, nombre, unidad, id_categoria, proveedores } = req.body;
+        const {
+            id_empresa,
+            nombre,
+            unidad,
+            id_categoria,
+            proveedores,
+            forma_agrupacion
+        } = req.body;
 
         if (!id_empresa || !nombre || !unidad) {
             return res.status(400).json({ message: 'id_empresa, nombre y unidad son requeridos' });
@@ -159,7 +272,29 @@ export const createIngrediente = async (req: Request, res: Response) => {
 
         const ingredienteId = result.insertId;
 
-        if (proveedores && Array.isArray(proveedores) && proveedores.length > 0) {
+        if (forma_agrupacion === 'categoria' && id_categoria) {
+            const proveedoresDeCategoria = await executeQuery<any[]>(
+                `SELECT id_proveedor FROM proveedor_categoria 
+                WHERE id_categoria = ? AND id_empresa = ?`,
+                [id_categoria, id_empresa]
+            );
+
+            for (const prov of proveedoresDeCategoria) {
+                await executeMutation(
+                    `INSERT INTO ingrediente_proveedores (id_empresa, id_ingrediente, id_proveedor) 
+                    VALUES (?, ?, ?)`,
+                    [id_empresa, ingredienteId, (prov as any).id_proveedor]
+                );
+            }
+        } else if (forma_agrupacion === 'proveedor' && proveedores && Array.isArray(proveedores) && proveedores.length > 0) {
+            for (const idProveedor of proveedores) {
+                await executeMutation(
+                    `INSERT INTO ingrediente_proveedores (id_empresa, id_ingrediente, id_proveedor) 
+                     VALUES (?, ?, ?)`,
+                    [id_empresa, ingredienteId, idProveedor]
+                );
+            }
+        } else if (proveedores && Array.isArray(proveedores) && proveedores.length > 0) {
             for (const idProveedor of proveedores) {
                 await executeMutation(
                     `INSERT INTO ingrediente_proveedores (id_empresa, id_ingrediente, id_proveedor) 
@@ -184,7 +319,14 @@ export const createIngrediente = async (req: Request, res: Response) => {
 export const updateIngrediente = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { id_empresa, nombre, unidad, id_categoria, proveedores } = req.body;
+        const {
+            id_empresa,
+            nombre,
+            unidad,
+            id_categoria,
+            proveedores,
+            forma_agrupacion
+        } = req.body;
 
         if (!id_empresa) {
             return res.status(400).json({ message: 'id_empresa es requerido' });
@@ -204,7 +346,36 @@ export const updateIngrediente = async (req: Request, res: Response) => {
             [nombre, unidad, id_categoria || null, id, id_empresa]
         );
 
-        if (proveedores !== undefined) {
+        if (forma_agrupacion !== undefined) {
+            await executeMutation(
+                `DELETE FROM ingrediente_proveedores WHERE id_ingrediente = ? AND id_empresa = ?`,
+                [id, id_empresa]
+            );
+
+            if (forma_agrupacion === 'categoria' && id_categoria) {
+                const proveedoresDeCategoria = await executeQuery<any[]>(
+                    `SELECT id_proveedor FROM proveedor_categoria 
+                     WHERE id_categoria = ? AND id_empresa = ?`,
+                    [id_categoria, id_empresa]
+                );
+
+                for (const prov of proveedoresDeCategoria) {
+                    await executeMutation(
+                        `INSERT INTO ingrediente_proveedores (id_empresa, id_ingrediente, id_proveedor) 
+                         VALUES (?, ?, ?)`,
+                        [id_empresa, id, (prov as any).id_proveedor]
+                    );
+                }
+            } else if (forma_agrupacion === 'proveedor' && proveedores && Array.isArray(proveedores)) {
+                for (const idProveedor of proveedores) {
+                    await executeMutation(
+                        `INSERT INTO ingrediente_proveedores (id_empresa, id_ingrediente, id_proveedor) 
+                         VALUES (?, ?, ?)`,
+                        [id_empresa, id, idProveedor]
+                    );
+                }
+            }
+        } else if (proveedores !== undefined) {
             await executeMutation(
                 `DELETE FROM ingrediente_proveedores WHERE id_ingrediente = ? AND id_empresa = ?`,
                 [id, id_empresa]

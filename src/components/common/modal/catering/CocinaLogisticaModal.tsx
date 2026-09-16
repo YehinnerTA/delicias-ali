@@ -78,14 +78,38 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
             for (const nombre of productos) {
                 const receta = await recetaApi.getByProductoNombre(nombre, id_empresa);
                 if (receta && receta.ingredientes.length > 0) {
-                    map.set(nombre, receta.ingredientes.map(ing => ({
-                        nombre: ing.nombre,
-                        cantidadPorUnidad: ing.cantidadPorUnidad,
-                        unidad: ing.unidad,
-                        proveedores: ing.proveedores
-                    })));
+                    const agrupados = new Map<string, IngredienteRecetaBD>();
+
+                    receta.ingredientes.forEach(ing => {
+                        const key = ing.nombre.toLowerCase();
+
+                        if (agrupados.has(key)) {
+                            const existente = agrupados.get(key)!;
+                            if (ing.proveedores && ing.proveedores.length > 0) {
+                                ing.proveedores.forEach((prov: string) => {
+                                    if (!existente.proveedores?.includes(prov)) {
+                                        existente.proveedores = [...(existente.proveedores || []), prov];
+                                    }
+                                });
+                            }
+                        } else {
+                            agrupados.set(key, {
+                                nombre: ing.nombre,
+                                cantidadPorUnidad: ing.cantidadPorUnidad,
+                                unidad: ing.unidad,
+                                proveedores: ing.proveedores ? [...ing.proveedores] : []
+                            });
+                        }
+                    });
+
+                    map.set(nombre, Array.from(agrupados.values()));
                 } else {
-                    map.set(nombre, [{ nombre: 'Producto genérico', cantidadPorUnidad: 1, unidad: 'unidad', proveedores: ['Proveedor General - 900123456'] }]);
+                    map.set(nombre, [{
+                        nombre: 'Producto genérico',
+                        cantidadPorUnidad: 1,
+                        unidad: 'unidad',
+                        proveedores: ['Proveedor General - 900123456']
+                    }]);
                 }
             }
             setRecetasCargadas(map);

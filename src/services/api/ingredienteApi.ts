@@ -2,6 +2,8 @@ import { CategoriaAlimento, Persona } from '../../features/types/person';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+export type FormaAgrupacion = 'categoria' | 'proveedor';
+
 export interface Ingrediente {
     id: number;
     id_empresa: number;
@@ -10,6 +12,17 @@ export interface Ingrediente {
     id_categoria: number | null;
     categoria?: CategoriaAlimento | null;
     proveedores?: Persona[];
+    proveedores_sugeridos?: Persona[];
+    forma_agrupacion?: FormaAgrupacion;
+}
+
+export interface IngredientePayload {
+    id_empresa: number;
+    nombre: string;
+    unidad: string;
+    id_categoria: number | null;
+    forma_agrupacion: FormaAgrupacion;
+    proveedores: number[];
 }
 
 const mapToFrontend = (data: any): Ingrediente => ({
@@ -19,7 +32,8 @@ const mapToFrontend = (data: any): Ingrediente => ({
     unidad: data.unidad,
     id_categoria: data.id_categoria,
     categoria: data.categoria || null,
-    proveedores: data.proveedores || []
+    proveedores: data.proveedores || [],
+    proveedores_sugeridos: data.proveedores_sugeridos || []
 });
 
 export const ingredienteApi = {
@@ -37,7 +51,7 @@ export const ingredienteApi = {
         return mapToFrontend(data);
     },
 
-    create: async (ingrediente: Omit<Ingrediente, 'id' | 'categoria' | 'proveedores'>): Promise<Ingrediente> => {
+    create: async (ingrediente: IngredientePayload): Promise<Ingrediente> => {
         const res = await fetch(`${API_URL}/ingredientes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -48,7 +62,7 @@ export const ingredienteApi = {
         return mapToFrontend(data);
     },
 
-    update: async (id: number, ingrediente: Partial<Ingrediente>): Promise<Ingrediente> => {
+    update: async (id: number, ingrediente: Partial<IngredientePayload>): Promise<Ingrediente> => {
         const res = await fetch(`${API_URL}/ingredientes/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -64,5 +78,18 @@ export const ingredienteApi = {
             method: 'DELETE'
         });
         if (!res.ok) throw new Error('Error al eliminar ingrediente');
+    },
+
+    sincronizarPorCategoria: async (id: number, id_empresa: number): Promise<{ message: string; proveedores_vinculados: number }> => {
+        const res = await fetch(`${API_URL}/ingredientes/${id}/sincronizar-proveedores-categoria`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_empresa })
+        });
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.message || 'Error al sincronizar proveedores');
+        }
+        return await res.json();
     }
 };

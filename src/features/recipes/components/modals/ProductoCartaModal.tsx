@@ -4,7 +4,6 @@ import { ProductoCarta, productoCartaApi } from '../../../../services/api/produc
 import { ServiceTipo } from '../../../../services/api/serviceTipoApi';
 import { Receta } from '../../../types/recipe';
 import { useToast } from '../../../../hooks/base/useToast';
-import { normalizeText } from '../../../../utils/normalizeText';
 
 interface ProductoCartaModalProps {
     isOpen: boolean;
@@ -26,45 +25,34 @@ export const ProductoCartaModal: React.FC<ProductoCartaModalProps> = ({
     const { showToast } = useToast();
     const [idTipoServicio, setIdTipoServicio] = useState<number | ''>('');
     const [idReceta, setIdReceta] = useState<number | ''>('');
-    const [nombre, setNombre] = useState('');
     const [precio, setPrecio] = useState<number>(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const isEdit = !!productoCarta;
 
+    const recetaSeleccionada = idReceta
+        ? recetas.find(r => r.id === idReceta)
+        : null;
+
     useEffect(() => {
         if (productoCarta) {
             setIdTipoServicio(productoCarta.id_tipo_servicio);
             setIdReceta(productoCarta.id_receta || '');
-            setNombre(productoCarta.nombre);
             setPrecio(productoCarta.precio);
         } else {
             setIdTipoServicio(serviceTipos.length > 0 ? serviceTipos[0].id : '');
             setIdReceta('');
-            setNombre('');
             setPrecio(0);
         }
     }, [productoCarta, isOpen, serviceTipos]);
-
-    const handleRecetaChange = (value: string) => {
-        const idRec = value ? Number(value) : '';
-        setIdReceta(idRec);
-
-        if (idRec) {
-            const receta = recetas.find(r => r.id === idRec);
-            if (receta && !nombre.trim()) {
-                setNombre(receta.nombre);
-            }
-        }
-    };
 
     const handleSubmit = async () => {
         if (!idTipoServicio) {
             showToast('Seleccione un tipo de servicio', 'warning', 'Campos incompletos');
             return;
         }
-        if (!nombre.trim()) {
-            showToast('El nombre es obligatorio', 'warning', 'Campos incompletos');
+        if (!idReceta) {
+            showToast('Debe seleccionar una receta', 'warning', 'Campos incompletos');
             return;
         }
 
@@ -72,17 +60,16 @@ export const ProductoCartaModal: React.FC<ProductoCartaModalProps> = ({
         try {
             const payload = {
                 id_tipo_servicio: Number(idTipoServicio),
-                id_receta: idReceta ? Number(idReceta) : null,
-                nombre: normalizeText(nombre.trim()),
+                id_receta: Number(idReceta),
                 precio: precio || 0
             };
 
             if (isEdit && productoCarta) {
                 await productoCartaApi.update(productoCarta.id, payload);
-                showToast(`Producto "${payload.nombre}" actualizado`, 'success', 'Actualizado');
+                showToast(`Producto actualizado`, 'success', 'Actualizado');
             } else {
                 await productoCartaApi.create(payload);
-                showToast(`Producto "${payload.nombre}" creado`, 'success', 'Creado');
+                showToast(`Producto creado`, 'success', 'Creado');
             }
             onSuccess();
             onClose();
@@ -123,28 +110,27 @@ export const ProductoCartaModal: React.FC<ProductoCartaModalProps> = ({
                 </div>
 
                 <div className="dc-input-group">
-                    <label>Receta Vinculada (opcional)</label>
-                    <select value={idReceta} onChange={(e) => handleRecetaChange(e.target.value)}>
-                        <option value="">Sin receta (producto simple)</option>
+                    <label>Receta <span style={{ color: 'red' }}>*</span></label>
+                    <select value={idReceta} onChange={(e) => setIdReceta(e.target.value ? Number(e.target.value) : '')}>
+                        <option value="">Seleccione una receta...</option>
                         {recetas.map(r => (
                             <option key={r.id} value={r.id}>{r.nombre}</option>
                         ))}
                     </select>
-                    <small style={{ color: 'var(--color-gray)' }}>
-                        Seleccione una receta si este producto requiere preparación
-                    </small>
                 </div>
 
+                {/* ✅ Nombre en solo lectura (viene de la receta) */}
                 <div className="dc-input-group">
-                    <label>Nombre <span style={{ color: 'red' }}>*</span></label>
+                    <label>Nombre del Producto</label>
                     <input
                         type="text"
-                        placeholder="Ej: Sándwich Premium"
-                        value={nombre}
-                        onChange={(e) => setNombre(e.target.value)}
-                        required
+                        value={recetaSeleccionada?.nombre || ''}
+                        readOnly
+                        placeholder="Se completa al seleccionar una receta"
+                        style={{ background: '#e9ecef', cursor: 'not-allowed' }}
                     />
                 </div>
+
                 <div className="dc-input-group">
                     <label>Precio (S/)</label>
                     <input
