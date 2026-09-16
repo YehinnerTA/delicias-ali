@@ -120,7 +120,7 @@ INSERT INTO catering_service_tipos (clave, nombre, descripcion) VALUES
 ('Desayuno', 'Desayuno Corporativo', 'Servicio de desayuno con café, tostadas y yogurt');
 
 -- =====================================================
--- 11. RECETAS (SIN id_producto_carta)
+-- 11. RECETAS
 -- =====================================================
 INSERT INTO recetas (
     id_empresa, nombre, descripcion,
@@ -145,11 +145,21 @@ INSERT INTO recetas (
     5, 5, 'fácil', 100.00, 1, 'admin'),
 (1, 'Ensalada de Quinoa', 'Receta para ensalada de quinoa',
     'entrada', 'por_lote', 1, 10,
-    15, 0, 'fácil', 95.00, 1, 'admin');
+    15, 0, 'fácil', 95.00, 1, 'admin'),
+(1, 'Postre Variado', 'Receta para postre variado',
+    'postre', 'por_unidad', 1, 1,
+    20, 0, 'fácil', 100.00, 1, 'admin'),
+(1, 'Tostada Francesa', 'Receta para tostada francesa',
+    'entrada', 'por_unidad', 1, 1,
+    10, 5, 'fácil', 100.00, 1, 'admin'),
+(1, 'Yogurt con Granola', 'Receta para yogurt con granola',
+    'entrada', 'por_unidad', 1, 1,
+    5, 0, 'fácil', 100.00, 1, 'admin');
 
 -- =====================================================
 -- 12. RECETA - INGREDIENTES
 -- =====================================================
+
 -- Sándwich Premium
 INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
 SELECT 1, r.id, i.id, 0.2, 'unidades', 'Pan artesanal, no industrial', 0
@@ -219,6 +229,8 @@ WHERE r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Tomate';
 -- =====================================================
 -- 13. RECETA - PASOS
 -- =====================================================
+
+-- Pasos del Sándwich Premium
 INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
 SELECT 1, r.id, 1, 'Cortar el pan por la mitad' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
 INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
@@ -228,6 +240,7 @@ SELECT 1, r.id, 3, 'Colocar jamón y queso' FROM recetas r WHERE r.nombre = 'Sá
 INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
 SELECT 1, r.id, 4, 'Cerrar el sándwich y cortar en diagonal' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
 
+-- Pasos de la Ensalada de Quinoa
 INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
 SELECT 1, r.id, 1, 'Lavar y cocinar la quinoa por 15 minutos' FROM recetas r WHERE r.nombre = 'Ensalada de Quinoa';
 INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
@@ -236,26 +249,27 @@ INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
 SELECT 1, r.id, 3, 'Mezclar todos los ingredientes y aderezar' FROM recetas r WHERE r.nombre = 'Ensalada de Quinoa';
 
 -- =====================================================
--- 14. PRODUCTOS DE CARTA (CON id_receta)
+-- 14. PRODUCTOS DE CARTA (id_receta OBLIGATORIO, sin nombre)
 -- =====================================================
+
 -- Tipo 1: Corporativo Ejecutivo
-INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, nombre, precio) VALUES
-(1, (SELECT id FROM recetas WHERE nombre = 'Sándwich Premium'), 'Sándwich Premium', 18.00),
-(1, (SELECT id FROM recetas WHERE nombre = 'Ensalada de Quinoa'), 'Ensalada de Quinoa', 22.00),
-(1, (SELECT id FROM recetas WHERE nombre = 'Jugo Natural'), 'Jugo Natural', 9.00),
-(1, (SELECT id FROM recetas WHERE nombre = 'Café Americano'), 'Café Americano', 7.00);
+INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, precio) VALUES
+(1, (SELECT id FROM recetas WHERE nombre = 'Sándwich Premium'), 18.00),
+(1, (SELECT id FROM recetas WHERE nombre = 'Ensalada de Quinoa'), 22.00),
+(1, (SELECT id FROM recetas WHERE nombre = 'Jugo Natural'), 9.00),
+(1, (SELECT id FROM recetas WHERE nombre = 'Café Americano'), 7.00);
 
 -- Tipo 2: Social / Fiestas
-INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, nombre, precio) VALUES
-(2, (SELECT id FROM recetas WHERE nombre = 'Mini Hamburguesas'), 'Mini Hamburguesas', 15.00),
-(2, (SELECT id FROM recetas WHERE nombre = 'Brochetas de Pollo'), 'Brochetas de Pollo', 20.00),
-(2, NULL, 'Postre Variado', 12.00);
+INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, precio) VALUES
+(2, (SELECT id FROM recetas WHERE nombre = 'Mini Hamburguesas'), 15.00),
+(2, (SELECT id FROM recetas WHERE nombre = 'Brochetas de Pollo'), 20.00),
+(2, (SELECT id FROM recetas WHERE nombre = 'Postre Variado'), 12.00);
 
 -- Tipo 3: Desayuno Corporativo
-INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, nombre, precio) VALUES
-(3, (SELECT id FROM recetas WHERE nombre = 'Café Americano'), 'Café Americano', 8.00),
-(3, NULL, 'Tostada Francesa', 12.00),
-(3, NULL, 'Yogurt con Granola', 10.00);
+INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, precio) VALUES
+(3, (SELECT id FROM recetas WHERE nombre = 'Café Americano'), 8.00),
+(3, (SELECT id FROM recetas WHERE nombre = 'Tostada Francesa'), 12.00),
+(3, (SELECT id FROM recetas WHERE nombre = 'Yogurt con Granola'), 10.00);
 
 -- =====================================================
 -- 15. MATERIALES DE CATÁLOGO
@@ -310,10 +324,14 @@ SET @serv_cat_1 = LAST_INSERT_ID();
 INSERT INTO catering_service_detalle (id_empresa, id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal)
 VALUES 
 (1, @serv_cat_1, 
-    (SELECT id FROM catering_service_productos_carta WHERE nombre = 'Sándwich Premium' AND id_tipo_servicio = 1 LIMIT 1),
+    (SELECT pc.id FROM catering_service_productos_carta pc 
+     JOIN recetas r ON pc.id_receta = r.id 
+     WHERE r.nombre = 'Sándwich Premium' AND pc.id_tipo_servicio = 1 LIMIT 1),
     10, 18.00, 180.00),
 (1, @serv_cat_1, 
-    (SELECT id FROM catering_service_productos_carta WHERE nombre = 'Café Americano' AND id_tipo_servicio = 1 LIMIT 1),
+    (SELECT pc.id FROM catering_service_productos_carta pc 
+     JOIN recetas r ON pc.id_receta = r.id 
+     WHERE r.nombre = 'Café Americano' AND pc.id_tipo_servicio = 1 LIMIT 1),
     15, 7.00, 105.00);
 
 UPDATE catering_service_ventas SET subtotal_servicio = 285.00 WHERE id = @serv_cat_1;
@@ -326,10 +344,14 @@ SET @serv_cat_2 = LAST_INSERT_ID();
 INSERT INTO catering_service_detalle (id_empresa, id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal)
 VALUES 
 (1, @serv_cat_2, 
-    (SELECT id FROM catering_service_productos_carta WHERE nombre = 'Mini Hamburguesas' AND id_tipo_servicio = 2 LIMIT 1),
+    (SELECT pc.id FROM catering_service_productos_carta pc 
+     JOIN recetas r ON pc.id_receta = r.id 
+     WHERE r.nombre = 'Mini Hamburguesas' AND pc.id_tipo_servicio = 2 LIMIT 1),
     8, 15.00, 120.00),
 (1, @serv_cat_2, 
-    (SELECT id FROM catering_service_productos_carta WHERE nombre = 'Brochetas de Pollo' AND id_tipo_servicio = 2 LIMIT 1),
+    (SELECT pc.id FROM catering_service_productos_carta pc 
+     JOIN recetas r ON pc.id_receta = r.id 
+     WHERE r.nombre = 'Brochetas de Pollo' AND pc.id_tipo_servicio = 2 LIMIT 1),
     10, 20.00, 200.00);
 
 UPDATE catering_service_ventas SET subtotal_servicio = 320.00 WHERE id = @serv_cat_2;
@@ -365,17 +387,16 @@ VALUES ('catering', 'VENTA', CONCAT('Venta ', (SELECT numero FROM ventas WHERE i
 SELECT '=== TIPOS DE SERVICIO ===' AS '';
 SELECT * FROM catering_service_tipos;
 
-SELECT '=== PRODUCTOS DE CARTA CON RECETA ===' AS '';
+SELECT '=== PRODUCTOS DE CARTA (con receta) ===' AS '';
 SELECT 
     pc.id,
-    pc.nombre AS producto,
-    pc.precio,
     st.nombre AS tipo_servicio,
-    r.nombre AS receta_vinculada
+    r.nombre AS receta,
+    pc.precio
 FROM catering_service_productos_carta pc
 JOIN catering_service_tipos st ON pc.id_tipo_servicio = st.id
-LEFT JOIN recetas r ON pc.id_receta = r.id
-ORDER BY st.id, pc.id;
+JOIN recetas r ON pc.id_receta = r.id
+ORDER BY st.id, r.nombre;
 
 SELECT '=== RECETAS ===' AS '';
 SELECT id, nombre, categoria_receta, tipo_preparacion, porciones_total FROM recetas;

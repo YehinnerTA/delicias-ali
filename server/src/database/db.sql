@@ -430,13 +430,12 @@ CREATE TABLE ingrediente_proveedores (
 CREATE TABLE catering_service_productos_carta (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_tipo_servicio INT NOT NULL,
-    id_receta INT NULL COMMENT 'FK a recetas (permite que una receta esté en varios servicios)',
-    nombre VARCHAR(100) NOT NULL COMMENT 'Nombre comercial del producto',
+    id_receta INT NOT NULL,
     precio DECIMAL(10,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (id_tipo_servicio) REFERENCES catering_service_tipos(id) ON DELETE CASCADE,
-    FOREIGN KEY (id_receta) REFERENCES recetas(id) ON DELETE SET NULL,
+    FOREIGN KEY (id_receta) REFERENCES recetas(id) ON DELETE CASCADE,
     INDEX idx_tipo (id_tipo_servicio),
     INDEX idx_receta (id_receta)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -495,14 +494,18 @@ CREATE TABLE catering_service_detalle (
     id_service_venta INT NOT NULL,
     id_producto_carta INT NOT NULL,
     cantidad INT NOT NULL,
-    precio_unitario DECIMAL(10,2) NOT NULL,
-    subtotal DECIMAL(10,2) NOT NULL,
+    precio_unitario DECIMAL(10 , 2 ) NOT NULL,
+    subtotal DECIMAL(10 , 2 ) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
-    FOREIGN KEY (id_service_venta) REFERENCES catering_service_ventas(id) ON DELETE CASCADE,
-    FOREIGN KEY (id_producto_carta) REFERENCES catering_service_productos_carta(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    FOREIGN KEY (id_empresa)
+        REFERENCES empresas (id),
+    FOREIGN KEY (id_service_venta)
+        REFERENCES catering_service_ventas (id)
+        ON DELETE CASCADE,
+    FOREIGN KEY (id_producto_carta)
+        REFERENCES catering_service_productos_carta (id)
+)  ENGINE=INNODB DEFAULT CHARSET=UTF8MB4;
 
 -- =====================================================
 -- 29. MATERIALES VENTA CATERING

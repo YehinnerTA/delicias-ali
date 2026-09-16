@@ -65,15 +65,14 @@ export const getRecetas = async (req: Request, res: Response) => {
 
                 const productosCarta = await executeQuery<any[]>(
                     `SELECT 
-                        pc.id,
-                        pc.id_tipo_servicio,
-                        pc.nombre,
-                        pc.precio,
-                        st.clave AS tipo_servicio_clave,
-                        st.nombre AS tipo_servicio_nombre
-                     FROM catering_service_productos_carta pc
-                     JOIN catering_service_tipos st ON pc.id_tipo_servicio = st.id
-                     WHERE pc.id_receta = ?`,
+                       pc.id,
+                       pc.id_tipo_servicio,
+                       pc.precio,
+                       st.clave AS tipo_servicio_clave,
+                       st.nombre AS tipo_servicio_nombre
+                    FROM catering_service_productos_carta pc
+                    JOIN catering_service_tipos st ON pc.id_tipo_servicio = st.id
+                    WHERE pc.id_receta = ?`,
                     [receta.id]
                 );
 
@@ -106,7 +105,7 @@ export const getRecetas = async (req: Request, res: Response) => {
                     servicios: productosCarta.map((pc: any) => ({
                         id_producto_carta: pc.id,
                         id_tipo_servicio: pc.id_tipo_servicio,
-                        nombre_producto: pc.nombre,
+                        nombre_producto: receta.nombre,
                         precio: parseFloat(pc.precio),
                         tipo_servicio: {
                             clave: pc.tipo_servicio_clave,
@@ -190,16 +189,15 @@ export const getRecetaById = async (req: Request, res: Response) => {
 
         const productosCarta = await executeQuery<any[]>(
             `SELECT 
-                pc.id,
-                pc.id_tipo_servicio,
-                pc.nombre,
-                pc.precio,
-                st.clave AS tipo_servicio_clave,
-                st.nombre AS tipo_servicio_nombre
-             FROM catering_service_productos_carta pc
-             JOIN catering_service_tipos st ON pc.id_tipo_servicio = st.id
-             WHERE pc.id_receta = ?`,
-            [id]
+               pc.id,
+               pc.id_tipo_servicio,
+               pc.precio,
+               st.clave AS tipo_servicio_clave,
+               st.nombre AS tipo_servicio_nombre
+            FROM catering_service_productos_carta pc
+            JOIN catering_service_tipos st ON pc.id_tipo_servicio = st.id
+            WHERE pc.id_receta = ?`,
+            [receta.id]
         );
 
         res.json({
@@ -231,7 +229,7 @@ export const getRecetaById = async (req: Request, res: Response) => {
             servicios: productosCarta.map((pc: any) => ({
                 id_producto_carta: pc.id,
                 id_tipo_servicio: pc.id_tipo_servicio,
-                nombre_producto: pc.nombre,
+                nombre_producto: receta.nombre,
                 precio: parseFloat(pc.precio),
                 tipo_servicio: {
                     clave: pc.tipo_servicio_clave,
@@ -524,7 +522,13 @@ export const getRecetaByProducto = async (req: Request, res: Response) => {
             LEFT JOIN ingrediente_proveedores ip ON i.id = ip.id_ingrediente AND i.id_empresa = ip.id_empresa
             LEFT JOIN personas p ON ip.id_proveedor = p.id AND p.id_empresa = ?
             WHERE (r.nombre LIKE ?
-                OR r.id = (SELECT id_receta FROM catering_service_productos_carta WHERE nombre = ? LIMIT 1))
+                OR r.id = (
+                    SELECT r2.id 
+                    FROM catering_service_productos_carta pc 
+                    JOIN recetas r2 ON pc.id_receta = r2.id
+                    WHERE r2.nombre = ? 
+                    LIMIT 1
+                ))
               AND r.id_empresa = ?
               AND ri.id_empresa = ?
               AND i.id_empresa = ?

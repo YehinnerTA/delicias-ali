@@ -1,6 +1,37 @@
 import { Request, Response } from 'express';
 import { executeQuery, executeMutation, executeQuerySingle } from '../config/database';
 
+export const getProductosByTipoServicio = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const rows = await executeQuery<any[]>(
+            `SELECT 
+                pc.id,
+                pc.id_tipo_servicio,
+                pc.id_receta,
+                pc.precio,
+                r.nombre AS receta_nombre
+             FROM catering_service_productos_carta pc
+             JOIN recetas r ON pc.id_receta = r.id
+             WHERE pc.id_tipo_servicio = ?
+             ORDER BY r.nombre`,
+            [id]
+        );
+
+        res.json(rows.map((row: any) => ({
+            id: row.id,
+            id_tipo_servicio: row.id_tipo_servicio,
+            id_receta: row.id_receta,
+            nombre: row.receta_nombre,
+            precio: parseFloat(row.precio)
+        })));
+    } catch (error) {
+        console.error('[getProductosByTipoServicio] Error:', error);
+        res.status(500).json({ message: 'Error al obtener productos', error });
+    }
+};
+
 export const getServiceTipos = async (req: Request, res: Response) => {
     try {
         const rows = await executeQuery<any[]>(

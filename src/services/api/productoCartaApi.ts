@@ -13,11 +13,11 @@ export interface RecetaVinculada {
 export interface ProductoCarta {
     id: number;
     id_tipo_servicio: number;
-    id_receta: number | null;
-    nombre: string;
+    id_receta: number;
+    nombre: string;       // ✅ Viene de la receta (solo lectura)
     precio: number;
     tipo_servicio: ServiceTipo;
-    receta: RecetaVinculada | null;
+    receta: RecetaVinculada;
     created_at?: string;
     updated_at?: string;
 }
@@ -35,7 +35,14 @@ export const productoCartaApi = {
         return await res.json();
     },
 
-    create: async (data: { id_tipo_servicio: number; id_receta: number | null; nombre: string; precio: number }): Promise<ProductoCarta> => {
+    getByTipoServicio: async (id_tipo_servicio: number): Promise<ProductoCarta[]> => {
+        const res = await fetch(`${API_URL}/service-tipos/${id_tipo_servicio}/productos`);
+        if (!res.ok) throw new Error('Error al obtener productos del servicio');
+        return await res.json();
+    },
+
+    // ✅ Sin 'nombre' (se obtiene de la receta)
+    create: async (data: { id_tipo_servicio: number; id_receta: number; precio: number }): Promise<ProductoCarta> => {
         const res = await fetch(`${API_URL}/productos-carta`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -48,7 +55,7 @@ export const productoCartaApi = {
         return await res.json();
     },
 
-    update: async (id: number, data: Partial<ProductoCarta>): Promise<ProductoCarta> => {
+    update: async (id: number, data: { id_tipo_servicio: number; id_receta: number; precio: number }): Promise<ProductoCarta> => {
         const res = await fetch(`${API_URL}/productos-carta/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },

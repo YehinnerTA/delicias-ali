@@ -19,7 +19,6 @@ interface ServiceTipoModalProps {
 interface ProductoFormState {
     idProductoEditando: number | null;
     id_receta: number | '';
-    nombre: string;
     precio: number;
 }
 
@@ -38,19 +37,35 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
     const [descripcion, setDescripcion] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // ✅ Estado para el formulario de productos
     const [productoForm, setProductoForm] = useState<ProductoFormState>({
         idProductoEditando: null,
         id_receta: '',
-        nombre: '',
         precio: 0
     });
     const [isSavingProducto, setIsSavingProducto] = useState(false);
 
     const isEdit = !!serviceTipo;
 
+    // ✅ Productos del servicio actual
     const productosDelServicio = serviceTipo
         ? productosCarta.filter(p => p.id_tipo_servicio === serviceTipo.id)
         : [];
+
+    // ✅ Nombre de la receta seleccionada (para mostrar en solo lectura)
+    const recetaSeleccionada = productoForm.id_receta
+        ? recetas.find(r => r.id === productoForm.id_receta)
+        : null;
+
+    // ✅ Recetas disponibles (excluir las que ya están en este servicio al agregar uno nuevo)
+    const recetasDisponibles = recetas.filter(r => {
+        if (productoForm.idProductoEditando) {
+            // Al editar: mostrar todas las recetas
+            return true;
+        }
+        // Al agregar: excluir las que ya están en el servicio
+        return !productosDelServicio.some(p => p.id_receta === r.id);
+    });
 
     useEffect(() => {
         if (serviceTipo) {
@@ -69,23 +84,11 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
         setProductoForm({
             idProductoEditando: null,
             id_receta: '',
-            nombre: '',
             precio: 0
         });
     };
 
-    const handleRecetaChange = (value: string) => {
-        const idRec = value ? Number(value) : '';
-        setProductoForm(prev => ({ ...prev, id_receta: idRec }));
-
-        if (idRec) {
-            const receta = recetas.find(r => r.id === idRec);
-            if (receta && !productoForm.nombre.trim()) {
-                setProductoForm(prev => ({ ...prev, nombre: receta.nombre }));
-            }
-        }
-    };
-
+    // ✅ Guardar tipo de servicio
     const handleSubmit = async () => {
         if (!clave.trim() || !nombre.trim()) {
             showToast('Clave y nombre son obligatorios', 'warning', 'Campos incompletos');
@@ -117,13 +120,14 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
         }
     };
 
+    // ✅ Agregar o editar producto
     const handleSaveProducto = async () => {
         if (!serviceTipo) {
             showToast('Primero guarde el tipo de servicio', 'warning', 'Acción requerida');
             return;
         }
-        if (!productoForm.nombre.trim()) {
-            showToast('El nombre del producto es obligatorio', 'warning', 'Campos incompletos');
+        if (!productoForm.id_receta) {
+            showToast('Debe seleccionar una receta', 'warning', 'Campos incompletos');
             return;
         }
 
@@ -131,17 +135,16 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
         try {
             const payload = {
                 id_tipo_servicio: serviceTipo.id,
-                id_receta: productoForm.id_receta ? Number(productoForm.id_receta) : null,
-                nombre: normalizeText(productoForm.nombre.trim()),
+                id_receta: Number(productoForm.id_receta),
                 precio: productoForm.precio || 0
             };
 
             if (productoForm.idProductoEditando) {
                 await productoCartaApi.update(productoForm.idProductoEditando, payload);
-                showToast(`Producto "${payload.nombre}" actualizado`, 'success', 'Actualizado');
+                showToast(`Producto actualizado`, 'success', 'Actualizado');
             } else {
                 await productoCartaApi.create(payload);
-                showToast(`Producto "${payload.nombre}" agregado`, 'success', 'Agregado');
+                showToast(`Producto agregado al servicio`, 'success', 'Agregado');
             }
 
             await onRefreshProductos();
@@ -154,17 +157,18 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
         }
     };
 
+    // ✅ Editar producto existente
     const handleEditProducto = (producto: ProductoCarta) => {
         setProductoForm({
             idProductoEditando: producto.id,
-            id_receta: producto.id_receta || '',
-            nombre: producto.nombre,
+            id_receta: producto.id_receta,
             precio: producto.precio
         });
     };
 
+    // ✅ Eliminar producto
     const handleDeleteProducto = async (producto: ProductoCarta) => {
-        if (!window.confirm(`¿Eliminar "${producto.nombre}"?`)) return;
+        if (!window.confirm(`¿Eliminar "${producto.nombre}" del servicio?`)) return;
 
         try {
             await productoCartaApi.delete(producto.id);
@@ -193,6 +197,7 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
             icon={isEdit ? 'fa-edit' : 'fa-concierge-bell'}
             footer={modalFooter}
         >
+            {/* 📋 Información del servicio */}
             <div style={{ marginBottom: '1.5rem' }}>
                 <h4 style={{ marginBottom: '0.75rem' }}>
                     <i className="fas fa-info-circle"></i> Información del Servicio
@@ -232,12 +237,14 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
                 </div>
             </div>
 
+            {/* 🍽️ Productos del Servicio */}
             {isEdit && serviceTipo && (
                 <div style={{ marginTop: '1.5rem', borderTop: '1px solid #f0d6db', paddingTop: '1rem' }}>
                     <h4 style={{ marginBottom: '0.75rem' }}>
                         <i className="fas fa-utensils"></i> Productos de Carta ({productosDelServicio.length})
                     </h4>
 
+                    {/* Formulario para agregar/editar producto */}
                     <div style={{
                         padding: '1rem',
                         background: productoForm.idProductoEditando ? '#fff9e6' : '#f9f9f9',
@@ -245,28 +252,35 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
                         marginBottom: '1rem'
                     }}>
                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                            <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
-                                <label>Receta</label>
+                            <div className="dc-input-group" style={{ flex: 1, minWidth: '200px' }}>
+                                <label>Receta <span style={{ color: 'red' }}>*</span></label>
                                 <select
                                     value={productoForm.id_receta}
-                                    onChange={(e) => handleRecetaChange(e.target.value)}
+                                    onChange={(e) => setProductoForm(prev => ({
+                                        ...prev,
+                                        id_receta: e.target.value ? Number(e.target.value) : ''
+                                    }))}
                                 >
-                                    <option value="">Sin receta (producto simple)</option>
-                                    {recetas.map(r => (
+                                    <option value="">Seleccione una receta...</option>
+                                    {recetasDisponibles.map(r => (
                                         <option key={r.id} value={r.id}>{r.nombre}</option>
                                     ))}
                                 </select>
                             </div>
-                            <div className="dc-input-group" style={{ flex: 1, minWidth: '150px' }}>
-                                <label>Nombre del Producto <span style={{ color: 'red' }}>*</span></label>
+
+                            {/* ✅ Nombre en solo lectura (viene de la receta) */}
+                            <div className="dc-input-group" style={{ flex: 1, minWidth: '200px' }}>
+                                <label>Nombre del Producto</label>
                                 <input
                                     type="text"
-                                    placeholder="Ej: Sándwich Premium"
-                                    value={productoForm.nombre}
-                                    onChange={(e) => setProductoForm(prev => ({ ...prev, nombre: e.target.value }))}
+                                    value={recetaSeleccionada?.nombre || ''}
+                                    readOnly
+                                    placeholder="Se completa al seleccionar receta"
+                                    style={{ background: '#e9ecef', cursor: 'not-allowed' }}
                                 />
                             </div>
-                            <div className="dc-input-group" style={{ width: '120px' }}>
+
+                            <div className="dc-input-group" style={{ width: '130px' }}>
                                 <label>Precio (S/)</label>
                                 <input
                                     type="number"
@@ -276,10 +290,11 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
                                     onChange={(e) => setProductoForm(prev => ({ ...prev, precio: parseFloat(e.target.value) || 0 }))}
                                 />
                             </div>
+
                             <button
                                 className="dc-btn info"
                                 onClick={handleSaveProducto}
-                                disabled={isSavingProducto}
+                                disabled={isSavingProducto || !productoForm.id_receta}
                                 style={{ marginBottom: '0.25rem' }}
                             >
                                 {isSavingProducto ? 'Guardando...' : (
@@ -300,13 +315,13 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
                         </div>
                     </div>
 
+                    {/* Tabla de productos */}
                     {productosDelServicio.length > 0 ? (
                         <div className="dc-table-wrapper">
                             <table className="dc-table">
                                 <thead>
                                     <tr>
                                         <th>Receta</th>
-                                        <th>Nombre del Producto</th>
                                         <th>Precio</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -315,15 +330,10 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
                                     {productosDelServicio.map(p => (
                                         <tr key={p.id}>
                                             <td>
-                                                {p.receta ? (
-                                                    <span className="dc-badge dc-badge-active">
-                                                        <i className="fas fa-book"></i> {p.receta.nombre}
-                                                    </span>
-                                                ) : (
-                                                    <span style={{ color: 'var(--color-gray)' }}>Sin receta</span>
-                                                )}
+                                                <span className="dc-badge dc-badge-active">
+                                                    <i className="fas fa-book"></i> {p.nombre}
+                                                </span>
                                             </td>
-                                            <td><strong>{p.nombre}</strong></td>
                                             <td>S/ {p.precio.toFixed(2)}</td>
                                             <td>
                                                 <i
@@ -356,6 +366,7 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
                 </div>
             )}
 
+            {/* Mensaje si es nuevo */}
             {!isEdit && (
                 <div style={{
                     marginTop: '1rem',

@@ -47,11 +47,12 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                             SELECT 
                                 sd.id AS detalleId,
                                 pc.id AS producto_id,
-                                pc.nombre,
+                                r.nombre,
                                 sd.cantidad,
                                 sd.precio_unitario AS precio
                             FROM catering_service_detalle sd
                             JOIN catering_service_productos_carta pc ON sd.id_producto_carta = pc.id
+                            JOIN recetas r ON pc.id_receta = r.id
                             WHERE sd.id_service_venta = ? AND sd.id_empresa = ?
                         `, [serv.service_id, id_empresa]);
 
@@ -91,7 +92,7 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                                 'id', dd.id,
                                 'nombre', 
                                     CASE 
-                                        WHEN dd.tipo_item = 'servicio' THEN pc.nombre
+                                        WHEN dd.tipo_item = 'servicio' THEN r.nombre
                                         WHEN dd.tipo_item = 'material' THEN mc.nombre
                                         ELSE 'Producto'
                                     END,
@@ -109,6 +110,7 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                     LEFT JOIN catering_detalle_devolucion dd ON d.id = dd.id_devolucion AND d.id_empresa = dd.id_empresa
                     LEFT JOIN catering_service_detalle sd ON dd.tipo_item = 'servicio' AND dd.id_item = sd.id AND d.id_empresa = sd.id_empresa
                     LEFT JOIN catering_service_productos_carta pc ON sd.id_producto_carta = pc.id
+                    LEFT JOIN recetas r ON pc.id_receta = r.id
                     LEFT JOIN catering_materiales_venta mv ON dd.tipo_item = 'material' AND dd.id_item = mv.id AND d.id_empresa = mv.id_empresa
                     LEFT JOIN catering_materiales_catalogo mc ON mv.id_material_catalogo = mc.id
                     WHERE d.id_venta = ? AND d.id_empresa = ?
@@ -206,11 +208,12 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
                     SELECT 
                         sd.id AS detalleId,
                         pc.id AS producto_id,
-                        pc.nombre,
+                        r.nombre,
                         sd.cantidad,
                         sd.precio_unitario AS precio
                     FROM catering_service_detalle sd
                     JOIN catering_service_productos_carta pc ON sd.id_producto_carta = pc.id
+                    JOIN recetas r ON pc.id_receta = r.id
                     WHERE sd.id_service_venta = ? AND sd.id_empresa = ?
                 `, [serv.service_id, id_empresa]);
 
@@ -250,7 +253,7 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
                         'id', dd.id,
                         'nombre', 
                             CASE 
-                                WHEN dd.tipo_item = 'servicio' THEN pc.nombre
+                                WHEN dd.tipo_item = 'servicio' THEN r.nombre
                                 WHEN dd.tipo_item = 'material' THEN mc.nombre
                                 ELSE 'Producto'
                             END,
@@ -268,6 +271,7 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
             LEFT JOIN catering_detalle_devolucion dd ON d.id = dd.id_devolucion AND d.id_empresa = dd.id_empresa
             LEFT JOIN catering_service_detalle sd ON dd.tipo_item = 'servicio' AND dd.id_item = sd.id AND d.id_empresa = sd.id_empresa
             LEFT JOIN catering_service_productos_carta pc ON sd.id_producto_carta = pc.id
+            LEFT JOIN recetas r ON pc.id_receta = r.id
             LEFT JOIN catering_materiales_venta mv ON dd.tipo_item = 'material' AND dd.id_item = mv.id AND d.id_empresa = mv.id_empresa
             LEFT JOIN catering_materiales_catalogo mc ON mv.id_material_catalogo = mc.id
             WHERE d.id_venta = ? AND d.id_empresa = ?
@@ -354,9 +358,16 @@ export const getCatalogosCatering = async (req: Request, res: Response) => {
         `);
 
         const productosCarta = await executeQuery<any[]>(`
-            SELECT pc.*, t.clave AS tipo_clave
+            SELECT 
+                pc.id,
+                pc.id_tipo_servicio,
+                pc.id_receta,
+                pc.precio,
+                r.nombre,
+                t.clave AS tipo_clave
             FROM catering_service_productos_carta pc
             JOIN catering_service_tipos t ON pc.id_tipo_servicio = t.id
+            JOIN recetas r ON pc.id_receta = r.id
         `);
 
         const materialesCatalogo = await executeQuery<any[]>(`
@@ -714,9 +725,10 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
         const serviciosConProductos = await Promise.all(
             nuevosServicios.map(async (serv: any) => {
                 const productos = await executeQuery<any[]>(`
-                    SELECT pc.id, pc.nombre, sd.cantidad, sd.precio_unitario AS precio
+                    SELECT pc.id, r.nombre, sd.cantidad, sd.precio_unitario AS precio
                     FROM catering_service_detalle sd
                     JOIN catering_service_productos_carta pc ON sd.id_producto_carta = pc.id
+                    JOIN recetas r ON pc.id_receta = r.id
                     WHERE sd.id_service_venta = ? AND sd.id_empresa = ?
                 `, [serv.id, id_empresa]);
 

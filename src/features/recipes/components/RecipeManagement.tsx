@@ -9,7 +9,7 @@ import { useToast } from '../../../hooks/base/useToast';
 import { Modal } from '../../../components/common/modal/Modal';
 
 export const RecipeManagement: React.FC = () => {
-    const { categorias, ingredientes, refreshIngredientes } = useRecipes();
+    const { categorias, ingredientes, refreshIngredientes, refreshRecetas } = useRecipes();
     const { getSelectedCompanyId } = useCompany();
     const { showToast } = useToast();
     const id_empresa = getSelectedCompanyId() ?? 0;
@@ -55,6 +55,7 @@ export const RecipeManagement: React.FC = () => {
 
     const handleSuccess = () => {
         loadRecetas();
+        refreshRecetas();
     };
 
     const getTipoPreparacionLabel = (tipo: string) => {
