@@ -34,6 +34,14 @@ export interface EventoData {
     horario: string;
     personas: number;
     tipoDesayuno: string;
+    incluir_mozo?: boolean;
+    cantidad_mozos?: number;
+    precio_mozo?: number;
+    subtotal_mozo?: number;
+    direccion?: string | null;
+    referencia?: string | null;
+    estado_flujo?: string;
+    estado_actualizado_at?: string | null;
 }
 
 export interface VentaCatering {
@@ -62,7 +70,17 @@ export interface VentaTemporal {
     cliente: { nombre: string; documento: string };
     servicios: ServicioCatering[];
     materiales: MaterialVenta[];
-    eventoData: { fechaHora: string; personas: number; tipoDesayuno: string };
+    eventoData: {
+        fechaHora: string;
+        personas: number;
+        tipoDesayuno: string;
+        incluir_mozo: boolean;
+        cantidad_mozos: number;
+        precio_mozo: number;
+        subtotal_mozo: number;
+        direccion: string;
+        referencia: string;
+    };
     descuentoActivo: boolean;
     descuentoTipo: 'porcentaje' | 'monto';
     descuentoValor: number;
@@ -91,5 +109,9 @@ export interface IngredienteReceta {
 }
 
 export interface Receta {
+    tipo_preparacion: 'por_unidad' | 'por_molde' | 'por_lote';
+    cantidad_base: number;
+    porciones_por_unidad: number;
+    porciones_total: number;
     ingredientes: IngredienteReceta[];
 }

@@ -126,7 +126,15 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                         fecha: evento.fecha_evento,
                         horario: evento.horario,
                         personas: evento.personas,
-                        tipoDesayuno: evento.tipo_desayuno || 'Clásico'
+                        tipoDesayuno: evento.tipo_desayuno || 'Clásico',
+                        direccion: evento.direccion || null,
+                        referencia: evento.referencia || null,
+                        incluir_mozo: evento.incluir_mozo === 1,
+                        cantidad_mozos: evento.cantidad_mozos || 0,
+                        precio_mozo: parseFloat(evento.precio_mozo) || 100,
+                        subtotal_mozo: parseFloat(evento.subtotal_mozo) || 0,
+                        estado_flujo: evento.estado_flujo || 'pendiente_verificacion',
+                        estado_actualizado_at: evento.estado_actualizado_at
                     } : null,
                     servicios: serviciosConProductos,
                     materiales: materiales.map((m: any) => ({
@@ -287,7 +295,15 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
                 fecha: evento.fecha_evento,
                 horario: evento.horario,
                 personas: evento.personas,
-                tipoDesayuno: evento.tipo_desayuno || 'Clásico'
+                tipoDesayuno: evento.tipo_desayuno || 'Clásico',
+                direccion: evento.direccion || null,
+                referencia: evento.referencia || null,
+                incluir_mozo: evento.incluir_mozo === 1,
+                cantidad_mozos: evento.cantidad_mozos || 0,
+                precio_mozo: parseFloat(evento.precio_mozo) || 100,
+                subtotal_mozo: parseFloat(evento.subtotal_mozo) || 0,
+                estado_flujo: evento.estado_flujo || 'pendiente_verificacion',
+                estado_actualizado_at: evento.estado_actualizado_at
             } : null,
             servicios: serviciosConProductos,
             materiales: materiales.map((m: any) => ({
@@ -506,15 +522,25 @@ export const createVentaCatering = async (req: Request, res: Response) => {
         const ventaId = ventaResult.insertId;
 
         await executeMutation(
-            `INSERT INTO catering_eventos (id_empresa, id_venta, fecha_evento, horario, personas, tipo_desayuno)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO catering_eventos (
+               id_empresa, id_venta, fecha_evento, horario, personas, tipo_desayuno,
+               direccion, referencia,
+               incluir_mozo, cantidad_mozos, precio_mozo, subtotal_mozo,
+               estado_flujo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente_verificacion')`,
             [
                 id_empresa,
                 ventaId,
                 eventoData?.fecha || new Date().toISOString().split('T')[0],
                 eventoData?.horario || '12:00:00',
                 eventoData?.personas || 1,
-                eventoData?.tipoDesayuno || 'Clásico'
+                eventoData?.tipoDesayuno || 'Clásico',
+                eventoData?.direccion || null,
+                eventoData?.referencia || null,
+                eventoData?.incluir_mozo ? 1 : 0,
+                eventoData?.cantidad_mozos || 0,
+                eventoData?.precio_mozo || 100,
+                eventoData?.subtotal_mozo || 0
             ]
         );
 
@@ -623,13 +649,22 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
 
         if (eventoData) {
             await executeMutation(
-                `UPDATE catering_eventos SET fecha_evento = ?, horario = ?, personas = ?, tipo_desayuno = ?
-                 WHERE id_venta = ? AND id_empresa = ?`,
+                `UPDATE catering_eventos SET 
+                   fecha_evento = ?, horario = ?, personas = ?, tipo_desayuno = ?,
+                   direccion = ?, referencia = ?,
+                   incluir_mozo = ?, cantidad_mozos = ?, precio_mozo = ?, subtotal_mozo = ?
+                WHERE id_venta = ? AND id_empresa = ?`,
                 [
                     eventoData.fecha,
                     eventoData.horario,
                     eventoData.personas,
                     eventoData.tipoDesayuno,
+                    eventoData.direccion || null,
+                    eventoData.referencia || null,
+                    eventoData.incluir_mozo ? 1 : 0,
+                    eventoData.cantidad_mozos || 0,
+                    eventoData.precio_mozo || 100,
+                    eventoData.subtotal_mozo || 0,
                     id,
                     id_empresa
                 ]
@@ -760,7 +795,14 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
                 fecha: nuevoEvento.fecha_evento,
                 horario: nuevoEvento.horario,
                 personas: nuevoEvento.personas,
-                tipoDesayuno: nuevoEvento.tipo_desayuno
+                tipoDesayuno: nuevoEvento.tipo_desayuno,
+                direccion: nuevoEvento.direccion || null,
+                referencia: nuevoEvento.referencia || null,
+                incluir_mozo: nuevoEvento.incluir_mozo === 1,
+                cantidad_mozos: nuevoEvento.cantidad_mozos || 0,
+                precio_mozo: parseFloat(nuevoEvento.precio_mozo) || 100,
+                subtotal_mozo: parseFloat(nuevoEvento.subtotal_mozo) || 0,
+                estado_flujo: nuevoEvento.estado_flujo || 'pendiente_verificacion'
             } : null,
             servicios: serviciosConProductos,
             materiales: nuevosMateriales.map((m: any) => ({

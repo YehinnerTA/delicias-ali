@@ -62,7 +62,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         cliente: { nombre: "", documento: "" },
         servicios: [],
         materiales: [],
-        eventoData: { fechaHora: "", personas: 1, tipoDesayuno: "Clásico" },
+        eventoData: { fechaHora: "", personas: 1, tipoDesayuno: "Clásico", incluir_mozo: false, cantidad_mozos: 0, precio_mozo: 100, subtotal_mozo: 0, direccion: "", referencia: "" },
         descuentoActivo: false,
         descuentoTipo: 'porcentaje',
         descuentoValor: 0,
@@ -99,7 +99,15 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         let subtotalServicios = currentVenta.servicios.reduce((s, serv) =>
             s + serv.productos.reduce((sum, p) => sum + p.cantidad * p.precio, 0), 0);
         let subtotalMateriales = currentVenta.materiales.reduce((s, m) => s + m.cantidad * m.precio, 0);
-        let subtotal = subtotalServicios + subtotalMateriales;
+
+        let subtotalMozo = 0;
+        let cantidadMozos = 0;
+        if (currentVenta.eventoData.incluir_mozo) {
+            cantidadMozos = Math.ceil((currentVenta.eventoData.personas || 1) / 20);
+            subtotalMozo = cantidadMozos * (currentVenta.eventoData.precio_mozo || 100);
+        }
+
+        let subtotal = subtotalServicios + subtotalMateriales + subtotalMozo;
 
         let desc = 0;
         if (currentVenta.descuentoActivo) {
@@ -118,13 +126,24 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         const igv = after * 0.18;
         const total = after + igv;
 
-        setCurrentVenta(prev => ({ ...prev, subtotal, igv, total }));
+        setCurrentVenta(prev => ({
+            ...prev,
+            subtotal,
+            igv,
+            total,
+            eventoData: {
+                ...prev.eventoData,
+                cantidad_mozos: cantidadMozos,
+                subtotal_mozo: subtotalMozo
+            }
+        }));
     };
 
     useEffect(() => {
         calcularTotales();
     }, [currentVenta.servicios, currentVenta.materiales, currentVenta.descuentoActivo,
-    currentVenta.descuentoValor, currentVenta.descuentoTipo, currentVenta.cuponActivo, currentVenta.cuponValor]);
+    currentVenta.descuentoValor, currentVenta.descuentoTipo, currentVenta.cuponActivo, currentVenta.cuponValor,
+    currentVenta.eventoData.incluir_mozo, currentVenta.eventoData.personas, currentVenta.eventoData.precio_mozo]);
 
     useEffect(() => {
         if (isOpen) {
@@ -545,7 +564,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
         }
 
         const { fecha, horario } = separarFechaHora(currentVenta.eventoData.fechaHora);
-        const eventoPersonas = currentVenta.eventoData.personas || 1;
+        const eventoPersonas = currentVenta.eventoData.personas || 0;
         const eventoTipoDesayuno = currentVenta.eventoData.tipoDesayuno || "Clásico";
 
         setIsSubmitting(true);
@@ -576,7 +595,13 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                     fecha: fecha,
                     horario: horario,
                     personas: eventoPersonas,
-                    tipoDesayuno: eventoTipoDesayuno
+                    tipoDesayuno: eventoTipoDesayuno,
+                    direccion: currentVenta.eventoData.direccion || null,
+                    referencia: currentVenta.eventoData.referencia || null,
+                    incluir_mozo: currentVenta.eventoData.incluir_mozo,
+                    cantidad_mozos: currentVenta.eventoData.cantidad_mozos,
+                    precio_mozo: currentVenta.eventoData.precio_mozo,
+                    subtotal_mozo: currentVenta.eventoData.subtotal_mozo
                 },
                 subtotal: currentVenta.subtotal,
                 descuento: currentVenta.descuentoActivo ? currentVenta.descuentoValor : 0,
@@ -914,7 +939,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                                         </div>
                                         <div className="dc-input-group">
                                             <label htmlFor="cantidadMaterial">Cantidad</label>
-                                            <input type="number" id="cantidadMaterial" defaultValue="1" min="1" />
+                                            <input type="number" id="cantidadMaterial" defaultValue="0" min="0" />
                                         </div>
                                         <button className="dc-btn info" onClick={agregarMaterial}>
                                             <i className="fas fa-plus"></i> Agregar Material
@@ -961,10 +986,10 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                                             <input
                                                 type="number"
                                                 id="eventoPersonas"
-                                                min="1"
+                                                min="0"
                                                 value={currentVenta.eventoData.personas}
                                                 onChange={(e) => {
-                                                    const valor = parseInt(e.target.value) || 1;
+                                                    const valor = parseInt(e.target.value) || 0;
                                                     setCurrentVenta(prev => ({
                                                         ...prev,
                                                         eventoData: { ...prev.eventoData, personas: valor }
@@ -989,6 +1014,97 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                                                 <option value="Premium">Premium</option>
                                             </select>
                                         </div>
+                                        <div className="dc-input-group" style={{ gridColumn: 'span 2' }}>
+                                            <label>Dirección del Evento</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Ej: Av. Los Álamos 123, Miraflores"
+                                                value={currentVenta.eventoData.direccion}
+                                                onChange={(e) => {
+                                                    setCurrentVenta(prev => ({
+                                                        ...prev,
+                                                        eventoData: { ...prev.eventoData, direccion: e.target.value }
+                                                    }));
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="dc-input-group" style={{ gridColumn: 'span 2' }}>
+                                            <label>Referencia (opcional)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Ej: Frente al parque central"
+                                                value={currentVenta.eventoData.referencia}
+                                                onChange={(e) => {
+                                                    setCurrentVenta(prev => ({
+                                                        ...prev,
+                                                        eventoData: { ...prev.eventoData, referencia: e.target.value }
+                                                    }));
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div style={{
+                                        marginTop: '1rem',
+                                        padding: '1rem',
+                                        background: currentVenta.eventoData.incluir_mozo ? '#f0f7ff' : '#f9f9f9',
+                                        borderRadius: '8px',
+                                        borderLeft: currentVenta.eventoData.incluir_mozo ? '4px solid #007bff' : '4px solid #ccc'
+                                    }}>
+                                        <label style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            cursor: 'pointer',
+                                            fontWeight: '600',
+                                            marginBottom: currentVenta.eventoData.incluir_mozo ? '1rem' : 0
+                                        }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={currentVenta.eventoData.incluir_mozo}
+                                                onChange={(e) => {
+                                                    setCurrentVenta(prev => ({
+                                                        ...prev,
+                                                        eventoData: {
+                                                            ...prev.eventoData,
+                                                            incluir_mozo: e.target.checked,
+                                                            cantidad_mozos: e.target.checked ? Math.ceil((prev.eventoData.personas || 1) / 20) : 0,
+                                                            precio_mozo: prev.eventoData.precio_mozo || 100
+                                                        }
+                                                    }));
+                                                }}
+                                            />
+                                            <i className="fas fa-user-tie"></i> Incluir Personal [Mozo]
+                                        </label>
+
+                                        {currentVenta.eventoData.incluir_mozo && (
+                                            <div className="dc-form-grid">
+                                                <div className="dc-input-group">
+                                                    <label>Cantidad de Mozos</label>
+                                                    <input
+                                                        type="text"
+                                                        value={`${currentVenta.eventoData.cantidad_mozos} mozo(s) para ${currentVenta.eventoData.personas} personas`}
+                                                        readOnly
+                                                    />
+                                                </div>
+                                                <div className="dc-input-group">
+                                                    <label>Precio por Mozo (S/)</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={currentVenta.eventoData.precio_mozo}
+                                                        onChange={(e) => {
+                                                            const valor = parseFloat(e.target.value) || 0;
+                                                            setCurrentVenta(prev => ({
+                                                                ...prev,
+                                                                eventoData: { ...prev.eventoData, precio_mozo: valor }
+                                                            }));
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}

@@ -140,6 +140,36 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
                 <div className="dc-info-label">Tipo Desayuno</div>
                 <div className="dc-info-value">{venta.eventoData.tipoDesayuno || 'Clásico'}</div>
             </div>
+            {venta.eventoData.direccion && (
+                <div className="dc-info-item" style={{ gridColumn: 'span 2' }}>
+                    <div className="dc-info-label">Dirección del Evento</div>
+                    <div className="dc-info-value">{venta.eventoData.direccion}</div>
+                </div>
+            )}
+            {venta.eventoData.referencia && (
+                <div className="dc-info-item" style={{ gridColumn: 'span 2' }}>
+                    <div className="dc-info-label">Referencia</div>
+                    <div className="dc-info-value">{venta.eventoData.referencia}</div>
+                </div>
+            )}
+            {venta.eventoData.incluir_mozo && (
+                <>
+                    <div className="dc-info-item">
+                        <div className="dc-info-label">Personal [Mozo]</div>
+                        <div className="dc-info-value">
+                            <span className="dc-badge dc-badge-active">
+                                <i className="fas fa-user-tie"></i> {venta.eventoData.cantidad_mozos} mozo(s)
+                            </span>
+                        </div>
+                    </div>
+                    <div className="dc-info-item">
+                        <div className="dc-info-label">Subtotal Mozos</div>
+                        <div className="dc-info-value">
+                            S/ {(venta.eventoData.subtotal_mozo || 0).toFixed(2)}
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     ) : null;
 

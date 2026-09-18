@@ -64,8 +64,6 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const isEdit = !!receta;
 
-    const porcionesTotal = cantidadBase * porcionesPorUnidad;
-
     const esIngredienteNuevo = nombreIngrediente.trim() !== '' &&
         !ingredientesExistentes.find(i => normalizeText(i.nombre) === normalizeText(nombreIngrediente));
 
@@ -73,7 +71,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
     const getEtiquetaCantidadBase = () => {
         switch (tipoPreparacion) {
-            case 'por_unidad': return '¿Cuántas unidades?';
+            case 'por_unidad': return '¿Cuántas unidades rinde la receta?';
             case 'por_molde': return '¿Cuántos moldes?';
             case 'por_lote': return '¿Cuántos lotes?';
         }
@@ -107,12 +105,12 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             setDescripcion('');
             setCategoriaReceta('plato_principal');
             setTipoPreparacion('por_unidad');
-            setCantidadBase(1);
-            setPorcionesPorUnidad(1);
+            setCantidadBase(0);
+            setPorcionesPorUnidad(0);
             setTiempoPreparacion('');
             setTiempoCoccion('');
-            setDificultad('media');
-            setRendimiento(100);
+            setDificultad('facil');
+            setRendimiento(0);
             setIngredientes([]);
             setPasos([]);
             setIncluirPasos(false);
@@ -123,7 +121,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     const resetIngredienteForm = () => {
         setNombreIngrediente('');
         setUnidadIngrediente('unidades');
-        setCantidadIngrediente(1);
+        setCantidadIngrediente(0);
         setNotasIngrediente('');
         setEsOpcional(false);
         setCategoriaIngrediente(null);
@@ -132,6 +130,12 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         setFormaAgrupacion('categoria');
         setProveedoresSeleccionados([]);
     };
+
+    useEffect(() => {
+        if (tipoPreparacion === 'por_unidad' && porcionesPorUnidad !== 1) {
+            setPorcionesPorUnidad(1);
+        }
+    }, [tipoPreparacion]);
 
     const handleBuscarIngrediente = (valor: string) => {
         setNombreIngrediente(valor);
@@ -291,7 +295,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                 categoria_receta: categoriaReceta,
                 tipo_preparacion: tipoPreparacion,
                 cantidad_base: cantidadBase,
-                porciones_por_unidad: porcionesPorUnidad,
+                porciones_por_unidad: tipoPreparacion === 'por_unidad' ? 1 : porcionesPorUnidad,
                 tiempo_preparacion: tiempoPreparacion || null,
                 tiempo_coccion: tiempoCoccion || null,
                 dificultad,
@@ -373,59 +377,50 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                 {/* Tipo de preparación */}
                 <div style={{ marginTop: '1rem' }}>
                     <label style={{ fontWeight: '600', display: 'block', marginBottom: '0.5rem' }}>Tipo de preparación:</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div className="dc-tabs" style={{ marginBottom: '1rem' }}>
                         {[
-                            { value: 'por_unidad', label: 'Por Unidad', desc: 'Alfajor, Sándwich' },
-                            { value: 'por_molde', label: 'Por Molde', desc: 'Torta, Lasaña' },
-                            { value: 'por_lote', label: 'Por Lote', desc: 'Salsa, Masa base' }
+                            { value: 'por_unidad', label: 'Por Unidad' },
+                            { value: 'por_molde', label: 'Por Molde' },
+                            { value: 'por_lote', label: 'Por Lote' }
                         ].map(t => (
                             <button
                                 key={t.value}
                                 type="button"
-                                className={`dc-btn ${tipoPreparacion === t.value ? 'success' : 'secondary'}`}
+                                className={`dc-tab-btn ${tipoPreparacion === t.value ? 'active' : ''}`}
                                 onClick={() => setTipoPreparacion(t.value as any)}
-                                style={{ flex: 1, minWidth: '120px', padding: '0.5rem', textAlign: 'left' }}
                             >
                                 <strong>{t.label}</strong>
                                 <br />
-                                <small style={{ opacity: 0.7 }}>{t.desc}</small>
                             </button>
                         ))}
                     </div>
                 </div>
 
                 {/* Cálculo de porciones */}
-                <div style={{ marginTop: '1rem', padding: '1rem', background: '#f9f9f9', borderRadius: '8px' }}>
+                <div style={{ marginTop: '1rem' }}>
                     <div className="dc-form-grid">
                         <div className="dc-input-group">
                             <label>{getEtiquetaCantidadBase()}</label>
                             <input
                                 type="number"
-                                min="1"
-                                step="1"
+                                min="0"
+                                step="0"
                                 value={cantidadBase}
-                                onChange={(e) => setCantidadBase(parseFloat(e.target.value) || 1)}
+                                onChange={(e) => setCantidadBase(parseFloat(e.target.value) || 0)}
                             />
                         </div>
-                        <div className="dc-input-group">
-                            <label>{getEtiquetaPorciones()}</label>
-                            <input
-                                type="number"
-                                min="1"
-                                step="1"
-                                value={porcionesPorUnidad}
-                                onChange={(e) => setPorcionesPorUnidad(parseInt(e.target.value) || 1)}
-                            />
-                        </div>
-                        <div className="dc-input-group">
-                            <label>Total de porciones</label>
-                            <input
-                                type="text"
-                                value={`${porcionesTotal} porciones`}
-                                readOnly
-                                style={{ background: '#e9ecef', fontWeight: 'bold' }}
-                            />
-                        </div>
+                        {tipoPreparacion !== 'por_unidad' && (
+                            <div className="dc-input-group">
+                                <label>{getEtiquetaPorciones()}</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0"
+                                    value={porcionesPorUnidad}
+                                    onChange={(e) => setPorcionesPorUnidad(parseInt(e.target.value) || 0)}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -457,14 +452,14 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             {/* ============================================== */}
             {/* INGREDIENTES */}
             {/* ============================================== */}
-            <div style={{ marginTop: '1.5rem', borderTop: '1px solid #f0d6db', paddingTop: '1rem' }}>
+            <div style={{ borderTop: '1px solid #f0d6db', paddingTop: '1rem' }}>
                 <h4 style={{ marginBottom: '0.75rem' }}>
                     <i className="fas fa-box"></i> Ingredientes
                 </h4>
 
                 {/* Formulario para agregar ingrediente */}
-                <div className="dc-form-grid" style={{ marginBottom: '1rem', position: 'relative' }}>
-                    <div className="dc-input-group" style={{ position: 'relative' }}>
+                <div className="dc-form-grid" style={{ marginBottom: '1rem' }}>
+                    <div className="dc-input-group">
                         <label>Ingrediente</label>
                         <input
                             type="text"
@@ -475,11 +470,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                             onBlur={() => setTimeout(() => setShowSugerencias(false), 200)}
                         />
                         {showSugerencias && sugerencias.length > 0 && (
-                            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #ccc', borderRadius: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
+                            <div>
                                 {sugerencias.map(sug => (
-                                    <div key={sug.id} style={{ padding: '0.5rem', cursor: 'pointer', borderBottom: '1px solid #f0f0f0' }} onMouseDown={() => seleccionarIngrediente(sug)}>
+                                    <div key={sug.id} onMouseDown={() => seleccionarIngrediente(sug)}>
                                         <strong>{sug.nombre}</strong>
-                                        {sug.categoria && <span style={{ marginLeft: '0.5rem', fontSize: '0.8rem', color: '#666' }}>({sug.categoria.nombre})</span>}
+                                        {sug.categoria && <span>({sug.categoria.nombre})</span>}
                                     </div>
                                 ))}
                             </div>
@@ -498,34 +493,34 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                         <label>Notas</label>
                         <input type="text" placeholder="Ej: Pan artesanal" value={notasIngrediente} onChange={(e) => setNotasIngrediente(e.target.value)} />
                     </div>
-                    <div className="dc-input-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.5rem' }}>
-                        <input type="checkbox" id="esOpcional" checked={esOpcional} onChange={(e) => setEsOpcional(e.target.checked)} />
-                        <label htmlFor="esOpcional" style={{ margin: 0 }}>Opcional</label>
+                    <div className="dc-input-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: 'auto', flex: '0 0 auto', gap: '4px' }}>
+                        <input style={{ width: '16px', height: '16px' }} type="checkbox" id="esOpcional" checked={esOpcional} onChange={(e) => setEsOpcional(e.target.checked)} />
+                        <label htmlFor="esOpcional" style={{ whiteSpace: 'nowrap' }}>Opcional</label>
                     </div>
                 </div>
 
                 {esIngredienteNuevo && (
                     <div>
                         <div className="dc-tabs" style={{ marginBottom: '1rem' }}>
-                            <button
-                                type="button"
-                                className={`dc-tab-btn ${formaAgrupacion === 'categoria' ? 'active' : ''}`}
-                                onClick={() => { setFormaAgrupacion('categoria'); setProveedoresSeleccionados([]); }}
-                            >
-                                <i className="fas fa-tags"></i> Por Categoría
-                            </button>
-                            <button
-                                type="button"
-                                className={`dc-tab-btn ${formaAgrupacion === 'proveedor' ? 'active' : ''}`}
-                                onClick={() => setFormaAgrupacion('proveedor')}
-                            >
-                                <i className="fas fa-truck"></i> Por Proveedor
-                            </button>
+                            {[
+                                { value: 'categoria', label: 'Por Categoría' },
+                                { value: 'proveedor', label: 'Por Proveedor' }
+                            ].map(t => (
+                                <button
+                                    key={t.value}
+                                    type="button"
+                                    className={`dc-tab-btn ${formaAgrupacion === t.value ? 'active' : ''}`}
+                                    onClick={() => setFormaAgrupacion(t.value as any)}
+                                >
+                                    <strong>{t.label}</strong>
+                                    <br />
+                                </button>
+                            ))}
                         </div>
 
                         {esIngredienteNuevo && formaAgrupacion === 'categoria' && (
-                            <div className="dc-input-group">
-                                <label>Categoría <span style={{ color: 'red' }}>*</span></label>
+                            <div className="dc-input-group" style={{ marginBottom: '1rem' }}>
+                                <label>Categoría</label>
                                 <select
                                     value={categoriaIngrediente ?? ''}
                                     onChange={(e) => setCategoriaIngrediente(e.target.value ? Number(e.target.value) : null)}
@@ -537,16 +532,14 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                         )}
 
                         {formaAgrupacion === 'categoria' && categoriaIngrediente && (
-                            <div style={{ padding: '0.75rem', background: '#fff', borderRadius: '4px', fontSize: '0.85rem' }}>
-                                <strong>Se vincularán automáticamente todos los proveedores de:</strong>
-                                <p style={{ color: '#007bff', fontWeight: 'bold', marginTop: '0.25rem' }}>
-                                    {categorias.find(c => c.id === categoriaIngrediente)?.nombre}
-                                </p>
+                            <div style={{ marginBottom: '1rem' }}>
+                                <strong>Se vincularán todos los proveedores de:</strong>
+                                {categorias.find(c => c.id === categoriaIngrediente)?.nombre}
                             </div>
                         )}
 
                         {formaAgrupacion === 'proveedor' && (
-                            <div style={{ padding: '0.75rem', background: '#fff', borderRadius: '4px' }}>
+                            <div>
                                 <strong style={{ display: 'block', marginBottom: '0.5rem' }}>
                                     Seleccione los proveedores ({proveedoresSeleccionados.length}):
                                 </strong>
@@ -561,11 +554,6 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                                     key={prov.id_persona}
                                                     type="button"
                                                     className={`dc-btn ${isSelected ? 'success' : 'secondary'}`}
-                                                    style={{
-                                                        padding: '0.25rem 0.75rem',
-                                                        fontSize: '0.8rem',
-                                                        borderRadius: '20px'
-                                                    }}
                                                     onClick={() => toggleProveedor(prov.id_persona)}
                                                 >
                                                     {isSelected ? <i className="fas fa-check-circle"></i> : <i className="fas fa-circle"></i>}
@@ -615,7 +603,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
                                         <td>
                                             {ing.esNuevo ? (
                                                 (ing as any).forma_agrupacion === 'proveedor' ? (
-                                                    <span className="dc-badge" style={{ background: '#17a2b8', color: 'white' }}>
+                                                    <span className="dc-badge" style={{ background: '#17a2b8', color: 'black' }}>
                                                         <i className="fas fa-truck"></i> {(ing as any).proveedores_ids?.length || 0} proveedor(es)
                                                     </span>
                                                 ) : (
@@ -645,26 +633,28 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
             {/* PASOS DE PREPARACIÓN (Opcional) */}
             {/* ============================================== */}
             <div style={{ marginTop: '1.5rem', borderTop: '1px solid #f0d6db', paddingTop: '1rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: '600' }}>
+                <label style={{ display: 'flex', gap: '0.5rem', cursor: 'pointer' }}>
                     <input type="checkbox" checked={incluirPasos} onChange={(e) => setIncluirPasos(e.target.checked)} />
-                    Incluir pasos de preparación (opcional)
+                    Pasos de preparación (opcional)
                 </label>
 
                 {incluirPasos && (
                     <div style={{ marginTop: '1rem' }}>
                         {pasos.map((paso, idx) => (
-                            <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
-                                <span style={{ fontWeight: 'bold', minWidth: '60px' }}>Paso {idx + 1}:</span>
-                                <input
-                                    type="text"
-                                    value={paso.descripcion}
-                                    onChange={(e) => actualizarPaso(idx, e.target.value)}
-                                    placeholder="Descripción del paso"
-                                    style={{ flex: 1, padding: '0.5rem' }}
-                                />
-                                <button className="dc-btn danger" onClick={() => eliminarPaso(idx)}>
-                                    <i className="fas fa-trash"></i>
-                                </button>
+                            <div key={idx} className='dc-input-group'>
+                                <span>Paso {idx + 1}:</span>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                                    <input
+                                        type="text"
+                                        value={paso.descripcion}
+                                        onChange={(e) => actualizarPaso(idx, e.target.value)}
+                                        placeholder="Descripción del paso"
+                                        style={{ flex: 1, padding: '0.5rem' }}
+                                    />
+                                    <button className="dc-btn danger" onClick={() => eliminarPaso(idx)}>
+                                        <i className="fas fa-trash"></i>
+                                    </button>
+                                </div>
                             </div>
                         ))}
                         <button className="dc-btn info" onClick={agregarPaso}>

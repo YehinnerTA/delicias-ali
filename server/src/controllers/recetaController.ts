@@ -511,6 +511,11 @@ export const getRecetaByProducto = async (req: Request, res: Response) => {
             SELECT 
                 r.id AS receta_id,
                 r.nombre AS receta_nombre,
+                r.tipo_preparacion,
+                r.cantidad_base,
+                r.porciones_por_unidad,
+                r.porciones_total,
+                r.rendimiento,
                 i.nombre AS ingrediente_nombre,
                 i.unidad,
                 ri.cantidad_por_unidad,

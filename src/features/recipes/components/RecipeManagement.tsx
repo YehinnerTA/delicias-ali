@@ -195,17 +195,33 @@ export const RecipeManagement: React.FC = () => {
                             </div>
                         )}
 
+                        {/* Cálculo de Porciones */}
                         <div className="dc-info-card">
                             <h4><i className="fas fa-calculator"></i> Cálculo de Porciones</h4>
                             <div className="dc-info-grid">
                                 <div className="dc-info-item">
-                                    <span className="dc-info-label">CANTIDAD BASE</span>
+                                    <span className="dc-info-label">
+                                        {selectedReceta.tipo_preparacion === 'por_unidad'
+                                            ? 'UNIDADES BASE'
+                                            : selectedReceta.tipo_preparacion === 'por_molde'
+                                                ? 'MOLDES BASE'
+                                                : 'LOTES BASE'}
+                                    </span>
                                     <span className="dc-info-value">{selectedReceta.cantidad_base}</span>
                                 </div>
-                                <div className="dc-info-item">
-                                    <span className="dc-info-label">PORCIONES POR UNIDAD</span>
-                                    <span className="dc-info-value">{selectedReceta.porciones_por_unidad}</span>
-                                </div>
+
+                                {/* ✅ Solo mostrar porciones_por_unidad si NO es "por_unidad" */}
+                                {selectedReceta.tipo_preparacion !== 'por_unidad' && (
+                                    <div className="dc-info-item">
+                                        <span className="dc-info-label">
+                                            {selectedReceta.tipo_preparacion === 'por_molde'
+                                                ? 'PORCIONES POR MOLDE'
+                                                : 'PORCIONES POR LOTE'}
+                                        </span>
+                                        <span className="dc-info-value">{selectedReceta.porciones_por_unidad}</span>
+                                    </div>
+                                )}
+
                                 <div className="dc-info-item">
                                     <span className="dc-info-label">TOTAL PORCIONES</span>
                                     <span className="dc-info-value">

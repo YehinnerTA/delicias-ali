@@ -76,10 +76,22 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
         fechaHora: string;
         personas: number;
         tipoDesayuno: string;
+        incluir_mozo: boolean;
+        cantidad_mozos: number;
+        precio_mozo: number;
+        subtotal_mozo: number;
+        direccion: string;
+        referencia: string;
     }>({
         fechaHora: "",
-        personas: 1,
-        tipoDesayuno: "Clásico"
+        personas: 0,
+        tipoDesayuno: "Clásico",
+        incluir_mozo: false,
+        cantidad_mozos: 0,
+        precio_mozo: 100,
+        subtotal_mozo: 0,
+        direccion: "",
+        referencia: ""
     });
     const [fasesAbiertas, setFasesAbiertas] = useState<{ [key: number]: boolean }>({ 1: true, 2: false, 3: false, 4: false, 5: false });
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -127,10 +139,29 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
             setEventoData({
                 fechaHora: fechaHora,
                 personas: venta.eventoData?.personas || 1,
-                tipoDesayuno: venta.eventoData?.tipoDesayuno || "Clásico"
+                tipoDesayuno: venta.eventoData?.tipoDesayuno || "Clásico",
+                incluir_mozo: venta.eventoData?.incluir_mozo || false,
+                cantidad_mozos: venta.eventoData?.cantidad_mozos || 0,
+                precio_mozo: venta.eventoData?.precio_mozo || 100,
+                subtotal_mozo: venta.eventoData?.subtotal_mozo || 0,
+                direccion: venta.eventoData?.direccion || "",
+                referencia: venta.eventoData?.referencia || ""
             });
         }
     }, [venta]);
+
+    useEffect(() => {
+        if (eventoData.incluir_mozo) {
+            const cantidadCalculada = Math.ceil((eventoData.personas || 1) / 20);
+            if (cantidadCalculada !== eventoData.cantidad_mozos) {
+                setEventoData(prev => ({
+                    ...prev,
+                    cantidad_mozos: cantidadCalculada,
+                    subtotal_mozo: cantidadCalculada * prev.precio_mozo
+                }));
+            }
+        }
+    }, [eventoData.personas, eventoData.incluir_mozo]);
 
     const buscarClientePorDocumento = async (documento: string) => {
         if (!documento || documento.length < 8) {
@@ -379,10 +410,16 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
         let subtotalMateriales = materiales
             .filter(m => m.cantidad > 0)
             .reduce((s, m) => s + m.cantidad * m.precio, 0);
-        let subtotal = subtotalServicios + subtotalMateriales;
+
+        let subtotalMozo = 0;
+        if (eventoData.incluir_mozo) {
+            subtotalMozo = eventoData.cantidad_mozos * eventoData.precio_mozo;
+        }
+
+        let subtotal = subtotalServicios + subtotalMateriales + subtotalMozo;
         const igv = subtotal * 0.18;
         const total = subtotal + igv;
-        return { subtotal, igv, total };
+        return { subtotal, igv, total, subtotalMozo };
     };
 
     const guardarCambios = async () => {
@@ -455,7 +492,13 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                     fecha: fecha,
                     horario: horario,
                     personas: eventoPersonas,
-                    tipoDesayuno: eventoTipoDesayuno
+                    tipoDesayuno: eventoTipoDesayuno,
+                    direccion: eventoData.direccion || null,
+                    referencia: eventoData.referencia || null,
+                    incluir_mozo: eventoData.incluir_mozo,
+                    cantidad_mozos: eventoData.cantidad_mozos,
+                    precio_mozo: eventoData.precio_mozo,
+                    subtotal_mozo: eventoData.subtotal_mozo
                 },
                 subtotal,
                 igv,
@@ -724,7 +767,7 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                 </div>
                                 <div className="dc-input-group">
                                     <label>Cantidad</label>
-                                    <input type="number" id="cantidadMaterialEditar" defaultValue="1" min="1" />
+                                    <input type="number" id="cantidadMaterialEditar" defaultValue="0" min="0" />
                                 </div>
                                 <button className="dc-btn info" onClick={agregarMaterial}>
                                     <i className="fas fa-plus"></i> Agregar Material
@@ -818,7 +861,7 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                         value={eventoData.personas}
                                         onChange={(e) => setEventoData({
                                             ...eventoData,
-                                            personas: parseInt(e.target.value) || 1
+                                            personas: parseInt(e.target.value) || 0
                                         })}
                                     />
                                 </div>
@@ -836,6 +879,86 @@ export const CateringModifyModal: React.FC<CateringModifyModalProps> = ({ isOpen
                                         <option value="Premium">Premium</option>
                                     </select>
                                 </div>
+                            </div>
+                            <div className="dc-input-group" style={{ gridColumn: 'span 2' }}>
+                                <label>Dirección del Evento</label>
+                                <input
+                                    type="text"
+                                    placeholder="Ej: Av. Los Álamos 123, Miraflores"
+                                    value={eventoData.direccion}
+                                    onChange={(e) => setEventoData({ ...eventoData, direccion: e.target.value })}
+                                />
+                            </div>
+                            <div className="dc-input-group" style={{ gridColumn: 'span 2' }}>
+                                <label>Referencia (opcional)</label>
+                                <input
+                                    type="text"
+                                    placeholder="Ej: Frente al parque central"
+                                    value={eventoData.referencia}
+                                    onChange={(e) => setEventoData({ ...eventoData, referencia: e.target.value })}
+                                />
+                            </div>
+                            <div style={{
+                                marginTop: '1rem',
+                                padding: '1rem',
+                                background: eventoData.incluir_mozo ? '#f0f7ff' : '#f9f9f9',
+                                borderRadius: '8px',
+                                borderLeft: eventoData.incluir_mozo ? '4px solid #007bff' : '4px solid #ccc'
+                            }}>
+                                <label style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    cursor: 'pointer',
+                                    fontWeight: '600',
+                                    marginBottom: eventoData.incluir_mozo ? '1rem' : 0
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={eventoData.incluir_mozo}
+                                        onChange={(e) => {
+                                            const activo = e.target.checked;
+                                            const cantidadCalculada = activo ? Math.ceil((eventoData.personas || 1) / 20) : 0;
+                                            setEventoData({
+                                                ...eventoData,
+                                                incluir_mozo: activo,
+                                                cantidad_mozos: cantidadCalculada,
+                                                subtotal_mozo: cantidadCalculada * eventoData.precio_mozo
+                                            });
+                                        }}
+                                    />
+                                    <i className="fas fa-user-tie"></i> Incluir Personal [Mozo]
+                                </label>
+
+                                {eventoData.incluir_mozo && (
+                                    <div className="dc-form-grid">
+                                        <div className="dc-input-group">
+                                            <label>Cantidad de Mozos</label>
+                                            <input
+                                                type="text"
+                                                value={`${eventoData.cantidad_mozos} mozo(s) para ${eventoData.personas} personas`}
+                                                readOnly
+                                            />
+                                        </div>
+                                        <div className="dc-input-group">
+                                            <label>Precio por Mozo (S/)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={eventoData.precio_mozo}
+                                                onChange={(e) => {
+                                                    const valor = parseFloat(e.target.value) || 0;
+                                                    setEventoData({
+                                                        ...eventoData,
+                                                        precio_mozo: valor,
+                                                        subtotal_mozo: eventoData.cantidad_mozos * valor
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

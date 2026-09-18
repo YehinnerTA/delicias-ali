@@ -172,7 +172,6 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
 
     const modalFooter = (
         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
-            <button className="dc-btn secondary" onClick={onClose}>Cancelar</button>
             <button className="dc-btn success" onClick={handleSubmit} disabled={isSubmitting}>
                 {isSubmitting ? 'Guardando...' : <><i className="fas fa-save"></i> {isEdit ? 'Actualizar' : 'Crear'}</>}
             </button>
@@ -194,7 +193,7 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
                 </h4>
                 <div className="dc-form-grid">
                     <div className="dc-input-group">
-                        <label>Clave <span style={{ color: 'red' }}>*</span></label>
+                        <label>Clave  </label>
                         <input
                             type="text"
                             placeholder="Ej: Corporativo, Social"
@@ -202,10 +201,9 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
                             onChange={(e) => setClave(e.target.value)}
                             required
                         />
-                        <small style={{ color: 'var(--color-gray)' }}>Identificador único</small>
                     </div>
                     <div className="dc-input-group">
-                        <label>Nombre <span style={{ color: 'red' }}>*</span></label>
+                        <label>Nombre  </label>
                         <input
                             type="text"
                             placeholder="Ej: Corporativo Ejecutivo"
@@ -243,7 +241,7 @@ export const ServiceTipoModal: React.FC<ServiceTipoModalProps> = ({
                     }}>
                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                             <div className="dc-input-group" style={{ flex: 1, minWidth: '200px' }}>
-                                <label>Receta <span style={{ color: 'red' }}>*</span></label>
+                                <label>Receta  </label>
                                 <select
                                     value={productoForm.id_receta}
                                     onChange={(e) => setProductoForm(prev => ({

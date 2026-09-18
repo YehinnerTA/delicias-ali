@@ -16,6 +16,7 @@ import ingredienteRoutes from './direction/ingredienteRoutes';
 import categoriaRoutes from './direction/categoriaRoutes';
 import productoCartaRoutes from './direction/productoCartaRoutes';
 import serviceTipoRoutes from './direction/serviceTipoRoutes';
+import cateringEventoRoutes from './direction/cateringEventoRoutes';
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use('/catering-lotes', cateringLoteRoutes);
 router.use('/categorias', categoriaRoutes);
 router.use('/productos-carta', productoCartaRoutes);
 router.use('/service-tipos', serviceTipoRoutes);
+router.use('/catering/eventos', cateringEventoRoutes);
 
 export default router;

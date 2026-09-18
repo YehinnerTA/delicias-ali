@@ -230,7 +230,6 @@ WHERE r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Tomate';
 -- 13. RECETA - PASOS
 -- =====================================================
 
--- Pasos del Sándwich Premium
 INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
 SELECT 1, r.id, 1, 'Cortar el pan por la mitad' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
 INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
@@ -240,7 +239,6 @@ SELECT 1, r.id, 3, 'Colocar jamón y queso' FROM recetas r WHERE r.nombre = 'Sá
 INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
 SELECT 1, r.id, 4, 'Cerrar el sándwich y cortar en diagonal' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
 
--- Pasos de la Ensalada de Quinoa
 INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
 SELECT 1, r.id, 1, 'Lavar y cocinar la quinoa por 15 minutos' FROM recetas r WHERE r.nombre = 'Ensalada de Quinoa';
 INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
@@ -249,7 +247,7 @@ INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
 SELECT 1, r.id, 3, 'Mezclar todos los ingredientes y aderezar' FROM recetas r WHERE r.nombre = 'Ensalada de Quinoa';
 
 -- =====================================================
--- 14. PRODUCTOS DE CARTA (id_receta OBLIGATORIO, sin nombre)
+-- 14. PRODUCTOS DE CARTA
 -- =====================================================
 
 -- Tipo 1: Corporativo Ejecutivo
@@ -303,18 +301,71 @@ INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracio
 (1, 2, 8, DATE_ADD(CURDATE(), INTERVAL -2 DAY), -2, CURDATE(), 1);
 
 -- =====================================================
--- 18. VENTA DE PRUEBA CATERING
+-- 18. VENTA DE PRUEBA CATERING (CON DIRECCIÓN Y FLUJO)
 -- =====================================================
 SET @cliente_catering = (SELECT id FROM personas WHERE numero_documento = '12345678' AND id_empresa = 1 LIMIT 1);
 SET @usuario_catering = (SELECT id FROM usuarios WHERE usuario = 'admin' LIMIT 1);
 
+-- Venta principal
 INSERT INTO ventas (id_empresa, numero, fecha, id_cliente, id_usuario, subtotal, descuento, igv, total, metodo_pago, estado)
 VALUES (1, 'V-00001', '2026-08-21 20:38:04', @cliente_catering, @usuario_catering, 0.00, 0.00, 0.00, 0.00, 'EFECTIVO', 'completada');
 
 SET @venta_cat = LAST_INSERT_ID();
 
-INSERT INTO catering_eventos (id_empresa, id_venta, fecha_evento, horario, personas, tipo_desayuno)
-VALUES (1, @venta_cat, DATE_ADD(CURDATE(), INTERVAL 3 DAY), '12:00:00', 20, 'Clásico');
+-- ✅ Evento CON dirección, mozo y estado de flujo
+INSERT INTO catering_eventos (
+    id_empresa, id_venta, fecha_evento, horario, personas, tipo_desayuno,
+    direccion, referencia,
+    incluir_mozo, cantidad_mozos, precio_mozo, subtotal_mozo,
+    estado_flujo, estado_actualizado_por, estado_actualizado_at, observaciones
+) VALUES (
+    1, @venta_cat, DATE_ADD(CURDATE(), INTERVAL 3 DAY), '12:00:00', 20, 'Clásico',
+    'Av. Los Álamos 123, Miraflores', 'Frente al parque central',
+    1, 1, 100.00, 100.00,
+    'pendiente_verificacion', @usuario_catering, NOW(), 'Venta creada, esperando verificación'
+);
+
+SET @evento_id = LAST_INSERT_ID();
+
+-- ✅ Historial de cambio de estado
+INSERT INTO catering_evento_historial 
+(id_empresa, id_evento, estado_anterior, estado_nuevo, id_usuario, observaciones)
+VALUES 
+(1, @evento_id, NULL, 'pendiente_verificacion', @usuario_catering, 'Venta creada');
+
+-- ✅ Etapa 1: Verificación de almacén (pendiente)
+INSERT INTO catering_evento_etapas 
+(id_empresa, id_evento, etapa, tiempo_estimado_min)
+VALUES 
+(1, @evento_id, 'verificacion_almacen', 20);
+
+-- ✅ Checklist específico de almacén
+INSERT INTO catering_evento_checklist 
+(id_empresa, id_evento, etapa, item, categoria, tipo_referencia, 
+ cantidad_requerida, unidad, cantidad_stock, cantidad_faltante, proveedores, orden)
+VALUES 
+(1, @evento_id, 'verificacion_almacen', 'Verificar stock de Pan', 'ingrediente', 'ingrediente',
+    2, 'unidades', 30, 0, 
+    JSON_ARRAY('Panadería Central - 995123456'), 1),
+(1, @evento_id, 'verificacion_almacen', 'Verificar stock de Jamón', 'ingrediente', 'ingrediente',
+    0.05, 'kg', 5, 0, 
+    JSON_ARRAY('Carnes Premium - 995345678'), 2),
+(1, @evento_id, 'verificacion_almacen', 'Verificar stock de Queso', 'ingrediente', 'ingrediente',
+    0.04, 'kg', 3, 0, 
+    JSON_ARRAY('Lácteos Andinos - 995456789'), 3),
+(1, @evento_id, 'verificacion_almacen', 'Verificar stock de Café en grano', 'ingrediente', 'ingrediente',
+    0.02, 'kg', 1, 0, 
+    JSON_ARRAY('Café Altura - 998765432'), 4),
+(1, @evento_id, 'verificacion_almacen', 'Verificar material: Plato Cerámico', 'material', 'material',
+    2, 'unidades', 10, 0, 
+    JSON_ARRAY('Proveedor de materiales - 999888777'), 5),
+(1, @evento_id, 'verificacion_almacen', 'Verificar material: Cubiertos Acero', 'material', 'material',
+    1, 'set', 5, 0, 
+    JSON_ARRAY('Proveedor de materiales - 999888777'), 6);
+
+-- =====================================================
+-- 19. SERVICIOS Y PRODUCTOS DE LA VENTA
+-- =====================================================
 
 -- Servicio Corporativo
 INSERT INTO catering_service_ventas (id_empresa, id_venta, id_tipo_servicio, subtotal_servicio)
@@ -364,7 +415,9 @@ VALUES
 
 -- Calcular totales
 SET @subtotal_cat = (SELECT COALESCE(SUM(subtotal_servicio),0) FROM catering_service_ventas WHERE id_venta = @venta_cat)
-                  + (SELECT COALESCE(SUM(subtotal),0) FROM catering_materiales_venta WHERE id_venta = @venta_cat);
+                  + (SELECT COALESCE(SUM(subtotal),0) FROM catering_materiales_venta WHERE id_venta = @venta_cat)
+                  + (SELECT COALESCE(subtotal_mozo,0) FROM catering_eventos WHERE id_venta = @venta_cat);
+
 SET @igv_cat = @subtotal_cat * 0.18;
 SET @total_cat = @subtotal_cat + @igv_cat;
 
@@ -384,37 +437,19 @@ VALUES ('catering', 'VENTA', CONCAT('Venta ', (SELECT numero FROM ventas WHERE i
 -- =====================================================
 -- VERIFICACIÓN FINAL
 -- =====================================================
-SELECT '=== TIPOS DE SERVICIO ===' AS '';
-SELECT * FROM catering_service_tipos;
-
-SELECT '=== PRODUCTOS DE CARTA (con receta) ===' AS '';
 SELECT 
-    pc.id,
-    st.nombre AS tipo_servicio,
-    r.nombre AS receta,
-    pc.precio
-FROM catering_service_productos_carta pc
-JOIN catering_service_tipos st ON pc.id_tipo_servicio = st.id
-JOIN recetas r ON pc.id_receta = r.id
-ORDER BY st.id, r.nombre;
+    id, personas, direccion, referencia,
+    incluir_mozo, cantidad_mozos, subtotal_mozo,
+    estado_flujo, estado_actualizado_at
+FROM catering_eventos WHERE id = @evento_id;
 
-SELECT '=== RECETAS ===' AS '';
-SELECT id, nombre, categoria_receta, tipo_preparacion, porciones_total FROM recetas;
+SELECT estado_anterior, estado_nuevo, observaciones, created_at
+FROM catering_evento_historial WHERE id_evento = @evento_id;
 
-SELECT '=== RECETA - INGREDIENTES ===' AS '';
-SELECT 
-    r.nombre AS receta,
-    i.nombre AS ingrediente,
-    ri.cantidad_por_unidad,
-    ri.unidad,
-    ri.es_opcional
-FROM recetas r
-JOIN receta_ingredientes ri ON r.id = ri.id_receta
-JOIN ingredientes i ON ri.id_ingrediente = i.id
-ORDER BY r.nombre, i.nombre;
+SELECT etapa, hora_inicio, hora_fin, tiempo_estimado_min, completada
+FROM catering_evento_etapas WHERE id_evento = @evento_id;
 
-SELECT '=== RECETA - PASOS ===' AS '';
-SELECT r.nombre AS receta, rp.orden, rp.descripcion
-FROM recetas r
-JOIN receta_pasos rp ON r.id = rp.id_receta
-ORDER BY r.nombre, rp.orden;
+SELECT etapa, item, cantidad_requerida, unidad, verificado
+FROM catering_evento_checklist WHERE id_evento = @evento_id ORDER BY orden;
+
+SELECT id, numero, subtotal, igv, total FROM ventas WHERE id = @venta_cat;

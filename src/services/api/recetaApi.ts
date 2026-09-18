@@ -95,35 +95,50 @@ export const recetaApi = {
         if (!res.ok) throw new Error('Error al eliminar receta');
     },
 
-    getByProductoNombre: async (nombreProducto: string, idEmpresa: number): Promise<{ ingredientes: any[] }> => {
+    getByProductoNombre: async (nombreProducto: string, idEmpresa: number): Promise<{
+        receta_nombre: string;
+        tipo_preparacion: 'por_unidad' | 'por_molde' | 'por_lote';
+        cantidad_base: number;
+        porciones_por_unidad: number;
+        porciones_total: number;
+        rendimiento: number;
+        ingredientes: any[];
+    }> => {
+        // ✅ Valores por defecto (fallback)
+        const defaultResponse = {
+            receta_nombre: nombreProducto,
+            tipo_preparacion: 'por_unidad' as const,
+            cantidad_base: 1,
+            porciones_por_unidad: 1,
+            porciones_total: 1,
+            rendimiento: 100,
+            ingredientes: [{
+                nombre: 'Producto genérico',
+                cantidadPorUnidad: 1,
+                unidad: 'unidad',
+                proveedores: ['Proveedor General - 900123456']
+            }]
+        };
+
         const res = await fetch(
             `${API_URL}/recetas/producto?nombre=${encodeURIComponent(nombreProducto)}&id_empresa=${idEmpresa}`
         );
 
-        if (!res.ok) {
-            return {
-                ingredientes: [{
-                    nombre: 'Producto genérico',
-                    cantidadPorUnidad: 1,
-                    unidad: 'unidad',
-                    proveedores: ['Proveedor General - 900123456']
-                }]
-            };
-        }
+        if (!res.ok) return defaultResponse;
 
         const data = await res.json();
-        if (!data || data.length === 0) {
-            return {
-                ingredientes: [{
-                    nombre: 'Producto genérico',
-                    cantidadPorUnidad: 1,
-                    unidad: 'unidad',
-                    proveedores: ['Proveedor General - 900123456']
-                }]
-            };
-        }
+        if (!data || data.length === 0) return defaultResponse;
+
+        // ✅ Tomar los datos de receta del primer elemento (vienen en todas las filas)
+        const primerItem = data[0];
 
         return {
+            receta_nombre: primerItem.receta_nombre || nombreProducto,
+            tipo_preparacion: primerItem.tipo_preparacion || 'por_unidad',
+            cantidad_base: parseFloat(primerItem.cantidad_base) || 1,
+            porciones_por_unidad: parseInt(primerItem.porciones_por_unidad) || 1,
+            porciones_total: parseInt(primerItem.porciones_total) || 1,
+            rendimiento: parseFloat(primerItem.rendimiento) || 100,
             ingredientes: data.map((item: any) => ({
                 nombre: item.ingrediente_nombre,
                 cantidadPorUnidad: parseFloat(item.cantidad_por_unidad),

@@ -44,11 +44,22 @@ interface IngredienteRecetaBD {
     proveedores?: string[];
 }
 
+// ✅ NUEVA: Info de la receta con datos de cálculo
+interface RecetaInfo {
+    nombre: string;
+    tipo_preparacion: 'por_unidad' | 'por_molde' | 'por_lote';
+    cantidad_base: number;
+    porciones_por_unidad: number;
+    porciones_total: number;
+    rendimiento: number;
+    ingredientes: IngredienteRecetaBD[];
+}
+
 export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOpen, onClose, venta }) => {
     const { showToast } = useToast();
     const { getSelectedCompanyId } = useCompany();
     const id_empresa = getSelectedCompanyId() ?? 0;
-    const [recetasCargadas, setRecetasCargadas] = useState<Map<string, IngredienteRecetaBD[]>>(new Map());
+    const [recetasCargadas, setRecetasCargadas] = useState<Map<string, RecetaInfo>>(new Map());
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
@@ -64,7 +75,7 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
             return;
         }
         setIsLoading(true);
-        const map = new Map<string, IngredienteRecetaBD[]>();
+        const map = new Map<string, RecetaInfo>();
         try {
             const productos = new Set<string>();
             venta.servicios?.forEach(serv => {
@@ -102,14 +113,30 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
                         }
                     });
 
-                    map.set(nombre, Array.from(agrupados.values()));
+                    map.set(nombre, {
+                        nombre: receta.receta_nombre || nombre,
+                        tipo_preparacion: receta.tipo_preparacion || 'por_unidad',
+                        cantidad_base: receta.cantidad_base || 1,
+                        porciones_por_unidad: receta.porciones_por_unidad || 1,
+                        porciones_total: receta.porciones_total || 1,
+                        rendimiento: receta.rendimiento || 100,
+                        ingredientes: Array.from(agrupados.values())
+                    });
                 } else {
-                    map.set(nombre, [{
-                        nombre: 'Producto genérico',
-                        cantidadPorUnidad: 1,
-                        unidad: 'unidad',
-                        proveedores: ['Proveedor General - 900123456']
-                    }]);
+                    map.set(nombre, {
+                        nombre,
+                        tipo_preparacion: 'por_unidad',
+                        cantidad_base: 1,
+                        porciones_por_unidad: 1,
+                        porciones_total: 1,
+                        rendimiento: 100,
+                        ingredientes: [{
+                            nombre: 'Producto genérico',
+                            cantidadPorUnidad: 1,
+                            unidad: 'unidad',
+                            proveedores: ['Proveedor General - 900123456']
+                        }]
+                    });
                 }
             }
             setRecetasCargadas(map);
@@ -119,6 +146,44 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const calcularUnidadesBase = (receta: RecetaInfo, cantidadPedida: number): number => {
+        if (receta.tipo_preparacion === 'por_unidad') {
+            return cantidadPedida;
+        }
+        return Math.ceil(cantidadPedida / receta.porciones_por_unidad);
+    };
+
+    const calcularPorcionesReales = (receta: RecetaInfo, cantidadPedida: number): number => {
+        if (receta.tipo_preparacion === 'por_unidad') {
+            return cantidadPedida;
+        }
+        const unidadesBase = Math.ceil(cantidadPedida / receta.porciones_por_unidad);
+        return unidadesBase * receta.porciones_por_unidad;
+    };
+
+    const calcularIngrediente = (receta: RecetaInfo, cantidadPorUnidad: number, cantidadPedida: number): number => {
+        if (receta.tipo_preparacion === 'por_unidad') {
+            return cantidadPorUnidad * cantidadPedida;
+        }
+        const unidadesBase = calcularUnidadesBase(receta, cantidadPedida);
+        return cantidadPorUnidad * unidadesBase;
+    };
+
+    const getDescripcionCalculo = (receta: RecetaInfo, cantidadPedida: number): string => {
+        if (receta.tipo_preparacion === 'por_unidad') {
+            return `${cantidadPedida} unidades`;
+        }
+
+        const unidadesBase = calcularUnidadesBase(receta, cantidadPedida);
+        const porcionesReales = calcularPorcionesReales(receta, cantidadPedida);
+        const sobrante = porcionesReales - cantidadPedida;
+
+        const label = receta.tipo_preparacion === 'por_molde' ? 'molde(s)' : 'lote(s)';
+        const labelPorcion = receta.tipo_preparacion === 'por_molde' ? 'porciones' : 'porciones';
+
+        return `${unidadesBase} ${label} × ${receta.porciones_por_unidad} ${labelPorcion} = ${porcionesReales} (${sobrante > 0 ? `+${sobrante} adicionales` : 'exacto'})`;
     };
 
     const handleEnviarWhatsApp = (telefono: string, producto: string, cantidad: number) => {
@@ -177,15 +242,57 @@ export const CocinaLogisticaModal: React.FC<CocinaLogisticaModalProps> = ({ isOp
                                         </div>
                                     </div>
                                     {productosFiltrados.map((p, prodIdx) => {
-                                        const ingredientes = recetasCargadas.get(p.nombre) || [];
+                                        const receta = recetasCargadas.get(p.nombre);
+                                        if (!receta) return null;
+
                                         return (
                                             <div key={prodIdx} className="service-body">
                                                 <div className="insumo-header">
                                                     <strong>▸ Producto: {p.nombre} (Cantidad: {p.cantidad})</strong>
                                                 </div>
+
+                                                {/* ✅ Bloque de cálculo de producción en una sola línea */}
+                                                <div style={{
+                                                    marginTop: '0.5rem',
+                                                    marginBottom: '0.75rem',
+                                                    padding: '0.5rem 0.75rem',
+                                                    background: '#e7f3ff',
+                                                    borderRadius: '6px',
+                                                    borderLeft: '4px solid #007bff',
+                                                    fontSize: '0.85rem',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.5rem',
+                                                    flexWrap: 'wrap'
+                                                }}>
+                                                    <span style={{ fontWeight: '600' }}>
+                                                        <i className="fas fa-calculator"></i> Cálculo de producción:
+                                                    </span>
+                                                    <span style={{ color: '#333' }}>
+                                                        {receta.tipo_preparacion === 'por_unidad' && (
+                                                            <>1 unidad = 1 porción / Unidades: {p.cantidad}</>
+                                                        )}
+                                                        {receta.tipo_preparacion === 'por_molde' && (
+                                                            <>
+                                                                1 molde = {receta.porciones_por_unidad} porciones / Moldes: {calcularUnidadesBase(receta, p.cantidad)}
+                                                            </>
+                                                        )}
+                                                        {receta.tipo_preparacion === 'por_lote' && (
+                                                            <>
+                                                                1 lote = {receta.porciones_por_unidad} porciones / Lotes: {calcularUnidadesBase(receta, p.cantidad)}
+                                                            </>
+                                                        )}
+                                                        {receta.tipo_preparacion !== 'por_unidad' && calcularPorcionesReales(receta, p.cantidad) > p.cantidad && (
+                                                            <span style={{ color: 'var(--color-secundario)', fontWeight: '600', marginLeft: '0.25rem' }}>
+                                                                (+{calcularPorcionesReales(receta, p.cantidad) - p.cantidad} adicionales)
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                </div>
+
                                                 <div className="insumo-ingredientes">
-                                                    {ingredientes.map((ing, ingIdx) => {
-                                                        const total = ing.cantidadPorUnidad * p.cantidad;
+                                                    {receta.ingredientes.map((ing, ingIdx) => {
+                                                        const total = calcularIngrediente(receta, ing.cantidadPorUnidad, p.cantidad);
                                                         return (
                                                             <div key={ingIdx} className="insumo-ingrediente">
                                                                 <span>
