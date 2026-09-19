@@ -1,0 +1,329 @@
+/* =====================================================
+   PÁGINA DE ACTIVIDADES POR ÁREA
+   ===================================================== */
+.dc-actividades-container {
+    padding: 1rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.dc-subtabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.dc-subtab {
+    padding: 0.5rem 1rem;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #495057;
+}
+
+.dc-subtab:hover {
+    background: #e7f3ff;
+    border-color: #007bff;
+    color: #007bff;
+}
+
+.dc-subtab.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.dc-actividades-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+}
+
+.dc-actividad-card {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 1rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.dc-actividad-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+    transform: translateY(-2px);
+}
+
+.dc-actividad-card.completado {
+    opacity: 0.7;
+    background: #f8f9fa;
+}
+
+.dc-actividad-card.completado:hover {
+    transform: none;
+    border-color: #dee2e6;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.dc-actividad-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #f0f0f0;
+    gap: 0.5rem;
+}
+
+.dc-actividad-numero {
+    font-weight: 700;
+    color: #333;
+    font-size: 1rem;
+}
+
+.dc-actividad-cliente {
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 0.15rem;
+}
+
+.dc-actividad-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #495057;
+    margin-bottom: 1rem;
+}
+
+.dc-actividad-card-body i {
+    width: 16px;
+    color: #007bff;
+    margin-right: 0.35rem;
+}
+
+.dc-actividad-card-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f0f0f0;
+}
+
+.dc-empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #999;
+}
+
+.dc-empty-state i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.4;
+}
+
+.dc-empty-state h3 {
+    color: #666;
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+.dc-empty-state p {
+    color: #999;
+    font-size: 0.9rem;
+}
+
+/* =====================================================
+   SUBTÍTULOS EN MODALES DE ETAPA
+   ===================================================== */
+.dc-etapa-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #495057;
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px dashed #dee2e6;
+}
+
+.dc-checklist-item-cantidad {
+    padding: 0.35rem 0.75rem;
+    background: #e7f3ff;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #0056b3;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.dc-checklist-btn-proveedor.dc-btn-llamar {
+    background: #007bff;
+    color: white;
+}
+
+.dc-checklist-btn-proveedor.dc-btn-llamar:hover {
+    background: #0056b3;
+}
+
+/* =====================================================
+   COCINA - Cards de productos a preparar
+   ===================================================== */
+.dc-cocina-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.dc-cocina-card {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.dc-cocina-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 3px 10px rgba(0, 123, 255, 0.12);
+}
+
+.dc-cocina-card.verificado {
+    background: #e8f5e9;
+    border-color: #28a745;
+}
+
+.dc-cocina-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px dashed #e0e0e0;
+    margin-bottom: 0.75rem;
+}
+
+.dc-cocina-card-left {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    flex: 1;
+}
+
+.dc-cocina-checkbox {
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    accent-color: #28a745;
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+}
+
+.dc-cocina-card-titulo {
+    font-weight: 700;
+    color: #333;
+    font-size: 1rem;
+    margin-bottom: 0.3rem;
+}
+
+.dc-cocina-card-cantidad {
+    font-size: 0.8rem;
+    color: #666;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: #f0f7ff;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+}
+
+.dc-cocina-card-cantidad i {
+    color: #007bff;
+    font-size: 0.7rem;
+}
+
+.dc-cocina-card-verificado {
+    font-size: 0.75rem;
+    color: #28a745;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: #d4edda;
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.dc-cocina-info-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: #e7f3ff;
+    border-radius: 6px;
+    border-left: 4px solid #007bff;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+}
+
+.dc-cocina-info-label {
+    font-weight: 600;
+    color: #007bff;
+    white-space: nowrap;
+}
+
+.dc-cocina-insumos {
+    margin-bottom: 0.5rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 3px solid #6c757d;
+}
+
+.dc-cocina-insumos-titulo {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #495057;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dc-cocina-insumos-titulo i {
+    color: #6c757d;
+    margin-right: 0.3rem;
+}
+
+.dc-cocina-insumo-item {
+    font-size: 0.85rem;
+    color: #333;
+    padding: 0.2rem 0;
+    line-height: 1.5;
+}
+
+.dc-cocina-card-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0.75rem;
+    margin-top: 0.5rem;
+    border-top: 1px dashed #e0e0e0;
+}
+
+.dc-cocina-card.verificado .dc-cocina-card-titulo {
+    text-decoration: line-through;
+    color: #6c757d;
+}
+
+.dc-cocina-card.verificado .dc-cocina-insumos {
+    opacity: 0.65;
+}

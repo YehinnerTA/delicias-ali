@@ -5,10 +5,10 @@ import { Notificacion } from '../types/index.header';
 import { useCompany } from '../../company/context/CompanyContext';
 
 const ROLE_PERMISSIONS: Record<number, string[]> = {
-    1: ['/home', '/person-management', '/sales-management', '/inventory-management', '/catering-management', '/recipe-management'],
-    2: ['/home', '/inventory-management'],
+    1: ['/home', '/person-management', '/sales-management', '/inventory-management', '/catering-management', '/recipe-management', '/actividades'],
+    2: ['/home', '/inventory-management', '/actividades'],
     3: ['/home', '/sales-management', '/catering-management'],
-    4: ['/home', '/inventory-management'],
+    4: ['/home', '/inventory-management', '/actividades'],
 };
 
 const DEFAULT_PERMISSIONS = ['/home'];
@@ -20,6 +20,7 @@ const ALL_LINKS = [
     { name: 'Ventas', path: '/sales-management' },
     { name: 'Ventas Catering', path: '/catering-management' },
     { name: 'Cocina', path: '/recipe-management' },
+    { name: 'Actividades', path: '/actividades' }
 ];
 
 const NOTIFICACIONES_EJEMPLO: Notificacion[] = [

@@ -2,7 +2,7 @@ import React from 'react';
 import { TabConfig } from '../../../features/types/config';
 
 interface TabsProps {
-    tabs: TabConfig[];
+    tabs: TabConfig[] | { id: string; label: string; icon: string }[];
     activeTab: string;
     onTabChange: (tabId: string) => void;
 }

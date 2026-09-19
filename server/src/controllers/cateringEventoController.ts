@@ -1,9 +1,6 @@
 import { Request, Response } from 'express';
 import { executeQuery, executeMutation, executeQuerySingle } from '../config/database';
 
-// =====================================================
-// OBTENER EVENTO CON SU FLUJO
-// =====================================================
 export const getEventoFlujo = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -75,9 +72,6 @@ export const getEventoFlujo = async (req: Request, res: Response) => {
     }
 };
 
-// =====================================================
-// ABRIR ETAPA (registra hora_inicio si es la primera vez)
-// =====================================================
 export const abrirEtapa = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -105,16 +99,30 @@ export const abrirEtapa = async (req: Request, res: Response) => {
         );
 
         // Si no existe, crearla con hora_inicio
+        // Si no existe, crearla
         if (!etapaDB) {
             const result = await executeMutation(
                 `INSERT INTO catering_evento_etapas 
-                 (id_empresa, id_evento, etapa, hora_inicio, id_usuario_inicio) 
-                 VALUES (?, ?, ?, NOW(), ?)`,
+         (id_empresa, id_evento, etapa, hora_inicio, id_usuario_inicio) 
+         VALUES (?, ?, ?, NOW(), ?)`,
                 [id_empresa, id, etapa, usuario_id]
             );
-            etapaDB = await executeQuerySingle<any>(
+            etapaDB = await executeQuerySingle(
                 `SELECT * FROM catering_evento_etapas WHERE id = ?`,
                 [result.insertId]
+            );
+        }
+        // 🆕 Si existe pero no tiene hora_inicio, registrarla AHORA
+        else if (!etapaDB.hora_inicio) {
+            await executeMutation(
+                `UPDATE catering_evento_etapas 
+         SET hora_inicio = NOW(), id_usuario_inicio = ? 
+         WHERE id = ? AND id_empresa = ?`,
+                [usuario_id, etapaDB.id, id_empresa]
+            );
+            etapaDB = await executeQuerySingle(
+                `SELECT * FROM catering_evento_etapas WHERE id = ?`,
+                [etapaDB.id]
             );
         }
 
@@ -150,9 +158,6 @@ export const abrirEtapa = async (req: Request, res: Response) => {
     }
 };
 
-// =====================================================
-// VERIFICAR ITEM DEL CHECKLIST
-// =====================================================
 export const verificarItem = async (req: Request, res: Response) => {
     try {
         const { id_item } = req.params;
@@ -204,9 +209,6 @@ export const verificarItem = async (req: Request, res: Response) => {
     }
 };
 
-// =====================================================
-// CONFIRMAR ETAPA Y AVANZAR AL SIGUIENTE ESTADO
-// =====================================================
 export const confirmarEtapa = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -224,7 +226,7 @@ export const confirmarEtapa = async (req: Request, res: Response) => {
             carga_transporte: 'en_evento',
             montaje_evento: 'en_retorno',
             recojo_evento: 'retornado',
-            retorno_empresa: 'cerrado',
+            retorno_empresa: 'cierre',
             cierre: 'cerrado'
         };
 
@@ -285,9 +287,6 @@ export const confirmarEtapa = async (req: Request, res: Response) => {
     }
 };
 
-// =====================================================
-// REPORTAR INCIDENCIA
-// =====================================================
 export const reportarIncidencia = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -316,9 +315,6 @@ export const reportarIncidencia = async (req: Request, res: Response) => {
     }
 };
 
-// =====================================================
-// OBTENER MÉTRICAS DEL EVENTO
-// =====================================================
 export const getMetricasEvento = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -363,5 +359,129 @@ export const getMetricasEvento = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('[getMetricasEvento] Error:', error);
         res.status(500).json({ message: 'Error al obtener métricas', error });
+    }
+};
+
+export const guardarItemsChecklist = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { id_empresa, etapa, items } = req.body;
+
+        if (!id_empresa || !etapa || !Array.isArray(items)) {
+            return res.status(400).json({ message: 'id_empresa, etapa e items son requeridos' });
+        }
+
+        // Verificar que el evento exista
+        const evento = await executeQuerySingle<any>(
+            `SELECT id FROM catering_eventos WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
+        );
+        if (!evento) {
+            return res.status(404).json({ message: 'Evento no encontrado' });
+        }
+
+        // Insertar cada item
+        let orden = 1;
+        for (const item of items) {
+            await executeMutation(
+                `INSERT INTO catering_evento_checklist 
+                    (id_empresa, id_evento, etapa, item, categoria,
+                     id_referencia, tipo_referencia,
+                     cantidad_requerida, unidad, proveedores,
+                     verificado, orden)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+                [
+                    id_empresa,
+                    id,
+                    etapa,
+                    item.item || item.nombre || 'Sin nombre',
+                    item.categoria || 'ingrediente',
+                    item.id_referencia || null,
+                    item.tipo_referencia || 'ingrediente',
+                    item.cantidad_requerida || null,
+                    item.unidad || null,
+                    JSON.stringify(item.proveedores || []),
+                    orden
+                ]
+            );
+            orden++;
+        }
+
+        res.json({
+            message: 'Items guardados correctamente',
+            total: items.length
+        });
+    } catch (error) {
+        console.error('[guardarItemsChecklist] Error:', error);
+        res.status(500).json({ message: 'Error al guardar items del checklist', error });
+    }
+};
+
+export const getChecklistVerificaciones = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { etapa, id_empresa } = req.query;
+
+        if (!id_empresa || !etapa) {
+            return res.status(400).json({ message: 'id_empresa y etapa son requeridos' });
+        }
+
+        const rows = await executeQuery<any[]>(
+            `SELECT item, verificado, verificado_at, verificado_por 
+             FROM catering_evento_checklist 
+             WHERE id_evento = ? AND etapa = ? AND id_empresa = ?`,
+            [id, etapa, id_empresa]
+        );
+
+        res.json(rows.map((r: any) => ({
+            item: r.item,
+            verificado: r.verificado === 1,
+            verificado_at: r.verificado_at,
+            verificado_por: r.verificado_por
+        })));
+    } catch (error) {
+        console.error('[getChecklistVerificaciones] Error:', error);
+        res.status(500).json({ message: 'Error al obtener checklist', error });
+    }
+};
+
+export const marcarItemChecklist = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { id_empresa, usuario_id, etapa, item, verificado } = req.body;
+
+        if (!id_empresa || !usuario_id || !etapa || !item) {
+            return res.status(400).json({ message: 'Faltan campos obligatorios' });
+        }
+
+        // Verificar si ya existe
+        const existente = await executeQuerySingle<any>(
+            `SELECT id FROM catering_evento_checklist 
+             WHERE id_evento = ? AND etapa = ? AND item = ? AND id_empresa = ?`,
+            [id, etapa, item, id_empresa]
+        );
+
+        if (existente) {
+            // UPDATE
+            await executeMutation(
+                `UPDATE catering_evento_checklist 
+                 SET verificado = ?, verificado_por = ?, verificado_at = ?
+                 WHERE id = ? AND id_empresa = ?`,
+                [verificado ? 1 : 0, usuario_id, verificado ? new Date() : null, existente.id, id_empresa]
+            );
+        } else {
+            // INSERT
+            await executeMutation(
+                `INSERT INTO catering_evento_checklist 
+                 (id_empresa, id_evento, etapa, item, categoria, verificado, verificado_por, verificado_at, orden)
+                 VALUES (?, ?, ?, ?, 'dinamico', ?, ?, ?, 0)`,
+                [id_empresa, id, etapa, item, verificado ? 1 : 0, usuario_id, verificado ? new Date() : null]
+            );
+        }
+
+        res.json({ message: 'OK', item, verificado });
+    } catch (error) {
+        console.error('[marcarItemChecklist] Error:', error);
+        res.status(500).json({ message: 'Error al marcar item', error });
     }
 };

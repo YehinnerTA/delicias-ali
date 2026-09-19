@@ -1,0 +1,894 @@
+/* =====================================================
+   ESTILOS PARA EL FLUJO DE EVENTOS DE CATERING
+   ===================================================== */
+
+/* =====================================================
+   CONTENEDOR PRINCIPAL DEL FLUJO
+   ===================================================== */
+.dc-flujo-container {
+    padding: 1rem;
+}
+
+/* =====================================================
+   BARRA DE PROGRESO (STEPPER)
+   ===================================================== */
+.dc-flujo-stepper {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: relative;
+    margin-bottom: 2rem;
+    padding: 0 1rem;
+}
+
+.dc-flujo-stepper::before {
+    content: '';
+    position: absolute;
+    top: 18px;
+    left: 5%;
+    right: 5%;
+    height: 2px;
+    background: #e0e0e0;
+    z-index: 0;
+}
+
+.dc-flujo-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+    z-index: 1;
+    cursor: default;
+}
+
+.dc-flujo-step-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    color: #999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    border: 3px solid white;
+    box-shadow: 0 0 0 2px #e0e0e0;
+    transition: all 0.3s ease;
+}
+
+.dc-flujo-step-label {
+    font-size: 0.7rem;
+    color: #999;
+    margin-top: 0.4rem;
+    text-align: center;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+/* Estados del step */
+.dc-flujo-step.completed .dc-flujo-step-icon {
+    background: #28a745;
+    color: white;
+    box-shadow: 0 0 0 2px #28a745;
+}
+
+.dc-flujo-step.completed .dc-flujo-step-label {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.dc-flujo-step.active .dc-flujo-step-icon {
+    background: #007bff;
+    color: white;
+    box-shadow: 0 0 0 2px #007bff, 0 0 12px rgba(0, 123, 255, 0.5);
+    animation: pulse-flujo 2s infinite;
+}
+
+.dc-flujo-step.active .dc-flujo-step-label {
+    color: #007bff;
+    font-weight: 700;
+}
+
+.dc-flujo-step.pending .dc-flujo-step-icon {
+    background: #f8f9fa;
+    color: #999;
+    box-shadow: 0 0 0 2px #dee2e6;
+}
+
+@keyframes pulse-flujo {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 2px #007bff, 0 0 12px rgba(0, 123, 255, 0.5);
+    }
+
+    50% {
+        box-shadow: 0 0 0 2px #007bff, 0 0 20px rgba(0, 123, 255, 0.8);
+    }
+}
+
+/* =====================================================
+   CARD DE ETAPA ACTUAL
+   ===================================================== */
+.dc-etapa-card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    transition: box-shadow 0.3s ease;
+}
+
+.dc-etapa-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.dc-etapa-card.active {
+    border-left: 4px solid #007bff;
+}
+
+.dc-etapa-card.completed {
+    border-left: 4px solid #28a745;
+}
+
+.dc-etapa-card.pending {
+    border-left: 4px solid #dee2e6;
+    opacity: 0.85;
+}
+
+.dc-etapa-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.dc-etapa-card.active .dc-etapa-header {
+    background: #e7f3ff;
+}
+
+.dc-etapa-card.completed .dc-etapa-header {
+    background: #e8f5e9;
+}
+
+.dc-etapa-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.dc-etapa-title i {
+    font-size: 1.1rem;
+}
+
+.dc-etapa-card.active .dc-etapa-title {
+    color: #007bff;
+}
+
+.dc-etapa-card.completed .dc-etapa-title {
+    color: #28a745;
+}
+
+.dc-etapa-body {
+    padding: 1rem 1.25rem;
+}
+
+/* =====================================================
+   TIEMPO / CONTADOR
+   ===================================================== */
+.dc-tiempo-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1.25rem;
+    background: linear-gradient(135deg, #e7f3ff, #f0f7ff);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    border-left: 4px solid #007bff;
+}
+
+.dc-tiempo-icon {
+    font-size: 1.5rem;
+    color: #007bff;
+}
+
+.dc-tiempo-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.dc-tiempo-transcurrido {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #007bff;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 1px;
+}
+
+.dc-tiempo-detalles {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 0.15rem;
+}
+
+/* Advertencia de tiempo excedido */
+.dc-tiempo-container.excedido {
+    background: linear-gradient(135deg, #fff3cd, #fff8e1);
+    border-left-color: #ffc107;
+}
+
+.dc-tiempo-container.excedido .dc-tiempo-transcurrido,
+.dc-tiempo-container.excedido .dc-tiempo-icon {
+    color: #856404;
+}
+
+/* =====================================================
+   CHECKLIST ITEMS
+   ===================================================== */
+.dc-checklist-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.dc-checklist-item {
+    display: flex;
+    flex-direction: column;
+    padding: 0.85rem 1rem;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.dc-checklist-item:hover {
+    background: #f0f7ff;
+    border-color: #007bff;
+}
+
+.dc-checklist-item.verificado {
+    background: #e8f5e9;
+    border-color: #28a745;
+    opacity: 0.85;
+}
+
+.dc-checklist-item.con-incidencia {
+    background: #fff3cd;
+    border-color: #ffc107;
+}
+
+.dc-checklist-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.dc-checklist-item-left {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    flex: 1;
+}
+
+.dc-checklist-item-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    margin-top: 0.15rem;
+    accent-color: #28a745;
+    flex-shrink: 0;
+}
+
+.dc-checklist-item-info {
+    flex: 1;
+}
+
+.dc-checklist-item-nombre {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.95rem;
+    margin-bottom: 0.25rem;
+}
+
+.dc-checklist-item-verificado-at {
+    font-size: 0.75rem;
+    color: #28a745;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+
+.dc-checklist-item-detalles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    padding-left: 2rem;
+    font-size: 0.85rem;
+}
+
+.dc-checklist-item-detalle {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.dc-checklist-item-detalle.requerido {
+    color: #333;
+    font-weight: 600;
+}
+
+.dc-checklist-item-detalle.stock-ok {
+    color: #28a745;
+}
+
+.dc-checklist-item-detalle.stock-faltante {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.dc-checklist-item-detalle.unidad {
+    color: #666;
+}
+
+.dc-checklist-item-proveedores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    padding-left: 2rem;
+}
+
+.dc-checklist-btn-proveedor {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    background: #25d366;
+    color: white;
+    border: none;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.dc-checklist-btn-proveedor:hover {
+    background: #128c7e;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(37, 211, 102, 0.4);
+}
+
+.dc-checklist-btn-proveedor i {
+    font-size: 0.8rem;
+}
+
+/* =====================================================
+   BOTONES DE CONFIRMACIÓN
+   ===================================================== */
+.dc-etapa-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+}
+
+.dc-btn-confirmar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.dc-btn-confirmar:hover:not(:disabled) {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3);
+}
+
+.dc-btn-confirmar:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.dc-btn-incidencia {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    background: #ffc107;
+    color: #333;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.dc-btn-incidencia:hover {
+    background: #e0a800;
+    transform: translateY(-1px);
+}
+
+/* =====================================================
+   TABLA DE MÉTRICAS
+   ===================================================== */
+.dc-metricas-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.dc-metricas-tabla thead {
+    background: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.dc-metricas-tabla th {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dc-metricas-tabla td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e9ecef;
+    color: #333;
+}
+
+.dc-metricas-tabla tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.dc-metricas-tabla tfoot {
+    background: #e7f3ff;
+    font-weight: 700;
+}
+
+.dc-metricas-tabla tfoot td {
+    border-top: 2px solid #007bff;
+    color: #007bff;
+}
+
+.dc-metricas-diferencia {
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.dc-metricas-diferencia.positiva {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.dc-metricas-diferencia.negativa {
+    background: #d4edda;
+    color: #155724;
+}
+
+.dc-metricas-diferencia.neutra {
+    background: #e9ecef;
+    color: #6c757d;
+}
+
+/* =====================================================
+   INCIDENCIAS
+   ===================================================== */
+.dc-incidencias-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.dc-incidencia-card {
+    padding: 0.85rem 1rem;
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    border-radius: 6px;
+}
+
+.dc-incidencia-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+    color: #856404;
+}
+
+.dc-incidencia-tipo {
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    background: #ffc107;
+    color: #333;
+    border-radius: 4px;
+}
+
+.dc-incidencia-descripcion {
+    font-size: 0.9rem;
+    color: #333;
+    margin-bottom: 0.3rem;
+}
+
+.dc-incidencia-impacto {
+    font-size: 0.8rem;
+    color: #856404;
+    font-style: italic;
+}
+
+/* =====================================================
+   FORMULARIO DE INCIDENCIA
+   ===================================================== */
+.dc-incidencia-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: #fff9e6;
+    border-radius: 8px;
+    border: 1px dashed #ffc107;
+    margin-top: 1rem;
+}
+
+.dc-incidencia-form-header {
+    font-weight: 600;
+    color: #856404;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* =====================================================
+   ESTADO BADGE
+   ===================================================== */
+.dc-estado-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dc-estado-badge.pendiente_verificacion {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.dc-estado-badge.compra_pendiente {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.dc-estado-badge.en_preparacion {
+    background: #cfe2ff;
+    color: #084298;
+}
+
+.dc-estado-badge.listo_para_envio {
+    background: #d1e7dd;
+    color: #0f5132;
+}
+
+.dc-estado-badge.en_transito {
+    background: #cff4fc;
+    color: #055160;
+}
+
+.dc-estado-badge.en_evento {
+    background: #e2d9f3;
+    color: #432874;
+}
+
+.dc-estado-badge.en_retorno {
+    background: #ffe5d0;
+    color: #984c0c;
+}
+
+.dc-estado-badge.retornado {
+    background: #d3d3d4;
+    color: #383d41;
+}
+
+.dc-estado-badge.cerrado {
+    background: #28a745;
+    color: white;
+}
+
+/* =====================================================
+   UI DE TABS POR CATEGORÍA (Cocina)
+   ===================================================== */
+.dc-categorias-tabs {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+}
+
+.dc-categoria-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    background: white;
+    color: #495057;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.dc-categoria-tab:hover {
+    background: #e7f3ff;
+    border-color: #007bff;
+    color: #007bff;
+}
+
+.dc-categoria-tab.active {
+    background: #007bff;
+    border-color: #007bff;
+    color: white;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.dc-categoria-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 0.35rem;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.dc-categoria-tab.active .dc-categoria-tab-count {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* =====================================================
+   CARD DE PRODUCTO EN COCINA
+   ===================================================== */
+.dc-producto-cocina-card {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    transition: all 0.3s ease;
+}
+
+.dc-producto-cocina-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+}
+
+.dc-producto-cocina-card.verificado {
+    background: #f1f8f4;
+    border-color: #28a745;
+}
+
+.dc-producto-cocina-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.dc-producto-cocina-titulo {
+    font-weight: 700;
+    color: #333;
+    font-size: 0.95rem;
+}
+
+.dc-producto-cocina-cantidad {
+    font-size: 0.8rem;
+    color: #666;
+    background: #f8f9fa;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+}
+
+/* =====================================================
+   BLOQUE DE CÁLCULO PREDICTIVO
+   ===================================================== */
+.dc-calculo-predictivo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0.75rem;
+    background: #e7f3ff;
+    border-radius: 6px;
+    border-left: 4px solid #007bff;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+}
+
+.dc-calculo-predictivo-label {
+    font-weight: 600;
+    color: #007bff;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.dc-calculo-predictivo-valor {
+    color: #333;
+}
+
+.dc-calculo-predictivo-sobrante {
+    color: #ff9800;
+    font-weight: 700;
+}
+
+/* =====================================================
+   RESPONSIVE
+   ===================================================== */
+@media (max-width: 768px) {
+    .dc-flujo-stepper {
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .dc-flujo-stepper::before {
+        display: none;
+    }
+
+    .dc-flujo-step {
+        flex: 0 0 30%;
+        min-width: 80px;
+    }
+
+    .dc-checklist-item-detalles {
+        padding-left: 0;
+    }
+
+    .dc-checklist-item-proveedores {
+        padding-left: 0;
+    }
+
+    .dc-metricas-tabla {
+        font-size: 0.8rem;
+    }
+
+    .dc-metricas-tabla th,
+    .dc-metricas-tabla td {
+        padding: 0.5rem 0.6rem;
+    }
+}
+
+/* =====================================================
+   🆕 ITEM VERIFICADO - TACHADO
+   El item marcado se ve tachado en gris
+   ===================================================== */
+.dc-checklist-item.verificado .dc-checklist-item-nombre {
+    text-decoration: line-through;
+    color: #999;
+    font-weight: 500;
+}
+
+.dc-checklist-item.verificado .dc-checklist-item-detalles,
+.dc-checklist-item.verificado .dc-checklist-item-verificado-at {
+    opacity: 0.7;
+}
+
+/* =====================================================
+   🆕 BANNER DE TURNO
+   Indica si es el turno del usuario o está esperando
+   ===================================================== */
+.dc-turno-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.dc-turno-banner.activo {
+    background: #d1e7dd;
+    color: #0f5132;
+    border-left: 4px solid #28a745;
+}
+
+.dc-turno-banner.activo i {
+    font-size: 1.1rem;
+    color: #28a745;
+}
+
+.dc-turno-banner.esperando {
+    background: #fff3cd;
+    color: #856404;
+    border-left: 4px solid #ffc107;
+}
+
+.dc-turno-banner.esperando i {
+    font-size: 1.1rem;
+    color: #ffc107;
+}
+
+/* =====================================================
+   🆕 BADGE CANCELADO
+   ===================================================== */
+.dc-estado-badge.cancelado {
+    background: #721c24;
+    color: white;
+}
+
+/* =====================================================
+   🆕 SUBTÍTULOS Y CANTIDAD
+   ===================================================== */
+.dc-etapa-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #495057;
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px dashed #dee2e6;
+}
+
+.dc-checklist-item-cantidad {
+    padding: 0.35rem 0.75rem;
+    background: #e7f3ff;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #0056b3;
+    white-space: nowrap;
+}
+
+.dc-checklist-btn-proveedor.dc-btn-llamar {
+    background: #007bff;
+    color: white;
+}
+
+.dc-checklist-btn-proveedor.dc-btn-llamar:hover {
+    background: #0056b3;
+}

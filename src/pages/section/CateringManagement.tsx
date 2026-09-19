@@ -9,6 +9,7 @@ import { CateringReturnModal } from '../../components/common/modal/catering/Cate
 import { CocinaLogisticaModal } from '../../components/common/modal/catering/CocinaLogisticaModal';
 import { CateringReprintModal } from '../../components/common/modal/catering/CateringReprintModal';
 import { CateringCancelModal } from '../../components/common/modal/catering/CateringCancelModal';
+import { CateringEventoFlujoModal } from '../../components/common/modal/catering/CateringEventoFlujoModal';
 import { DataTable, Column } from '../../components/common/DataTable';
 import { FilterSection, FilterField } from '../../components/common/FilterSection';
 import { ActivityLog } from '../../components/common/ActivityLog';
@@ -69,6 +70,7 @@ const CateringSalesContent: React.FC = () => {
     const [historialOpen, setHistorialOpen] = useState(false);
     const [cocinaOpen, setCocinaOpen] = useState(false);
     const [anularOpen, setAnularOpen] = useState(false);
+    const [flujoModalOpen, setFlujoModalOpen] = useState(false);
     const [selectedVenta, setSelectedVenta] = useState<VentaCatering | null>(null);
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
         search: filters.search,
@@ -207,6 +209,7 @@ const CateringSalesContent: React.FC = () => {
                             <i className="fas fa-print" onClick={() => { setSelectedVenta(item); setReimprimirOpen(true); }} title="Reimprimir"></i>
                             <i className="fas fa-clipboard-list" onClick={() => { setSelectedVenta(item); setCocinaOpen(true); }} title="Cocina/Logística"></i>
                             <i className="fas fa-trash-alt" onClick={() => { setSelectedVenta(item); setAnularOpen(true); }} title="Anular"></i>
+                            <i className="fas fa-project-diagram" onClick={() => { setSelectedVenta(item); setFlujoModalOpen(true); }} title="Ver flujo del evento" style={{ color: '#007bff' }} ></i>
                         </>
                     )}
                 />
@@ -226,6 +229,7 @@ const CateringSalesContent: React.FC = () => {
             <CateringReprintModal isOpen={reimprimirOpen} onClose={() => setReimprimirOpen(false)} venta={selectedVenta} />
             <CocinaLogisticaModal isOpen={cocinaOpen} onClose={() => setCocinaOpen(false)} venta={selectedVenta} />
             <CateringCancelModal isOpen={anularOpen} onClose={() => setAnularOpen(false)} venta={selectedVenta} onSuccess={() => setAnularOpen(false)} />
+            <CateringEventoFlujoModal isOpen={flujoModalOpen} onClose={() => setFlujoModalOpen(false)} idEvento={selectedVenta?.id || null} numeroVenta={selectedVenta?.numero} cliente={selectedVenta?.cliente} />
         </>
     );
 };

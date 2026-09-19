@@ -141,5 +141,59 @@ export const cateringEventoApi = {
         const res = await fetch(`${API_URL}/catering/eventos/${idEvento}/metricas?id_empresa=${idEmpresa}`);
         if (!res.ok) throw new Error('Error al obtener métricas');
         return await res.json();
+    },
+
+    guardarItemsChecklist: async (
+        idEvento: number,
+        idEmpresa: number,
+        etapa: string,
+        items: Array<{
+            item: string;
+            categoria: string;
+            id_referencia: number;
+            tipo_referencia: string;
+            cantidad_requerida: number;
+            unidad: string;
+            proveedores: Array<{ nombre: string; telefono: string }>;
+        }>
+    ): Promise<{ message: string; total: number }> => {
+        const res = await fetch(`${API_URL}/catering/eventos/${idEvento}/checklist/guardar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_empresa: idEmpresa, etapa, items })
+        });
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.message || 'Error al guardar items del checklist');
+        }
+        return await res.json();
+    },
+
+    // 🆕 Trae verificaciones de una etapa
+    getVerificaciones: async (idEvento: number, etapa: string, idEmpresa: number): Promise<Record<string, boolean>> => {
+        const res = await fetch(`${API_URL}/catering/eventos/${idEvento}/checklist?etapa=${etapa}&id_empresa=${idEmpresa}`);
+        if (!res.ok) return {};
+        const data = await res.json();
+        const mapa: Record<string, boolean> = {};
+        for (const row of data) {
+            mapa[row.item] = row.verificado === true;
+        }
+        return mapa;
+    },
+
+    // 🆕 Marca/desmarca un item
+    marcarItemVerificado: async (
+        idEvento: number, etapa: string, idEmpresa: number, usuarioId: number,
+        item: string, verificado: boolean
+    ): Promise<void> => {
+        const res = await fetch(`${API_URL}/catering/eventos/${idEvento}/checklist/marcar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_empresa: idEmpresa, usuario_id: usuarioId, etapa, item, verificado })
+        });
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.message || 'Error al marcar item');
+        }
     }
 };

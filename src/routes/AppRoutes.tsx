@@ -10,6 +10,7 @@ import InventoryManagement from '../pages/section/InventoryManagement';
 import SalesManagement from '../pages/section/SalesManagement';
 import CateringManagement from '../pages/section/CateringManagement';
 import RecipeManagement from '../pages/section/RecipeManagement';
+import Actividades from '../pages/section/Actividades';
 
 export const AppRoutes: React.FC = () => {
     const { isAuthenticated, isLoading } = useAuth();
@@ -37,7 +38,8 @@ export const AppRoutes: React.FC = () => {
             '/inventory-management',
             '/sales-management',
             '/catering-management',
-            '/recipe-management'
+            '/recipe-management',
+            '/actividades'
         ];
 
         if (isAuthenticated) {
@@ -74,6 +76,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="/sales-management" component={SalesManagement} />
             <Route path="/catering-management" component={CateringManagement} />
             <Route path="/recipe-management" component={RecipeManagement} />
+            <Route path="/actividades" component={Actividades} />
             <Route path="*">
                 {isAuthenticated ? <Home /> : <Login />}
             </Route>

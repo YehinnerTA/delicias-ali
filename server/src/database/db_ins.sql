@@ -312,7 +312,7 @@ VALUES (1, 'V-00001', '2026-08-21 20:38:04', @cliente_catering, @usuario_caterin
 
 SET @venta_cat = LAST_INSERT_ID();
 
--- ✅ Evento CON dirección, mozo y estado de flujo
+-- ✅ Evento CON dirección, mozo y estado de flujo (CORREGIDO: compra_pendiente)
 INSERT INTO catering_eventos (
     id_empresa, id_venta, fecha_evento, horario, personas, tipo_desayuno,
     direccion, referencia,
@@ -322,16 +322,16 @@ INSERT INTO catering_eventos (
     1, @venta_cat, DATE_ADD(CURDATE(), INTERVAL 3 DAY), '12:00:00', 20, 'Clásico',
     'Av. Los Álamos 123, Miraflores', 'Frente al parque central',
     1, 1, 100.00, 100.00,
-    'pendiente_verificacion', @usuario_catering, NOW(), 'Venta creada, esperando verificación'
+    'compra_pendiente', @usuario_catering, NOW(), 'Venta creada, enviada a almacén'
 );
 
 SET @evento_id = LAST_INSERT_ID();
 
--- ✅ Historial de cambio de estado
+-- ✅ Historial de cambio de estado (CORREGIDO: compra_pendiente)
 INSERT INTO catering_evento_historial 
 (id_empresa, id_evento, estado_anterior, estado_nuevo, id_usuario, observaciones)
 VALUES 
-(1, @evento_id, NULL, 'pendiente_verificacion', @usuario_catering, 'Venta creada');
+(1, @evento_id, NULL, 'compra_pendiente', @usuario_catering, 'Venta creada, enviada a almacén');
 
 -- ✅ Etapa 1: Verificación de almacén (pendiente)
 INSERT INTO catering_evento_etapas 
@@ -339,27 +339,38 @@ INSERT INTO catering_evento_etapas
 VALUES 
 (1, @evento_id, 'verificacion_almacen', 20);
 
+-- ✅ Etapas 2-7: Todas las etapas creadas desde el inicio
+INSERT INTO catering_evento_etapas 
+(id_empresa, id_evento, etapa, tiempo_estimado_min)
+VALUES 
+(1, @evento_id, 'preparacion_cocina', 90),
+(1, @evento_id, 'carga_transporte', 30),
+(1, @evento_id, 'montaje_evento', 45),
+(1, @evento_id, 'recojo_evento', 30),
+(1, @evento_id, 'retorno_empresa', 15),
+(1, @evento_id, 'cierre', 5);
+
 -- ✅ Checklist específico de almacén
 INSERT INTO catering_evento_checklist 
 (id_empresa, id_evento, etapa, item, categoria, tipo_referencia, 
  cantidad_requerida, unidad, cantidad_stock, cantidad_faltante, proveedores, orden)
 VALUES 
-(1, @evento_id, 'verificacion_almacen', 'Verificar stock de Pan', 'ingrediente', 'ingrediente',
+(1, @evento_id, 'verificacion_almacen', 'Pan', 'ingrediente', 'ingrediente',
     2, 'unidades', 30, 0, 
     JSON_ARRAY('Panadería Central - 995123456'), 1),
-(1, @evento_id, 'verificacion_almacen', 'Verificar stock de Jamón', 'ingrediente', 'ingrediente',
+(1, @evento_id, 'verificacion_almacen', 'Jamón', 'ingrediente', 'ingrediente',
     0.05, 'kg', 5, 0, 
     JSON_ARRAY('Carnes Premium - 995345678'), 2),
-(1, @evento_id, 'verificacion_almacen', 'Verificar stock de Queso', 'ingrediente', 'ingrediente',
+(1, @evento_id, 'verificacion_almacen', 'Queso', 'ingrediente', 'ingrediente',
     0.04, 'kg', 3, 0, 
     JSON_ARRAY('Lácteos Andinos - 995456789'), 3),
-(1, @evento_id, 'verificacion_almacen', 'Verificar stock de Café en grano', 'ingrediente', 'ingrediente',
+(1, @evento_id, 'verificacion_almacen', 'Café en grano', 'ingrediente', 'ingrediente',
     0.02, 'kg', 1, 0, 
     JSON_ARRAY('Café Altura - 998765432'), 4),
-(1, @evento_id, 'verificacion_almacen', 'Verificar material: Plato Cerámico', 'material', 'material',
+(1, @evento_id, 'verificacion_almacen', 'Plato Cerámico (x10)', 'material', 'material',
     2, 'unidades', 10, 0, 
     JSON_ARRAY('Proveedor de materiales - 999888777'), 5),
-(1, @evento_id, 'verificacion_almacen', 'Verificar material: Cubiertos Acero', 'material', 'material',
+(1, @evento_id, 'verificacion_almacen', 'Cubiertos Acero (set x20)', 'material', 'material',
     1, 'set', 5, 0, 
     JSON_ARRAY('Proveedor de materiales - 999888777'), 6);
 

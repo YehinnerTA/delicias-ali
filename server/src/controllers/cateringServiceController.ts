@@ -123,6 +123,7 @@ export const getVentasCatering = async (req: Request, res: Response) => {
                     cliente: `${venta.cliente_nombre || ''} ${venta.cliente_apellido || ''}`.trim(),
                     clienteDoc: venta.cliente_documento,
                     eventoData: evento ? {
+                        id_evento: evento.id,
                         fecha: evento.fecha_evento,
                         horario: evento.horario,
                         personas: evento.personas,
@@ -292,6 +293,7 @@ export const getVentaCateringById = async (req: Request, res: Response) => {
             cliente: `${venta.cliente_nombre || ''} ${venta.cliente_apellido || ''}`.trim(),
             clienteDoc: venta.cliente_documento,
             eventoData: evento ? {
+                id_evento: evento.id,
                 fecha: evento.fecha_evento,
                 horario: evento.horario,
                 personas: evento.personas,
@@ -521,13 +523,14 @@ export const createVentaCatering = async (req: Request, res: Response) => {
 
         const ventaId = ventaResult.insertId;
 
-        await executeMutation(
+        // 🆕 Capturamos el ID del evento
+        const eventoResult = await executeMutation(
             `INSERT INTO catering_eventos (
                id_empresa, id_venta, fecha_evento, horario, personas, tipo_desayuno,
                direccion, referencia,
                incluir_mozo, cantidad_mozos, precio_mozo, subtotal_mozo,
                estado_flujo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente_verificacion')`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'compra_pendiente')`,
             [
                 id_empresa,
                 ventaId,
@@ -542,6 +545,36 @@ export const createVentaCatering = async (req: Request, res: Response) => {
                 eventoData?.precio_mozo || 100,
                 eventoData?.subtotal_mozo || 0
             ]
+        );
+
+        const eventoId = eventoResult.insertId;
+
+        // 🆕 Creamos las 7 etapas del flujo
+        const etapas = [
+            { etapa: 'verificacion_almacen', estimado: 20 },
+            { etapa: 'preparacion_cocina', estimado: 90 },
+            { etapa: 'carga_transporte', estimado: 30 },
+            { etapa: 'montaje_evento', estimado: 45 },
+            { etapa: 'recojo_evento', estimado: 30 },
+            { etapa: 'retorno_empresa', estimado: 15 },
+            { etapa: 'cierre', estimado: 5 }
+        ];
+
+        for (const e of etapas) {
+            await executeMutation(
+                `INSERT INTO catering_evento_etapas 
+                 (id_empresa, id_evento, etapa, tiempo_estimado_min, completada) 
+                 VALUES (?, ?, ?, ?, 0)`,
+                [id_empresa, eventoId, e.etapa, e.estimado]
+            );
+        }
+
+        // 🆕 Historial inicial
+        await executeMutation(
+            `INSERT INTO catering_evento_historial 
+                (id_empresa, id_evento, estado_anterior, estado_nuevo, id_usuario, observaciones)
+             VALUES (?, ?, NULL, 'compra_pendiente', ?, 'Evento creado - enviado a almacén')`,
+            [id_empresa, eventoId, usuario_id]
         );
 
         for (const serv of servicios) {
@@ -792,6 +825,7 @@ export const updateVentaCatering = async (req: Request, res: Response) => {
             ...ventaActualizada,
             id_empresa: ventaActualizada.id_empresa,
             eventoData: nuevoEvento ? {
+                id_evento: nuevoEvento.id,
                 fecha: nuevoEvento.fecha_evento,
                 horario: nuevoEvento.horario,
                 personas: nuevoEvento.personas,
@@ -845,6 +879,16 @@ export const anularVentaCatering = async (req: Request, res: Response) => {
 
         await executeMutation(
             `UPDATE ventas SET estado = 'anulada' WHERE id = ? AND id_empresa = ?`,
+            [id, id_empresa]
+        );
+
+        // 🆕 Cancelar el evento asociado
+        await executeMutation(
+            `UPDATE catering_eventos 
+             SET estado_flujo = 'cancelado',
+                 estado_actualizado_at = NOW()
+             WHERE id_venta = ? AND id_empresa = ?
+               AND estado_flujo NOT IN ('cerrado', 'cancelado')`,
             [id, id_empresa]
         );
 

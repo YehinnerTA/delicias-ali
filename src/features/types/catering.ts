@@ -30,6 +30,7 @@ export interface MaterialVenta {
 }
 
 export interface EventoData {
+    id_evento?: number | null;
     fecha: string;
     horario: string;
     personas: number;
@@ -114,4 +115,26 @@ export interface Receta {
     porciones_por_unidad: number;
     porciones_total: number;
     ingredientes: IngredienteReceta[];
+}
+
+export type EstadoFlujo =
+    | 'pendiente_verificacion'
+    | 'compra_pendiente'
+    | 'en_preparacion'
+    | 'listo_para_envio'
+    | 'en_transito'
+    | 'en_evento'
+    | 'en_retorno'
+    | 'retornado'
+    | 'cerrado'
+    | 'cancelado';
+
+export interface ChecklistItemPayload {
+    item: string;
+    categoria: 'ingrediente' | 'material';
+    id_referencia: number;
+    tipo_referencia: 'ingrediente' | 'material';
+    cantidad_requerida: number;
+    unidad: string;
+    proveedores: Array<{ nombre: string; telefono: string }>;
 }
