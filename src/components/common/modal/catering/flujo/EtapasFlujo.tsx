@@ -7,20 +7,13 @@ import { useCompany } from '../../../../../features/company/context/CompanyConte
 interface EtapaProps {
     etapa: EtapaEvento;
     venta: VentaCatering | null;
-    verificaciones: Record<string, boolean>; // { "Pan": true, "Sándwich Premium x10": false }
+    verificaciones: Record<string, boolean>;
     puedeActuar: boolean;
     onVerificar: (nombreItem: string, verificado: boolean) => void;
     onConfirmar: (observaciones?: string) => void;
     onReportarIncidencia: () => void;
     isSubmitting: boolean;
 }
-
-const formatHora = (isoString: string | null): string => {
-    if (!isoString) return '—';
-    const date = new Date(isoString);
-    if (isNaN(date.getTime())) return '—';
-    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-};
 
 // =====================================================
 // 1. ALMACÉN - Lista de compras

@@ -17,6 +17,16 @@ interface TabEtapa {
     icon: string;
 }
 
+const formatLocalDate = (isoString: string): string => {
+    if (!isoString) return '-';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const año = date.getFullYear();
+    return `${dia}/${mes}/${año}`;
+};
+
 const TABS_POR_ROL: Record<string, TabEtapa[]> = {
     'Administrador': [
         { id: 'verificacion_almacen', label: 'Almacén', icon: 'fa-boxes' },
@@ -212,7 +222,7 @@ export const Actividades: React.FC = () => {
                                     </div>
 
                                     <div className="dc-actividad-card-body">
-                                        <div><i className="fas fa-calendar-alt"></i> {venta.eventoData?.fecha || 'Sin fecha'} · {venta.eventoData?.horario || ''}</div>
+                                        <div><i className="fas fa-calendar-alt"></i> {formatLocalDate(venta.eventoData?.fecha) || 'Sin fecha'} · {venta.eventoData?.horario || ''}</div>
                                         <div><i className="fas fa-users"></i> {venta.eventoData?.personas || 0} personas</div>
                                         {venta.eventoData?.direccion && (
                                             <div><i className="fas fa-map-marker-alt"></i> {venta.eventoData.direccion}</div>

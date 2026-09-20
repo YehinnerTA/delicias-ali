@@ -121,7 +121,7 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
             <div className="dc-history-desc">{h.descripcion}</div>
         </div>
     ));
-
+    //
     const eventoInfo = venta.eventoData ? (
         <div className="dc-info-grid">
             <div className="dc-info-item">
