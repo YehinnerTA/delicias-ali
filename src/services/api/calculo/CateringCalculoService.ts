@@ -1,14 +1,13 @@
 import { recetaApi } from '../recetaApi';
 import { VentaCatering } from '../../../features/types/catering';
 
-// =====================================================
-// TIPOS
-// =====================================================
 export interface IngredienteCalculado {
     nombre: string;
     cantidad: number;
     unidad: string;
     proveedores: Array<{ nombre: string; telefono: string }>;
+    categoria?: string;
+    es_opcional?: boolean;
 }
 
 export interface ProductoCalculado {
@@ -30,15 +29,8 @@ export interface MaterialCalculado {
     precio: number;
 }
 
-// =====================================================
-// SERVICIO COMPARTIDO
-// =====================================================
 export const cateringCalculoService = {
 
-    /**
-     * Calcula los productos a preparar con sus ingredientes anidados
-     * Se usa en: Cocina, Despacho, CocinaLogisticaModal
-     */
     calcularProductos: async (venta: VentaCatering | null, idEmpresa: number): Promise<ProductoCalculado[]> => {
         if (!venta?.servicios || venta.servicios.length === 0) return [];
 
@@ -54,7 +46,6 @@ export const cateringCalculoService = {
                 const key = prod.nombre.toLowerCase();
                 const existente = productosMap.get(key);
 
-                // Calcular unidades base según tipo de preparación
                 let unidadesBase = prod.cantidad;
                 if (receta.tipo_preparacion !== 'por_unidad') {
                     const porcionesPorUnidad = receta.porciones_por_unidad || 1;
@@ -64,7 +55,6 @@ export const cateringCalculoService = {
                     ? prod.cantidad
                     : unidadesBase * (receta.porciones_por_unidad || 1);
 
-                // Calcular ingredientes
                 const ingredientes: IngredienteCalculado[] = (receta.ingredientes || []).map((ing: any) => {
                     const cantidadTotal = ing.cantidadPorUnidad * unidadesBase;
                     const proveedores = (ing.proveedores || []).map((prov: string) => {
@@ -76,11 +66,12 @@ export const cateringCalculoService = {
                         nombre: ing.nombre,
                         cantidad: cantidadTotal,
                         unidad: ing.unidad,
-                        proveedores
+                        proveedores,
+                        categoria: ing.categoria || 'Sin categoría',
+                        es_opcional: ing.es_opcional || false
                     };
                 });
 
-                // Descripción del cálculo
                 let descripcionCalculo = '';
                 if (receta.tipo_preparacion === 'por_unidad') {
                     descripcionCalculo = `1 unidad = 1 porción / Unidades: ${prod.cantidad}`;
@@ -125,9 +116,6 @@ export const cateringCalculoService = {
         return Array.from(productosMap.values());
     },
 
-    /**
-     * Lista plana de ingredientes (para Almacén - lista de compras)
-     */
     calcularIngredientesPlanos: async (venta: VentaCatering | null, idEmpresa: number): Promise<IngredienteCalculado[]> => {
         const productos = await cateringCalculoService.calcularProductos(venta, idEmpresa);
         const acumulado = new Map<string, IngredienteCalculado>();
@@ -152,9 +140,6 @@ export const cateringCalculoService = {
         return Array.from(acumulado.values());
     },
 
-    /**
-     * Materiales de la venta
-     */
     calcularMateriales: (venta: VentaCatering | null): MaterialCalculado[] => {
         if (!venta?.materiales) return [];
         return venta.materiales.map(m => ({

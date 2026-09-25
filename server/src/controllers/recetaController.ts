@@ -519,11 +519,15 @@ export const getRecetaByProducto = async (req: Request, res: Response) => {
                 i.nombre AS ingrediente_nombre,
                 i.unidad,
                 ri.cantidad_por_unidad,
+                ri.es_opcional,
+                i.id_categoria,
+                c.nombre AS categoria_nombre,
                 p.nombre AS proveedor_nombre,
                 p.celular AS proveedor_telefono
             FROM recetas r
             JOIN receta_ingredientes ri ON r.id = ri.id_receta
             JOIN ingredientes i ON ri.id_ingrediente = i.id
+            LEFT JOIN categorias_alimentos c ON i.id_categoria = c.id
             LEFT JOIN ingrediente_proveedores ip ON i.id = ip.id_ingrediente AND i.id_empresa = ip.id_empresa
             LEFT JOIN personas p ON ip.id_proveedor = p.id AND p.id_empresa = ?
             WHERE (r.nombre LIKE ?

@@ -628,63 +628,93 @@ CREATE TABLE catering_evento_etapas (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 34. CHECKLIST ESPECÍFICO DEL EVENTO (NUEVA)
+-- 34. CHECKLIST ESPECÍFICO DEL EVENTO
 -- =====================================================
 CREATE TABLE catering_evento_checklist (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_empresa INT NOT NULL,
     id_evento INT NOT NULL,
     etapa VARCHAR(50) NOT NULL COMMENT 'verificacion_almacen, preparacion_cocina, carga_transporte, montaje_evento, recojo_evento, retorno_empresa, cierre',
-    
-    -- ✅ Detalle específico del item
     item VARCHAR(255) NOT NULL COMMENT 'Descripción específica',
     categoria VARCHAR(50) NULL COMMENT 'entrada, plato_principal, postre, bebida, material, ingrediente',
     id_referencia INT NULL COMMENT 'ID del producto/material/ingrediente',
     tipo_referencia VARCHAR(50) NULL COMMENT 'producto_carta, material, ingrediente',
-    
-    -- ✅ Datos calculados
-    cantidad_requerida DECIMAL(10,2) NULL COMMENT 'Cantidad necesaria',
+    cantidad_requerida DECIMAL(10,2) NULL COMMENT 'Cantidad necesaria (o cantidad que salió, para Recojo/Retorno)',
+    cantidad_real DECIMAL(10,2) NULL COMMENT 'Cantidad real verificada (para Recojo y Retorno)',
     unidad VARCHAR(20) NULL COMMENT 'Unidad de medida',
     cantidad_stock DECIMAL(10,2) NULL COMMENT 'Stock actual',
     cantidad_faltante DECIMAL(10,2) NULL COMMENT 'Cantidad a comprar',
     proveedores JSON NULL COMMENT 'Lista de proveedores con teléfonos',
-    
-    -- ✅ Verificación (solo marcar, sin horas manuales)
     verificado TINYINT(1) DEFAULT 0,
     verificado_por INT NULL,
     verificado_at DATETIME NULL COMMENT 'Auto: cuando se marca',
-    
-    -- ✅ Incidencia (si hay algo mal)
     tiene_incidencia TINYINT(1) DEFAULT 0,
     descripcion_incidencia TEXT NULL,
-    
     orden INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
     FOREIGN KEY (id_empresa) REFERENCES empresas(id),
     FOREIGN KEY (id_evento) REFERENCES catering_eventos(id) ON DELETE CASCADE,
     FOREIGN KEY (verificado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
     INDEX idx_evento (id_evento),
-    INDEX idx_etapa (etapa)
+    INDEX idx_etapa (etapa),
+    UNIQUE KEY uk_evento_etapa_item (id_evento, etapa, item)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- 35. INCIDENCIAS DEL EVENTO (NUEVA)
+-- 35. INCIDENCIAS DEL EVENTO
 -- =====================================================
 CREATE TABLE catering_evento_incidencias (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_empresa INT NOT NULL,
     id_evento INT NOT NULL,
     etapa VARCHAR(50) NOT NULL COMMENT 'Etapa donde ocurrió',
-    tipo VARCHAR(50) NOT NULL COMMENT 'falta_stock, retraso, producto_defectuoso, cliente_ausente, otro',
+    id_checklist_item INT NULL COMMENT 'Item del checklist afectado',
+    tipo VARCHAR(50) NOT NULL COMMENT 'falta_stock, retraso, producto_defectuoso, cliente_ausente, otro, perdida, dano, robo, error_conteo',
+    severidad ENUM('baja','media','critica') DEFAULT 'media' COMMENT 'Severidad de la incidencia',
+    cantidad_afectada DECIMAL(10,2) NULL COMMENT 'Cuánto faltó/dañó',
     descripcion TEXT NOT NULL,
     impacto TEXT NULL COMMENT 'Impacto en tiempo o costo',
-    id_usuario INT NOT NULL,
+    estado ENUM('abierta','en_revision','resuelta','descartada') DEFAULT 'abierta' COMMENT 'Estado actual',
+    resolucion TEXT NULL COMMENT 'Cómo se resolvió',
+    resuelto_por INT NULL COMMENT 'Usuario que resolvió',
+    resuelto_at DATETIME NULL COMMENT 'Cuándo se resolvió',
+    id_usuario INT NOT NULL COMMENT 'Usuario que reportó',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (id_empresa) REFERENCES empresas(id),
     FOREIGN KEY (id_evento) REFERENCES catering_eventos(id) ON DELETE CASCADE,
+    FOREIGN KEY (id_checklist_item) REFERENCES catering_evento_checklist(id) ON DELETE SET NULL,
     FOREIGN KEY (id_usuario) REFERENCES usuarios(id),
+    FOREIGN KEY (resuelto_por) REFERENCES usuarios(id) ON DELETE SET NULL,
     INDEX idx_evento (id_evento),
-    INDEX idx_tipo (tipo)
+    INDEX idx_tipo (tipo),
+    INDEX idx_estado (estado),
+    INDEX idx_severidad (severidad)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- 36. PREPARACIÓN DE RECETAS (COCINA)
+-- =====================================================
+CREATE TABLE catering_evento_preparacion (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
+    id_evento INT NOT NULL,
+    item VARCHAR(255) NOT NULL COMMENT 'Descripción del producto: "Sándwich Premium x10"',
+    hora_inicio DATETIME NOT NULL COMMENT 'Auto: cuando el chef inicia la receta',
+    hora_fin DATETIME NULL COMMENT 'Auto: cuando marca como preparado',
+    duracion_real_min INT NULL COMMENT 'Calculado: TIMESTAMPDIFF(MINUTE, hora_inicio, hora_fin)',
+    iniciado_por INT NULL COMMENT 'Usuario que inició',
+    finalizado_por INT NULL COMMENT 'Usuario que terminó',
+    estado VARCHAR(20) NOT NULL DEFAULT 'en_progreso' COMMENT 'en_progreso, pausado, completado',
+    observaciones TEXT NULL COMMENT 'Notas del chef (opcional)',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    FOREIGN KEY (id_evento) REFERENCES catering_eventos(id) ON DELETE CASCADE,
+    FOREIGN KEY (iniciado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (finalizado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+    UNIQUE KEY uk_evento_item (id_evento, item),
+    INDEX idx_evento (id_evento),
+    INDEX idx_estado (estado)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

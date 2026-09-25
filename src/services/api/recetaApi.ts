@@ -104,7 +104,6 @@ export const recetaApi = {
         rendimiento: number;
         ingredientes: any[];
     }> => {
-        // ✅ Valores por defecto (fallback)
         const defaultResponse = {
             receta_nombre: nombreProducto,
             tipo_preparacion: 'por_unidad' as const,
@@ -116,7 +115,9 @@ export const recetaApi = {
                 nombre: 'Producto genérico',
                 cantidadPorUnidad: 1,
                 unidad: 'unidad',
-                proveedores: ['Proveedor General - 900123456']
+                proveedores: ['Proveedor General - 900123456'],
+                categoria: 'Sin categoría',
+                es_opcional: false
             }]
         };
 
@@ -129,7 +130,6 @@ export const recetaApi = {
         const data = await res.json();
         if (!data || data.length === 0) return defaultResponse;
 
-        // ✅ Tomar los datos de receta del primer elemento (vienen en todas las filas)
         const primerItem = data[0];
 
         return {
@@ -145,7 +145,9 @@ export const recetaApi = {
                 unidad: item.unidad,
                 proveedores: item.proveedor_nombre
                     ? [`${item.proveedor_nombre} - ${item.proveedor_telefono}`]
-                    : undefined
+                    : undefined,
+                categoria: item.categoria_nombre || 'Sin categoría',
+                es_opcional: item.es_opcional === 1 || item.es_opcional === true
             }))
         };
     }

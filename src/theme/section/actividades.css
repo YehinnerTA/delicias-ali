@@ -327,3 +327,259 @@
 .dc-cocina-card.verificado .dc-cocina-insumos {
     opacity: 0.65;
 }
+
+/* =====================================================
+   ALMACÉN - Resumen, filtros y grupos
+   ===================================================== */
+
+.dc-almacen-resumen {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.dc-almacen-resumen-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #6c757d;
+}
+
+.dc-almacen-resumen-item i {
+    font-size: 1.5rem;
+    color: #6c757d;
+}
+
+.dc-almacen-resumen-item.success {
+    background: #e8f5e9;
+    border-left-color: #28a745;
+}
+
+.dc-almacen-resumen-item.success i {
+    color: #28a745;
+}
+
+.dc-almacen-resumen-item.warning {
+    background: #fff8e1;
+    border-left-color: #ffc107;
+}
+
+.dc-almacen-resumen-item.warning i {
+    color: #856404;
+}
+
+.dc-almacen-resumen-valor {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #333;
+    line-height: 1;
+}
+
+.dc-almacen-resumen-label {
+    font-size: 0.75rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 0.2rem;
+}
+
+.dc-almacen-progreso {
+    position: relative;
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+
+.dc-almacen-progreso-barra {
+    height: 100%;
+    background: linear-gradient(90deg, #007bff, #28a745);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.dc-almacen-progreso-texto {
+    position: absolute;
+    right: 0;
+    top: -20px;
+    font-size: 0.75rem;
+    color: #666;
+    font-weight: 600;
+}
+
+.dc-almacen-filtros {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.dc-almacen-filtro-buscar {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 0 0.75rem;
+}
+
+.dc-almacen-filtro-buscar i.fa-search {
+    color: #999;
+    font-size: 0.85rem;
+}
+
+.dc-almacen-filtro-buscar input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    background: transparent;
+    color: black;
+}
+
+.dc-almacen-filtro-limpiar {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #999;
+    padding: 0.25rem;
+}
+
+.dc-almacen-filtro-limpiar:hover {
+    color: #dc3545;
+}
+
+.dc-almacen-filtro-estado {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    color: black;
+    background: white;
+    font-size: 0.9rem;
+    cursor: pointer;
+    min-width: 160px;
+}
+
+.dc-almacen-grupo {
+    margin-bottom: 1.25rem;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.dc-almacen-grupo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, #f8f9fa, #eef2f7);
+    border-bottom: 1px solid #e9ecef;
+}
+
+.dc-almacen-grupo-titulo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.9rem;
+}
+
+.dc-almacen-grupo-titulo i {
+    color: #007bff;
+}
+
+.dc-almacen-grupo-contador {
+    background: #e9ecef;
+    color: #495057;
+    padding: 0.15rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.dc-almacen-grupo-btn-marcar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    background: white;
+    color: #007bff;
+    border: 1px solid #007bff;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.dc-almacen-grupo-btn-marcar:hover {
+    background: #007bff;
+    color: white;
+}
+
+.dc-almacen-grupo-body {
+    padding: 0.75rem;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.dc-almacen-badge-opcional {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.1rem 0.4rem;
+    background: #e7f3ff;
+    color: #0056b3;
+    font-size: 0.65rem;
+    font-weight: 700;
+    border-radius: 10px;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.dc-almacen-alerta-sin-proveedor {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: #856404;
+    background: #fff3cd;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    margin-top: 0.35rem;
+}
+
+.dc-checklist-item.sin-proveedor {
+    border-left: 3px solid #ffc107;
+}
+
+.dc-almacen-vacio {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: #999;
+}
+
+.dc-almacen-vacio i {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    opacity: 0.4;
+}
+
+@media (max-width: 600px) {
+    .dc-almacen-resumen {
+        grid-template-columns: 1fr;
+    }
+
+    .dc-almacen-filtros {
+        flex-direction: column;
+    }
+}

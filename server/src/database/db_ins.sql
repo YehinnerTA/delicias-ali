@@ -448,19 +448,9 @@ VALUES ('catering', 'VENTA', CONCAT('Venta ', (SELECT numero FROM ventas WHERE i
 -- =====================================================
 -- VERIFICACIÓN FINAL
 -- =====================================================
-SELECT 
-    id, personas, direccion, referencia,
-    incluir_mozo, cantidad_mozos, subtotal_mozo,
-    estado_flujo, estado_actualizado_at
-FROM catering_eventos WHERE id = @evento_id;
-
-SELECT estado_anterior, estado_nuevo, observaciones, created_at
-FROM catering_evento_historial WHERE id_evento = @evento_id;
-
 SELECT etapa, hora_inicio, hora_fin, tiempo_estimado_min, completada
 FROM catering_evento_etapas WHERE id_evento = @evento_id;
 
-SELECT etapa, item, cantidad_requerida, unidad, verificado
-FROM catering_evento_checklist WHERE id_evento = @evento_id ORDER BY orden;
-
-SELECT id, numero, subtotal, igv, total FROM ventas WHERE id = @venta_cat;
+SELECT * FROM catering_evento_checklist;
+SELECT * FROM catering_evento_etapas;
+SELECT * FROM catering_evento_preparacion;

@@ -23,11 +23,11 @@ const FLUJO_ESTADOS = [
     { key: 'compra_pendiente', label: 'Almacén', icon: 'fa-boxes', area: 'Logística' },
     { key: 'en_preparacion', label: 'Cocina', icon: 'fa-utensils', area: 'Cocina' },
     { key: 'listo_para_envio', label: 'Despacho', icon: 'fa-truck-loading', area: 'Logística' },
-    { key: 'en_transito', label: 'En Tránsito', icon: 'fa-truck', area: 'Logística' },
     { key: 'en_evento', label: 'Evento', icon: 'fa-glass-cheers', area: 'Logística' },
     { key: 'en_retorno', label: 'Recojo', icon: 'fa-undo', area: 'Logística' },
     { key: 'retornado', label: 'Retorno', icon: 'fa-home', area: 'Logística' },
-    { key: 'cerrado', label: 'Cierre', icon: 'fa-check-double', area: 'Admin' },
+    { key: 'cierre', label: 'Cierre', icon: 'fa-check-double', area: 'Admin' },
+    { key: 'cerrado', label: 'Cerrado', icon: 'fa-lock', area: 'Admin' },
 ];
 
 const ESTADO_A_ETAPA: Record<string, string> = {
@@ -35,12 +35,12 @@ const ESTADO_A_ETAPA: Record<string, string> = {
     'compra_pendiente': 'verificacion_almacen',
     'en_preparacion': 'preparacion_cocina',
     'listo_para_envio': 'carga_transporte',
-    'en_transito': 'carga_transporte',
     'en_evento': 'montaje_evento',
     'en_retorno': 'recojo_evento',
     'retornado': 'retorno_empresa',
-    'cierre': 'cierre',           // 🆕 Estado CIERRE → etapa cierre
-    'cerrado': 'cierre'
+    'cierre': 'cierre',
+    'cerrado': '',
+    'cancelado': '',
 };
 
 const ETAPAS_POR_ROL: Record<string, string[]> = {
@@ -56,11 +56,11 @@ const ETAPAS_POR_ROL: Record<string, string[]> = {
     ]
 };
 
-const formatTiempo = (minutos: number): string => {
-    const horas = Math.floor(minutos / 60);
-    const mins = minutos % 60;
-    if (horas > 0) return `${String(horas).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00`;
-    return `${String(mins).padStart(2, '0')}:00`;
+const formatTiempo = (segundosTotales: number): string => {
+    const horas = Math.floor(segundosTotales / 3600);
+    const mins = Math.floor((segundosTotales % 3600) / 60);
+    const segs = segundosTotales % 60;
+    return `${String(horas).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(segs).padStart(2, '0')}`;
 };
 
 const formatHora = (isoString: string | null): string => {
@@ -104,10 +104,14 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
 
     useEffect(() => {
         if (!etapaActual?.hora_inicio || etapaActual.completada) return;
-        const interval = setInterval(() => {
+
+        const calcular = () => {
             const inicio = new Date(etapaActual.hora_inicio!).getTime();
-            setTiempoTranscurrido(Math.floor((Date.now() - inicio) / 60000));
-        }, 1000);
+            setTiempoTranscurrido(Math.floor((Date.now() - inicio) / 1000));
+        };
+
+        calcular();
+        const interval = setInterval(calcular, 1000);
         return () => clearInterval(interval);
     }, [etapaActual]);
 
@@ -164,6 +168,40 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
         }
     };
 
+    const handleVerificarMultiple = async (nombresItems: string[], verificado: boolean) => {
+        if (!idEvento || !id_empresa || !user?.id || !etapaActual) return;
+
+        if (!puedeActuar) {
+            showToast('No es tu turno para esta etapa', 'warning', 'Sin permiso');
+            return;
+        }
+
+        if (nombresItems.length === 0) return;
+
+        setVerificaciones(prev => {
+            const next = { ...prev };
+            for (const nombre of nombresItems) next[nombre] = verificado;
+            return next;
+        });
+
+        try {
+            await Promise.all(nombresItems.map(nombre =>
+                cateringEventoApi.marcarItemVerificado(
+                    idEvento, etapaActual.etapa, id_empresa, user.id, nombre, verificado
+                )
+            ));
+            showToast(`${nombresItems.length} items actualizados`, 'success', 'Actualizado');
+        } catch (error) {
+            setVerificaciones(prev => {
+                const next = { ...prev };
+                for (const nombre of nombresItems) next[nombre] = !verificado;
+                return next;
+            });
+            console.error('[CateringEventoFlujoModal] Error al marcar múltiples:', error);
+            showToast('Error al marcar items', 'error', 'Error');
+        }
+    };
+
     const handleConfirmarEtapa = async (obsOverride?: string) => {
         if (!idEvento || !id_empresa || !user?.id || !etapaActual) return;
 
@@ -179,8 +217,6 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
             );
 
             showToast('Etapa confirmada correctamente', 'success', 'Confirmado');
-
-            // 🆕 CERRAR EL MODAL en vez de recargar
             setObservaciones('');
             setMostrarIncidencia(false);
             onClose();
@@ -230,6 +266,8 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
     if (!idEvento) return null;
 
     const areaActual = FLUJO_ESTADOS[estadoActualIndex]?.area || '-';
+    const esEstadoCerrado = estadoActualKey === 'cerrado';
+    const esEstadoCancelado = estadoActualKey === 'cancelado';
 
     return (
         <Modal
@@ -246,7 +284,6 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
                     </div>
                 ) : (
                     <>
-                        {/* Info del evento */}
                         <div className="dc-info-card" style={{ marginBottom: '1.5rem' }}>
                             <div className="dc-info-grid">
                                 <div className="dc-info-item">
@@ -272,7 +309,6 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
                             </div>
                         </div>
 
-                        {/* Banner de turno */}
                         {etapaActual && (
                             <div className={`dc-turno-banner ${puedeActuar ? 'activo' : 'esperando'}`}>
                                 {puedeActuar ? (
@@ -289,7 +325,6 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
                             </div>
                         )}
 
-                        {/* Stepper */}
                         <div className="dc-flujo-stepper">
                             {FLUJO_ESTADOS.map((estado, index) => {
                                 let className = 'dc-flujo-step';
@@ -308,17 +343,16 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
                             })}
                         </div>
 
-                        {/* Etapa actual */}
                         {etapaActual && (
                             <>
-                                <div className={`dc-tiempo-container ${etapaActual.tiempo_estimado_min && tiempoTranscurrido > etapaActual.tiempo_estimado_min ? 'excedido' : ''}`}>
+                                <div className={`dc-tiempo-container ${etapaActual.tiempo_estimado_min && tiempoTranscurrido > (etapaActual.tiempo_estimado_min || 0) * 60 ? 'excedido' : ''}`}>
                                     <i className="fas fa-clock dc-tiempo-icon"></i>
                                     <div className="dc-tiempo-info">
                                         <div className="dc-tiempo-transcurrido">{formatTiempo(tiempoTranscurrido)}</div>
                                         <div className="dc-tiempo-detalles">
                                             Inicio: {formatHora(etapaActual.hora_inicio)} |
                                             Estimado: {etapaActual.tiempo_estimado_min ? `${etapaActual.tiempo_estimado_min} min` : 'N/A'}
-                                            {etapaActual.tiempo_estimado_min && tiempoTranscurrido > etapaActual.tiempo_estimado_min && (
+                                            {etapaActual.tiempo_estimado_min && tiempoTranscurrido > (etapaActual.tiempo_estimado_min || 0) * 60 && (
                                                 <span style={{ color: '#856404', fontWeight: '600', marginLeft: '0.5rem' }}>⚠️ Tiempo excedido</span>
                                             )}
                                         </div>
@@ -344,6 +378,7 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
                                                 verificaciones={verificaciones}
                                                 puedeActuar={puedeActuar}
                                                 onVerificar={handleVerificar}
+                                                onVerificarMultiple={handleVerificarMultiple}
                                                 onConfirmar={handleConfirmarEtapa}
                                                 onReportarIncidencia={() => setMostrarIncidencia(true)}
                                                 isSubmitting={isSubmitting}
@@ -352,7 +387,6 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
                                     })()}
                                 </div>
 
-                                {/* Formulario incidencia */}
                                 {mostrarIncidencia && (
                                     <div className="dc-incidencia-form">
                                         <div className="dc-incidencia-form-header">
@@ -387,8 +421,7 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
                             </>
                         )}
 
-                        {/* Evento cerrado */}
-                        {!etapaActual && flujo?.evento?.estado_flujo === 'cerrado' && (
+                        {!etapaActual && esEstadoCerrado && (
                             <div className="dc-info-card" style={{ textAlign: 'center', padding: '2rem' }}>
                                 <i className="fas fa-check-circle" style={{ fontSize: '3rem', color: '#28a745', marginBottom: '1rem' }}></i>
                                 <h3 style={{ color: '#28a745', marginBottom: '0.5rem' }}>Evento Cerrado</h3>
@@ -396,8 +429,7 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
                             </div>
                         )}
 
-                        {/* Evento cancelado */}
-                        {!etapaActual && flujo?.evento?.estado_flujo === 'cancelado' && (
+                        {!etapaActual && esEstadoCancelado && (
                             <div className="dc-info-card" style={{ textAlign: 'center', padding: '2rem' }}>
                                 <i className="fas fa-ban" style={{ fontSize: '3rem', color: '#dc3545', marginBottom: '1rem' }}></i>
                                 <h3 style={{ color: '#dc3545', marginBottom: '0.5rem' }}>Evento Cancelado</h3>

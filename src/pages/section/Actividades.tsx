@@ -10,7 +10,6 @@ import { Tabs } from '../../components/ui/shared/Tabs';
 import { CateringEventoFlujoModal } from '../../components/common/modal/catering/CateringEventoFlujoModal';
 import '../../theme/section/actividades.css';
 
-// Configuración por rol
 interface TabEtapa {
     id: string;
     label: string;
@@ -50,7 +49,6 @@ const TABS_POR_ROL: Record<string, TabEtapa[]> = {
     'Cajero': [],
 };
 
-// Mapeo etapa → estado del flujo
 const ETAPA_A_ESTADO: Record<string, string> = {
     'verificacion_almacen': 'compra_pendiente',
     'preparacion_cocina': 'en_preparacion',
@@ -58,18 +56,30 @@ const ETAPA_A_ESTADO: Record<string, string> = {
     'montaje_evento': 'en_evento',
     'recojo_evento': 'en_retorno',
     'retorno_empresa': 'retornado',
-    'cierre': 'retornado',
+    'cierre': 'cierre',
 };
+
+const ORDEN_ESTADOS = [
+    'pendiente_verificacion',
+    'compra_pendiente',
+    'en_preparacion',
+    'listo_para_envio',
+    'en_evento',
+    'en_retorno',
+    'retornado',
+    'cierre',
+    'cerrado'
+];
 
 const ETIQUETA_ESTADO: Record<string, string> = {
     'pendiente_verificacion': 'Pendiente de verificación',
     'compra_pendiente': 'Compra pendiente',
     'en_preparacion': 'En preparación',
     'listo_para_envio': 'Listo para envío',
-    'en_transito': 'En tránsito',
     'en_evento': 'En evento',
     'en_retorno': 'En retorno',
     'retornado': 'Retornado',
+    'cierre': 'Pendiente de cierre',
     'cerrado': 'Cerrado',
     'cancelado': 'Cancelado',
 };
@@ -114,27 +124,20 @@ export const Actividades: React.FC = () => {
         }
     };
 
-    console.log('[DEBUG] Total ventas:', ventas.length);
-    console.log('[DEBUG] tabActiva:', tabActiva);
-    console.log('[DEBUG] estadoTab:', ETAPA_A_ESTADO[tabActiva]);
-    console.log('[DEBUG] subTarea:', subtarea);
-    ventas.forEach(v => {
-        console.log('[DEBUG] Venta:', v.numero, '| estado_flujo:', v.eventoData?.estado_flujo, '| id_evento:', v.eventoData?.id_evento);
-    });
-
-    // Filtrar por tab + subtarea
     const eventosDelTab = ventas.filter(v => {
         const estado = v.eventoData?.estado_flujo || 'pendiente_verificacion';
+
+        if (subtarea === 'pendientes' && (estado === 'cerrado' || estado === 'cancelado')) {
+            return false;
+        }
+
         const estadoTab = ETAPA_A_ESTADO[tabActiva];
 
         if (subtarea === 'pendientes') {
-            // Eventos en el estado de esta etapa
             return estado === estadoTab;
         } else {
-            // Completados: los que ya avanzaron más allá de esta etapa
-            const orden = ['pendiente_verificacion', 'compra_pendiente', 'en_preparacion', 'listo_para_envio', 'en_transito', 'en_evento', 'en_retorno', 'retornado', 'cerrado'];
-            const idxActual = orden.indexOf(estado);
-            const idxTab = orden.indexOf(estadoTab);
+            const idxActual = ORDEN_ESTADOS.indexOf(estado);
+            const idxTab = ORDEN_ESTADOS.indexOf(estadoTab);
             return idxActual > idxTab;
         }
     });
@@ -168,10 +171,8 @@ export const Actividades: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Tabs por área */}
                 <Tabs tabs={tabsDisponibles} activeTab={tabActiva} onTabChange={setTabActiva} />
 
-                {/* Subtabs Pendientes / Completadas */}
                 <div className="dc-subtabs">
                     <button
                         className={`dc-subtab ${subtarea === 'pendientes' ? 'active' : ''}`}
@@ -187,7 +188,6 @@ export const Actividades: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Lista de eventos */}
                 {isLoading ? (
                     <div style={{ textAlign: 'center', padding: '3rem' }}>
                         <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: '#007bff' }}></i>
