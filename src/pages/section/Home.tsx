@@ -15,7 +15,6 @@ import LogisticaDashboard from './dashboards/LogisticaDashboard';
 
 import '../../theme/section/home.css';
 import '../../theme/section/dashboards/shared.css';
-import '../../theme/section/dashboards/admin.css';
 
 /**
  * Mapeo de id_rol a dashboard
