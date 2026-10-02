@@ -4,6 +4,7 @@ import { VentaCatering } from '../../../../features/types/catering';
 import { HistorialEntry } from '../../../../features/types/hist_act';
 import { historialApi } from '../../../../services/api/historialApi';
 import { useToast } from '../../../../hooks/base/useToast';
+import { generarPDF } from '../../../../services/pdf/pdfService';
 
 const formatLocalDate = (isoString: string): string => {
     if (!isoString) return '-';
@@ -121,7 +122,7 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
             <div className="dc-history-desc">{h.descripcion}</div>
         </div>
     ));
-    //
+
     const eventoInfo = venta.eventoData ? (
         <div className="dc-info-grid">
             <div className="dc-info-item">
@@ -173,8 +174,19 @@ export const CateringDetailsModal: React.FC<CateringDetailsModalProps> = ({ isOp
         </div>
     ) : null;
 
+    const modalFooter = (
+        <>
+            <button className="dc-btn info" onClick={() => { generarPDF(venta, 'cotizacion'); }}>
+                <i className="fas fa-file-invoice"></i> Imprimir Cotización
+            </button>
+            <button className="dc-btn warning" onClick={() => generarPDF(venta, 'contrato')}>
+                <i className="fas fa-file-signature"></i> Imprimir Contrato
+            </button>
+        </>
+    );
+
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={`Detalle de Venta - ${venta.numero}`} icon="fa-receipt">
+        <Modal isOpen={isOpen} onClose={onClose} title={`Detalle de Venta - ${venta.numero}`} icon="fa-receipt" footer={modalFooter}>
             <div className="dc-tabs">
                 <button
                     className={`dc-tab-btn ${activeTab === 'detalle' ? 'active' : ''}`}

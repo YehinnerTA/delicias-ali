@@ -14,7 +14,7 @@ interface CateringReprintModalProps {
 export const CateringReprintModal: React.FC<CateringReprintModalProps> = ({ isOpen, onClose, venta }) => {
     const { addToHistory } = useCateringService();
     const { showToast } = useToast();
-    const [tipoComprobante, setTipoComprobante] = useState<'ticket' | 'factura'>('ticket');
+    const [tipoComprobante, setTipoComprobante] = useState<'ticket' | 'factura' | 'cotizacion' | 'contrato'>('ticket');
 
     if (!venta) return null;
 
@@ -53,9 +53,11 @@ export const CateringReprintModal: React.FC<CateringReprintModalProps> = ({ isOp
                 </div>
                 <div className="dc-input-group">
                     <label>Tipo de comprobante</label>
-                    <select value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value as 'ticket' | 'factura')}>
+                    <select value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value as 'ticket' | 'factura' | 'cotizacion' | 'contrato')}>
                         <option value="ticket">Ticket</option>
                         <option value="factura">Factura Electrónica</option>
+                        <option value="cotizacion">Cotización</option>
+                        <option value="contrato">Contrato</option>
                     </select>
                 </div>
                 <div className="notas-credito" dangerouslySetInnerHTML={{ __html: generarVistaPreviaHTML(venta, tipoComprobante) }} />

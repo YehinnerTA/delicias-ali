@@ -75,7 +75,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
 
     const [currentVenta, setCurrentVenta] = useState<VentaTemporal>(getInitialVenta());
 
-    const [tipoComprobante, setTipoComprobante] = useState<'ticket' | 'factura'>('ticket');
+    const [tipoComprobante, setTipoComprobante] = useState<'ticket' | 'factura' | 'cotizacion'>('ticket');
     const [fasesAbiertas, setFasesAbiertas] = useState<{ [key: number]: boolean }>({ 1: true, 2: false, 3: false, 4: false, 5: false, 6: false });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -635,8 +635,10 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
     const ventaPreview = {
         id_empresa,
         cliente: currentVenta.cliente.nombre || "Cliente",
+        clienteDoc: currentVenta.cliente.documento || '',
         servicios: currentVenta.servicios,
         materiales: currentVenta.materiales,
+        eventoData: currentVenta.eventoData,
         subtotal: currentVenta.subtotal,
         descuento: currentVenta.descuentoActivo ? currentVenta.descuentoValor : 0,
         igv: currentVenta.igv,
@@ -1210,6 +1212,7 @@ export const NewCateringModal: React.FC<NewCateringModalProps> = ({ isOpen, onCl
                             <select id="tipoComprobantePreview" value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value as any)}>
                                 <option value="ticket">Ticket</option>
                                 <option value="factura">Factura Electrónica</option>
+                                <option value="cotizacion">Cotización</option>
                             </select>
                         </div>
                         <div id="vistaPreviaContenido" dangerouslySetInnerHTML={{ __html: generarVistaPreviaHTML(ventaPreview as any, tipoComprobante) }} />
