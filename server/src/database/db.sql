@@ -460,26 +460,16 @@ CREATE TABLE catering_eventos (
     horario TIME NOT NULL,
     personas INT NOT NULL DEFAULT 1,
     tipo_desayuno VARCHAR(50) NULL,
-    
-    -- ✅ NUEVO: Dirección del evento
     direccion VARCHAR(255) NULL COMMENT 'Dirección donde se llevará el catering',
     referencia VARCHAR(255) NULL COMMENT 'Referencia adicional de la ubicación',
-    
-    -- ✅ Campos de mozo
     incluir_mozo TINYINT(1) DEFAULT 0 COMMENT '1 = Incluir servicio de mozo',
     cantidad_mozos INT DEFAULT 0 COMMENT 'Cantidad de mozos (1 por cada 20 personas)',
     precio_mozo DECIMAL(10,2) DEFAULT 100.00 COMMENT 'Precio por mozo',
     subtotal_mozo DECIMAL(10,2) DEFAULT 0 COMMENT 'cantidad_mozos * precio_mozo',
-    
-    -- ✅ NUEVO: Estado del flujo (VARCHAR, no ENUM)
-    estado_flujo VARCHAR(50) DEFAULT 'pendiente_verificacion' 
-        COMMENT 'pendiente_verificacion, compra_pendiente, en_preparacion, listo_para_envio, en_transito, en_evento, en_retorno, retornado, cerrado, cancelado',
-    
-    -- ✅ NUEVO: Auditoría de estados
+    estado_flujo VARCHAR(50) DEFAULT 'pendiente_verificacion' COMMENT 'pendiente_verificacion, compra_pendiente, en_preparacion, listo_para_envio, en_transito, en_evento, en_retorno, retornado, cerrado, cancelado',
     estado_actualizado_por INT NULL,
     estado_actualizado_at DATETIME NULL,
     observaciones TEXT NULL,
-    
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (id_empresa) REFERENCES empresas(id),
@@ -604,19 +594,14 @@ CREATE TABLE catering_evento_etapas (
     id_empresa INT NOT NULL,
     id_evento INT NOT NULL,
     etapa VARCHAR(50) NOT NULL COMMENT 'verificacion_almacen, preparacion_cocina, carga_transporte, montaje_evento, recojo_evento, retorno_empresa, cierre',
-    
-    -- ✅ Tiempos automáticos
     hora_inicio DATETIME NULL COMMENT 'Auto: cuando el usuario abre la etapa por primera vez',
     hora_fin DATETIME NULL COMMENT 'Auto: cuando el usuario confirma la etapa',
     duracion_real_min INT NULL COMMENT 'Calculado automáticamente: TIMESTAMPDIFF(MINUTE, hora_inicio, hora_fin)',
     tiempo_estimado_min INT NULL COMMENT 'Estimado según cantidad de items',
-    
-    -- ✅ Estado
     completada TINYINT(1) DEFAULT 0,
     id_usuario_inicio INT NULL,
     id_usuario_fin INT NULL,
     observaciones TEXT NULL,
-    
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (id_empresa) REFERENCES empresas(id),
