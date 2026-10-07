@@ -6,7 +6,7 @@ import logoUrl from '../../assets/images/logo.png';
 declare const window: any;
 
 type VentaCompatible = Venta | VentaCatering;
-type TipoDocumento = 'ticket' | 'factura' | 'cotizacion' | 'contrato';
+type TipoDocumento = 'ticket' | 'factura' | 'cotizacion' | 'contrato' | 'reporte-egresos' | 'reporte-cierre';
 
 // ═══════════════════════════════════════════════════════════════════
 // TIPOS INTERNOS
@@ -2360,19 +2360,922 @@ const escribirCentrado2 = (
 };
 
 // ═══════════════════════════════════════════════════════════════════
+// GENERADOR PDF — REPORTE DE EGRESOS (ALMACÉN)
+// ═══════════════════════════════════════════════════════════════════
+
+const generarReporteEgresosConFondo = async (
+  ventaData: VentaCompatible
+): Promise<boolean> => {
+  try {
+    // ─── 1) Cargar PDF membretado ───
+    const pdfBytes = await cargarRecursoBytes(PDF_MEMBRETADO_URL);
+    if (!pdfBytes) {
+      console.error('[pdfService] No se pudo cargar el PDF membretado');
+      return false;
+    }
+
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const templatePdf = await PDFDocument.load(pdfBytes);
+
+    // ─── 2) Preparar datos ───
+    const esCatering = esEventoCatering(ventaData);
+    const ev = normalizarEventoData((ventaData as any).eventoData);
+
+    if (!esCatering) {
+      console.warn('[pdfService] El reporte de egresos solo aplica para eventos catering');
+      return false;
+    }
+
+    // ─── 3) Cargar gastos desde el API ───
+    const idEmpresa = (ventaData as any).id_empresa;
+    const idEvento = ev?.id_evento;
+
+    if (!idEmpresa || !idEvento) {
+      console.error('[pdfService] Faltan datos: id_empresa o id_evento');
+      return false;
+    }
+
+    const { cateringGastoApi } = await import('../api/cateringGastoApi');
+    const gastos = await cateringGastoApi.getByEvento({
+      evento_id: idEvento,
+      id_empresa: idEmpresa,
+      etapa: 'verificacion_almacen'
+    });
+
+    // ─── 4) Constantes de página ───
+    const pageWidth = mmToPt(210);
+    const pageHeight = mmToPt(297);
+    const marginLeft = mmToPt(15);
+    const marginRight = mmToPt(15);
+    const anchoUtil = pageWidth - marginLeft - marginRight;
+
+    const yTopUtil = pageHeight - mmToPt(52);
+    const yBottomUtil = mmToPt(52);
+
+    // ─── 5) Paginación: precargar copias ───
+    const MAX_PAGINAS = 5;
+    const paginasFondo: any[] = [];
+    for (let i = 0; i < MAX_PAGINAS; i++) {
+      const [copia] = await pdfDoc.copyPages(templatePdf, [0]);
+      paginasFondo.push(copia);
+    }
+
+    let paginasUsadas = 0;
+    while (pdfDoc.getPageCount() > 0) {
+      pdfDoc.removePage(0);
+    }
+
+    const primeraPagina = paginasFondo[0];
+    pdfDoc.addPage(primeraPagina);
+    let currentPage = primeraPagina;
+    paginasUsadas = 1;
+    let cursorY = yTopUtil;
+
+    const colorPrincipal = hexToRgbPDF(COLOR_PRINCIPAL);
+    const colorTexto = hexToRgbPDF(COLOR_TEXTO);
+    const colorGris = hexToRgbPDF('#333333');
+
+    // ─── 6) Helpers ───
+    const asegurarEspacio = (altura: number): void => {
+      if (cursorY - altura < yBottomUtil) {
+        if (paginasUsadas >= MAX_PAGINAS) return;
+        const nuevaPagina = paginasFondo[paginasUsadas];
+        pdfDoc.addPage(nuevaPagina);
+        currentPage = nuevaPagina;
+        paginasUsadas++;
+        cursorY = yTopUtil;
+      }
+    };
+
+    const escribir = (
+      texto: string,
+      x: number,
+      y: number,
+      opts: { font?: any; size?: number; color?: any } = {}
+    ) => {
+      currentPage.drawText(texto, {
+        x,
+        y,
+        size: opts.size || 9,
+        font: opts.font || fontRegular,
+        color: opts.color || colorTexto,
+      });
+    };
+
+    const escribirCentrado = (
+      texto: string,
+      y: number,
+      opts: { font?: any; size?: number; color?: any } = {}
+    ) => {
+      const font = opts.font || fontBold;
+      const size = opts.size || 9;
+      const w = font.widthOfTextAtSize(texto, size);
+      escribir(texto, (pageWidth - w) / 2, y, opts);
+    };
+
+    // ─── 7) Título ───
+    escribirCentrado('REPORTE DE EGRESOS', cursorY, {
+      font: fontBold,
+      size: 16,
+      color: colorPrincipal,
+    });
+    cursorY -= mmToPt(7);
+
+    escribirCentrado('Verificación de Almacén', cursorY, {
+      font: fontBold,
+      size: 11,
+      color: colorGris,
+    });
+    cursorY -= mmToPt(12);
+
+    // ─── 8) Contexto ───
+    const escribirFila = (label: string, value: string) => {
+      escribir(label, marginLeft, cursorY, { font: fontBold, size: 9 });
+      escribir(value, marginLeft + mmToPt(40), cursorY, { size: 9, color: colorGris });
+      cursorY -= mmToPt(5);
+    };
+
+    escribirFila('Evento:', ventaData.numero || '-');
+    escribirFila('Cliente:', ventaData.cliente || '-');
+    escribirFila('Fecha evento:', formatearFecha(ev?.fecha));
+    escribirFila('Horario:', formatearHorario(ev?.horario));
+    escribirFila('Personas:', String(ev?.personas || '-'));
+    if (ev?.direccion) {
+      escribirFila('Lugar:', ev.direccion + (ev.referencia ? ` - Ref: ${ev.referencia}` : ''));
+    }
+    escribirFila('Fecha reporte:', fechaActual());
+
+    cursorY -= mmToPt(6);
+
+    // ─── 9) Agrupar gastos por categoría ───
+    const porCategoria: Record<string, typeof gastos> = {};
+    gastos.forEach((g) => {
+      if (!porCategoria[g.categoria]) porCategoria[g.categoria] = [];
+      porCategoria[g.categoria].push(g);
+    });
+
+    const CATEGORIA_LABELS: Record<string, string> = {
+      ingrediente: 'INGREDIENTES',
+      material: 'MATERIALES',
+      mano_obra: 'MANO DE OBRA',
+      movilidad: 'MOVILIDAD',
+      otro: 'OTROS GASTOS',
+    };
+
+    // ─── 10) Tabla por categoría ───
+    const dibujarTablaCategoria = (categoria: string, items: typeof gastos) => {
+      if (items.length === 0) return;
+
+      const subtotalCategoria = items.reduce((s, g) => s + g.subtotal, 0);
+
+      asegurarEspacio(mmToPt(30));
+
+      // Título de categoría con barra lateral
+      currentPage.drawRectangle({
+        x: marginLeft,
+        y: cursorY - mmToPt(3.5),
+        width: mmToPt(1.5),
+        height: mmToPt(5),
+        color: colorPrincipal,
+      });
+      escribir(CATEGORIA_LABELS[categoria] || categoria.toUpperCase(), marginLeft + mmToPt(3), cursorY, {
+        font: fontBold,
+        size: 11,
+        color: colorPrincipal,
+      });
+      cursorY -= mmToPt(8);
+
+      // Header de tabla
+      const headerH = mmToPt(7);
+      currentPage.drawRectangle({
+        x: marginLeft,
+        y: cursorY - headerH,
+        width: anchoUtil,
+        height: headerH,
+        color: colorPrincipal,
+      });
+
+      const colCant = mmToPt(15);
+      const colUnidad = mmToPt(15);
+      const colPUnit = mmToPt(25);
+      const colImporte = mmToPt(28);
+      const colDesc = anchoUtil - colCant - colUnidad - colPUnit - colImporte;
+
+      const colX = {
+        cant: marginLeft,
+        desc: marginLeft + colCant,
+        unidad: marginLeft + colCant + colDesc,
+        punit: marginLeft + colCant + colDesc + colUnidad,
+        importe: marginLeft + colCant + colDesc + colUnidad + colPUnit,
+      };
+
+      const headerY = cursorY - mmToPt(4.5);
+
+      currentPage.drawText('Cant.', { x: colX.cant + mmToPt(2), y: headerY, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+      currentPage.drawText('Descripción', { x: colX.desc + mmToPt(2), y: headerY, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+      currentPage.drawText('Und.', { x: colX.unidad + mmToPt(2), y: headerY, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+      currentPage.drawText('P.Unit', { x: colX.punit + mmToPt(2), y: headerY, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+      currentPage.drawText('Importe', { x: colX.importe + mmToPt(2), y: headerY, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+
+      cursorY -= headerH;
+
+      // Filas
+      const rowH = mmToPt(5.5);
+      items.forEach((g, idx) => {
+        asegurarEspacio(rowH);
+
+        if (idx % 2 === 1) {
+          currentPage.drawRectangle({
+            x: marginLeft,
+            y: cursorY - rowH,
+            width: anchoUtil,
+            height: rowH,
+            color: hexToRgbPDF('#fafafa'),
+          });
+        }
+
+        const rowY = cursorY - mmToPt(4);
+
+        const desc = g.descripcion.length > 40 ? g.descripcion.substring(0, 37) + '...' : g.descripcion;
+
+        currentPage.drawText(String(g.cantidad), { x: colX.cant + mmToPt(2), y: rowY, size: 8.5, font: fontRegular, color: colorTexto });
+        currentPage.drawText(desc, { x: colX.desc + mmToPt(2), y: rowY, size: 8.5, font: fontRegular, color: colorTexto });
+        currentPage.drawText(g.unidad || '-', { x: colX.unidad + mmToPt(2), y: rowY, size: 8.5, font: fontRegular, color: colorTexto });
+        currentPage.drawText(formatearMoneda(g.precio_unitario), { x: colX.punit + mmToPt(2), y: rowY, size: 8.5, font: fontRegular, color: colorTexto });
+        currentPage.drawText(formatearMoneda(g.subtotal), { x: colX.importe + mmToPt(2), y: rowY, size: 8.5, font: fontRegular, color: colorTexto });
+
+        cursorY -= rowH;
+      });
+
+      // Fila de subtotal
+      asegurarEspacio(mmToPt(8));
+      currentPage.drawRectangle({
+        x: marginLeft,
+        y: cursorY - mmToPt(6),
+        width: anchoUtil,
+        height: mmToPt(6),
+        color: hexToRgbPDF('#f0f0f0'),
+      });
+      currentPage.drawLine({
+        start: { x: marginLeft, y: cursorY },
+        end: { x: marginLeft + anchoUtil, y: cursorY },
+        thickness: 0.3,
+        color: colorTexto,
+      });
+
+      const subY = cursorY - mmToPt(4);
+      currentPage.drawText('Subtotal', { x: colX.desc + mmToPt(2), y: subY, size: 9, font: fontBold, color: colorTexto });
+      currentPage.drawText(formatearMoneda(subtotalCategoria), { x: colX.importe + mmToPt(2), y: subY, size: 9, font: fontBold, color: colorPrincipal });
+
+      cursorY -= mmToPt(8);
+    };
+
+    // Renderizar cada categoría (en orden)
+    ['ingrediente', 'material', 'mano_obra', 'movilidad', 'otro'].forEach((cat) => {
+      if (porCategoria[cat]) {
+        dibujarTablaCategoria(cat, porCategoria[cat]);
+      }
+    });
+
+    // ─── 11) Si no hay gastos ───
+    if (gastos.length === 0) {
+      asegurarEspacio(mmToPt(20));
+      escribir('No se registraron gastos para este evento.', marginLeft, cursorY, {
+        size: 10,
+        color: colorGris,
+        font: fontRegular,
+      });
+      cursorY -= mmToPt(10);
+    }
+
+    // ─── 12) Resumen final ───
+    asegurarEspacio(mmToPt(40));
+
+    const totalEgresos = gastos.reduce((s, g) => s + g.subtotal, 0);
+
+    const resumenW = mmToPt(80);
+    const resumenX = pageWidth - marginRight - resumenW;
+
+    currentPage.drawLine({
+      start: { x: marginLeft, y: cursorY + mmToPt(2) },
+      end: { x: pageWidth - marginRight, y: cursorY + mmToPt(2) },
+      thickness: 0.5,
+      color: colorTexto,
+    });
+    cursorY -= mmToPt(6);
+
+    escribir('RESUMEN DE EGRESOS', marginLeft, cursorY, {
+      font: fontBold,
+      size: 11,
+      color: colorPrincipal,
+    });
+    cursorY -= mmToPt(8);
+
+    // Filas por categoría
+    ['ingrediente', 'material', 'mano_obra', 'movilidad', 'otro'].forEach((cat) => {
+      const items = porCategoria[cat] || [];
+      if (items.length === 0) return;
+      const subtotal = items.reduce((s, g) => s + g.subtotal, 0);
+
+      escribir(CATEGORIA_LABELS[cat] + ':', marginLeft, cursorY, { font: fontRegular, size: 9, color: colorGris });
+      const valorTxt = formatearMoneda(subtotal);
+      const valorW = fontRegular.widthOfTextAtSize(valorTxt, 9);
+      escribir(valorTxt, resumenX + resumenW - valorW, cursorY, { font: fontRegular, size: 9, color: colorGris });
+      cursorY -= mmToPt(5);
+    });
+
+    cursorY -= mmToPt(2);
+    currentPage.drawLine({
+      start: { x: resumenX, y: cursorY + mmToPt(1) },
+      end: { x: resumenX + resumenW, y: cursorY + mmToPt(1) },
+      thickness: 0.3,
+      color: colorTexto,
+    });
+    cursorY -= mmToPt(4);
+
+    escribir('TOTAL EGRESOS:', marginLeft, cursorY, {
+      font: fontBold,
+      size: 12,
+      color: colorPrincipal,
+    });
+    const totalTxt = formatearMoneda(totalEgresos);
+    const totalW = fontBold.widthOfTextAtSize(totalTxt, 12);
+    escribir(totalTxt, resumenX + resumenW - totalW, cursorY, {
+      font: fontBold,
+      size: 12,
+      color: colorPrincipal,
+    });
+
+    cursorY -= mmToPt(15);
+
+    // ─── 13) Firmas ───
+    asegurarEspacio(mmToPt(30));
+
+    const firmaW = mmToPt(60);
+    const gap = mmToPt(10);
+    const totalFirmasW = firmaW * 2 + gap;
+    const firmaStartX = (pageWidth - totalFirmasW) / 2;
+
+    const firmaIzqX = firmaStartX;
+    const firmaDerX = firmaStartX + firmaW + gap;
+    const firmaY = cursorY;
+
+    currentPage.drawLine({
+      start: { x: firmaIzqX, y: firmaY },
+      end: { x: firmaIzqX + firmaW, y: firmaY },
+      thickness: 0.5,
+      color: colorTexto,
+    });
+    currentPage.drawLine({
+      start: { x: firmaDerX, y: firmaY },
+      end: { x: firmaDerX + firmaW, y: firmaY },
+      thickness: 0.5,
+      color: colorTexto,
+    });
+
+    const labelIzq = 'Responsable Almacén';
+    const labelDer = 'Supervisor';
+    const wIzq = fontBold.widthOfTextAtSize(labelIzq, 9);
+    const wDer = fontBold.widthOfTextAtSize(labelDer, 9);
+
+    escribir(labelIzq, firmaIzqX + (firmaW - wIzq) / 2, firmaY - mmToPt(6), {
+      font: fontBold,
+      size: 9,
+      color: colorTexto,
+    });
+    escribir(labelDer, firmaDerX + (firmaW - wDer) / 2, firmaY - mmToPt(6), {
+      font: fontBold,
+      size: 9,
+      color: colorTexto,
+    });
+
+    // ─── 14) Guardar ───
+    const pdfFinalBytes = await pdfDoc.save();
+    const blob = new Blob([pdfFinalBytes as BlobPart], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reporte_egresos_${ventaData.numero}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    return true;
+  } catch (error) {
+    console.error('[pdfService] Error al generar reporte de egresos:', error);
+    return false;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// GENERADOR PDF — REPORTE DE CIERRE
+// ═══════════════════════════════════════════════════════════════════
+
+const generarReporteCierreConFondo = async (
+  ventaData: VentaCompatible,
+  metricas: any
+): Promise<boolean> => {
+  try {
+    // ─── 1) Cargar PDF membretado ───
+    const pdfBytes = await cargarRecursoBytes(PDF_MEMBRETADO_URL);
+    if (!pdfBytes) {
+      console.error('[pdfService] No se pudo cargar el PDF membretado');
+      return false;
+    }
+
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const templatePdf = await PDFDocument.load(pdfBytes);
+
+    // ─── 2) Preparar datos ───
+    const esCatering = esEventoCatering(ventaData);
+    const ev = normalizarEventoData((ventaData as any).eventoData);
+
+    if (!esCatering) {
+      console.warn('[pdfService] El reporte de cierre solo aplica para eventos catering');
+      return false;
+    }
+
+    // ─── 3) Cargar gastos ───
+    const idEmpresa = (ventaData as any).id_empresa;
+    const idEvento = ev?.id_evento;
+
+    if (!idEmpresa || !idEvento) {
+      console.error('[pdfService] Faltan datos: id_empresa o id_evento');
+      return false;
+    }
+
+    const { cateringGastoApi } = await import('../api/cateringGastoApi');
+    const gastos = await cateringGastoApi.getByEvento({
+      evento_id: idEvento,
+      id_empresa: idEmpresa
+    });
+
+    // ─── 4) Calcular resumen económico ───
+    const ingresos = ventaData.total || 0;
+    const egresosTotal = gastos.reduce((s, g) => s + g.subtotal, 0);
+    const subtotalMozo = ev?.subtotal_mozo || 0;
+    const egresosConMozos = egresosTotal + subtotalMozo;
+    const utilidad = ingresos - egresosConMozos;
+    const margen = ingresos > 0 ? (utilidad / ingresos) * 100 : 0;
+
+    // ─── 5) Constantes de página ───
+    const pageWidth = mmToPt(210);
+    const pageHeight = mmToPt(297);
+    const marginLeft = mmToPt(15);
+    const marginRight = mmToPt(15);
+    const anchoUtil = pageWidth - marginLeft - marginRight;
+
+    const yTopUtil = pageHeight - mmToPt(52);
+    const yBottomUtil = mmToPt(52);
+
+    // ─── 6) Paginación ───
+    const MAX_PAGINAS = 10;
+    const paginasFondo: any[] = [];
+    for (let i = 0; i < MAX_PAGINAS; i++) {
+      const [copia] = await pdfDoc.copyPages(templatePdf, [0]);
+      paginasFondo.push(copia);
+    }
+
+    let paginasUsadas = 0;
+    while (pdfDoc.getPageCount() > 0) {
+      pdfDoc.removePage(0);
+    }
+
+    const primeraPagina = paginasFondo[0];
+    pdfDoc.addPage(primeraPagina);
+    let currentPage = primeraPagina;
+    paginasUsadas = 1;
+    let cursorY = yTopUtil;
+
+    const colorPrincipal = hexToRgbPDF(COLOR_PRINCIPAL);
+    const colorTexto = hexToRgbPDF(COLOR_TEXTO);
+    const colorGris = hexToRgbPDF('#333333');
+    const colorVerde = hexToRgbPDF('#28a745');
+    const colorRojo = hexToRgbPDF('#dc3545');
+
+    // ─── 7) Helpers ───
+    const asegurarEspacio = (altura: number): void => {
+      if (cursorY - altura < yBottomUtil) {
+        if (paginasUsadas >= MAX_PAGINAS) return;
+        const nuevaPagina = paginasFondo[paginasUsadas];
+        pdfDoc.addPage(nuevaPagina);
+        currentPage = nuevaPagina;
+        paginasUsadas++;
+        cursorY = yTopUtil;
+      }
+    };
+
+    const escribir = (
+      texto: string,
+      x: number,
+      y: number,
+      opts: { font?: any; size?: number; color?: any } = {}
+    ) => {
+      currentPage.drawText(texto, {
+        x,
+        y,
+        size: opts.size || 9,
+        font: opts.font || fontRegular,
+        color: opts.color || colorTexto,
+      });
+    };
+
+    const escribirCentrado = (
+      texto: string,
+      y: number,
+      opts: { font?: any; size?: number; color?: any } = {}
+    ) => {
+      const font = opts.font || fontBold;
+      const size = opts.size || 9;
+      const w = font.widthOfTextAtSize(texto, size);
+      escribir(texto, (pageWidth - w) / 2, y, opts);
+    };
+
+    const tituloSeccion = (texto: string) => {
+      asegurarEspacio(mmToPt(15));
+      currentPage.drawRectangle({
+        x: marginLeft,
+        y: cursorY - mmToPt(3),
+        width: mmToPt(1.5),
+        height: mmToPt(5),
+        color: colorPrincipal,
+      });
+      escribir(texto, marginLeft + mmToPt(3.5), cursorY - mmToPt(1.5), {
+        font: fontBold,
+        size: 11,
+        color: colorPrincipal,
+      });
+      cursorY -= mmToPt(8);
+    };
+
+    // ─── 8) Título ───
+    escribirCentrado('REPORTE DE CIERRE DE EVENTO', cursorY, {
+      font: fontBold,
+      size: 16,
+      color: colorPrincipal,
+    });
+    cursorY -= mmToPt(12);
+
+    // ─── 9) Contexto ───
+    const escribirFila = (label: string, value: string) => {
+      escribir(label, marginLeft, cursorY, { font: fontBold, size: 9 });
+      escribir(value, marginLeft + mmToPt(40), cursorY, { size: 9, color: colorGris });
+      cursorY -= mmToPt(5);
+    };
+
+    escribirFila('Evento:', ventaData.numero || '-');
+    escribirFila('Cliente:', ventaData.cliente || '-');
+    escribirFila('Fecha evento:', formatearFecha(ev?.fecha));
+    escribirFila('Horario:', formatearHorario(ev?.horario));
+    escribirFila('Personas:', String(ev?.personas || '-'));
+    if (ev?.direccion) {
+      escribirFila('Lugar:', ev.direccion + (ev.referencia ? ` - Ref: ${ev.referencia}` : ''));
+    }
+    escribirFila('Fecha cierre:', fechaActual());
+
+    cursorY -= mmToPt(6);
+
+    // ─── 10) Resumen económico ───
+    tituloSeccion('RESUMEN ECONÓMICO');
+
+    const resumenW = mmToPt(90);
+    const resumenX = pageWidth - marginRight - resumenW;
+
+    // Ingresos
+    escribir('INGRESOS:', marginLeft, cursorY, { font: fontBold, size: 10, color: colorVerde });
+    cursorY -= mmToPt(6);
+    escribir('Venta total:', marginLeft + mmToPt(5), cursorY, { size: 9, color: colorGris });
+    escribir(formatearMoneda(ingresos), resumenX + resumenW - fontRegular.widthOfTextAtSize(formatearMoneda(ingresos), 9), cursorY, { size: 9, color: colorGris });
+    cursorY -= mmToPt(8);
+
+    // Egresos
+    escribir('EGRESOS:', marginLeft, cursorY, { font: fontBold, size: 10, color: colorRojo });
+    cursorY -= mmToPt(6);
+
+    const egresosPorCat: Record<string, number> = {};
+    gastos.forEach((g) => {
+      egresosPorCat[g.categoria] = (egresosPorCat[g.categoria] || 0) + g.subtotal;
+    });
+
+    const CATEGORIA_LABELS: Record<string, string> = {
+      ingrediente: 'Ingredientes',
+      material: 'Materiales',
+      mano_obra: 'Mano de obra',
+      movilidad: 'Movilidad',
+      otro: 'Otros gastos',
+    };
+
+    Object.entries(egresosPorCat).forEach(([cat, monto]) => {
+      escribir(CATEGORIA_LABELS[cat] || cat, marginLeft + mmToPt(5), cursorY, { size: 9, color: colorGris });
+      escribir(formatearMoneda(monto), resumenX + resumenW - fontRegular.widthOfTextAtSize(formatearMoneda(monto), 9), cursorY, { size: 9, color: colorGris });
+      cursorY -= mmToPt(5);
+    });
+
+    if (subtotalMozo > 0) {
+      escribir('Personal (mozos)', marginLeft + mmToPt(5), cursorY, { size: 9, color: colorGris });
+      escribir(formatearMoneda(subtotalMozo), resumenX + resumenW - fontRegular.widthOfTextAtSize(formatearMoneda(subtotalMozo), 9), cursorY, { size: 9, color: colorGris });
+      cursorY -= mmToPt(5);
+    }
+
+    // Línea divisoria
+    currentPage.drawLine({
+      start: { x: resumenX, y: cursorY + mmToPt(2) },
+      end: { x: resumenX + resumenW, y: cursorY + mmToPt(2) },
+      thickness: 0.3,
+      color: colorTexto,
+    });
+    cursorY -= mmToPt(4);
+
+    escribir('Total Egresos:', marginLeft + mmToPt(5), cursorY, { font: fontBold, size: 9, color: colorTexto });
+    escribir(formatearMoneda(egresosConMozos), resumenX + resumenW - fontBold.widthOfTextAtSize(formatearMoneda(egresosConMozos), 9), cursorY, { font: fontBold, size: 9, color: colorTexto });
+    cursorY -= mmToPt(8);
+
+    const boxY = cursorY - mmToPt(12);
+    const boxH = mmToPt(12);
+    const boxX = marginLeft;
+    const boxW = anchoUtil;  // ← Asegurar que use todo el ancho útil
+
+    currentPage.drawRectangle({
+      x: boxX,
+      y: boxY,
+      width: boxW,
+      height: boxH,
+      color: hexToRgbPDF('#f0f7ff'),
+      borderColor: colorPrincipal,
+      borderWidth: 1,
+    });
+
+    // Fila de UTILIDAD BRUTA (alineada al tope del recuadro)
+    const filaUtilidadY = cursorY - mmToPt(4);
+
+    escribir('UTILIDAD BRUTA:', boxX + mmToPt(5), filaUtilidadY, {
+      font: fontBold,
+      size: 12,
+      color: colorPrincipal,
+    });
+
+    const utilidadTxt = formatearMoneda(utilidad);
+    const utilidadW = fontBold.widthOfTextAtSize(utilidadTxt, 12);
+    escribir(utilidadTxt, boxX + boxW - mmToPt(5) - utilidadW, filaUtilidadY, {
+      font: fontBold,
+      size: 12,
+      color: colorPrincipal,
+    });
+
+    // Fila de Margen (debajo de utilidad)
+    const filaMargenY = filaUtilidadY - mmToPt(6);
+
+    escribir('Margen:', boxX + mmToPt(5), filaMargenY, {
+      size: 9,
+      color: colorGris,
+    });
+
+    const margenTxt = `${margen.toFixed(2)}%`;
+    const margenW = fontRegular.widthOfTextAtSize(margenTxt, 9);
+    escribir(margenTxt, boxX + boxW - mmToPt(5) - margenW, filaMargenY, {
+      size: 9,
+      color: colorGris,
+    });
+
+    cursorY -= mmToPt(22);
+
+    // ─── 11) Métricas de tiempo ───
+    if (metricas?.etapas?.length > 0) {
+      tituloSeccion('MÉTRICAS DE TIEMPO');
+
+      // Header
+      const headerH = mmToPt(7);
+      currentPage.drawRectangle({
+        x: marginLeft,
+        y: cursorY - headerH,
+        width: anchoUtil,
+        height: headerH,
+        color: colorPrincipal,
+      });
+
+      const cols = {
+        etapa: marginLeft + mmToPt(2),
+        inicio: marginLeft + mmToPt(70),
+        fin: marginLeft + mmToPt(100),
+        estim: marginLeft + mmToPt(130),
+        real: marginLeft + mmToPt(155),
+        dif: marginLeft + mmToPt(180),
+      };
+
+      const headerY = cursorY - mmToPt(4.5);
+      const textoBlanco = rgb(1, 1, 1);
+
+      currentPage.drawText('Etapa', { x: cols.etapa, y: headerY, size: 9, font: fontBold, color: textoBlanco });
+      currentPage.drawText('Inicio', { x: cols.inicio, y: headerY, size: 9, font: fontBold, color: textoBlanco });
+      currentPage.drawText('Fin', { x: cols.fin, y: headerY, size: 9, font: fontBold, color: textoBlanco });
+      currentPage.drawText('Estim.', { x: cols.estim, y: headerY, size: 9, font: fontBold, color: textoBlanco });
+      currentPage.drawText('Real', { x: cols.real, y: headerY, size: 9, font: fontBold, color: textoBlanco });
+      currentPage.drawText('Dif.', { x: cols.dif, y: headerY, size: 9, font: fontBold, color: textoBlanco });
+
+      cursorY -= headerH;
+
+      const rowH = mmToPt(5.5);
+      metricas.etapas.forEach((e: any, idx: number) => {
+        asegurarEspacio(rowH);
+
+        if (idx % 2 === 1) {
+          currentPage.drawRectangle({
+            x: marginLeft,
+            y: cursorY - rowH,
+            width: anchoUtil,
+            height: rowH,
+            color: hexToRgbPDF('#fafafa'),
+          });
+        }
+
+        const rowY = cursorY - mmToPt(4);
+
+        currentPage.drawText(e.etapa.replace(/_/g, ' '), { x: cols.etapa, y: rowY, size: 8.5, font: fontRegular, color: colorTexto });
+        currentPage.drawText(e.hora_inicio ? new Date(e.hora_inicio).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) : '-', { x: cols.inicio, y: rowY, size: 8.5, font: fontRegular, color: colorTexto });
+        currentPage.drawText(e.hora_fin ? new Date(e.hora_fin).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) : '-', { x: cols.fin, y: rowY, size: 8.5, font: fontRegular, color: colorTexto });
+        currentPage.drawText(`${e.tiempo_estimado_min || 0}min`, { x: cols.estim, y: rowY, size: 8.5, font: fontRegular, color: colorTexto });
+        currentPage.drawText(`${e.duracion_real_min || 0}min`, { x: cols.real, y: rowY, size: 8.5, font: fontRegular, color: colorTexto });
+
+        const dif = e.diferencia_min || 0;
+        const colorDif = dif > 5 ? colorRojo : dif > 0 ? hexToRgbPDF('#ffc107') : colorVerde;
+        currentPage.drawText(`${dif > 0 ? '+' : ''}${dif}min`, { x: cols.dif, y: rowY, size: 8.5, font: fontBold, color: colorDif });
+
+        cursorY -= rowH;
+      });
+
+      // Total
+      currentPage.drawLine({
+        start: { x: marginLeft, y: cursorY },
+        end: { x: marginLeft + anchoUtil, y: cursorY },
+        thickness: 0.3,
+        color: colorTexto,
+      });
+      cursorY -= mmToPt(5);
+
+      const totalRowY = cursorY - mmToPt(1);
+      const totalEstim = metricas.resumen?.total_estimado_min || 0;
+      const totalReal = metricas.resumen?.total_real_min || 0;
+      const totalDif = metricas.resumen?.diferencia_min || 0;
+
+      currentPage.drawText('TOTAL', { x: cols.etapa, y: totalRowY, size: 9, font: fontBold, color: colorTexto });
+      currentPage.drawText(`${totalEstim}min`, { x: cols.estim, y: totalRowY, size: 9, font: fontBold, color: colorTexto });
+      currentPage.drawText(`${totalReal}min`, { x: cols.real, y: totalRowY, size: 9, font: fontBold, color: colorTexto });
+      const colorTotDif = totalDif > 5 ? colorRojo : totalDif > 0 ? hexToRgbPDF('#ffc107') : colorVerde;
+      currentPage.drawText(`${totalDif > 0 ? '+' : ''}${totalDif}min`, { x: cols.dif, y: totalRowY, size: 9, font: fontBold, color: colorTotDif });
+
+      cursorY -= mmToPt(12);
+    }
+
+    // ─── 12) Equipo ───
+    if (metricas?.equipo?.length > 0) {
+      tituloSeccion(`EQUIPO PARTICIPANTE (${metricas.equipo.length})`);
+
+      metricas.equipo.forEach((miembro: any) => {
+        asegurarEspacio(mmToPt(12));
+        escribir(`• ${miembro.nombre_completo}`, marginLeft + mmToPt(3), cursorY, {
+          font: fontBold,
+          size: 9,
+        });
+        escribir(`(${miembro.rol}) - ${miembro.etapas?.length || 0} etapa(s)`, marginLeft + mmToPt(80), cursorY, {
+          size: 8.5,
+          color: colorGris,
+        });
+        cursorY -= mmToPt(5);
+      });
+      cursorY -= mmToPt(6);
+    }
+
+    // ─── 13) Incidencias ───
+    if (metricas?.incidencias?.length > 0) {
+      tituloSeccion(`INCIDENCIAS (${metricas.incidencias.length})`);
+
+      metricas.incidencias.forEach((inc: any) => {
+        asegurarEspacio(mmToPt(15));
+
+        const severidadColor = inc.severidad === 'critica' ? colorRojo : inc.severidad === 'media' ? hexToRgbPDF('#ffc107') : colorVerde;
+        const badgeTxt = `[${inc.severidad.toUpperCase()}]`;
+
+        escribir(badgeTxt, marginLeft + mmToPt(3), cursorY, {
+          font: fontBold,
+          size: 8.5,
+          color: severidadColor,
+        });
+        escribir(inc.etapa.replace(/_/g, ' '), marginLeft + mmToPt(30), cursorY, {
+          size: 8.5,
+          color: colorGris,
+        });
+        cursorY -= mmToPt(5);
+
+        const descripcion = inc.descripcion || '';
+        escribir(descripcion.substring(0, 100), marginLeft + mmToPt(8), cursorY, {
+          size: 8,
+          color: colorTexto,
+        });
+        cursorY -= mmToPt(5);
+
+        escribir(`Estado: ${inc.estado}`, marginLeft + mmToPt(8), cursorY, {
+          size: 8,
+          color: colorGris,
+        });
+        cursorY -= mmToPt(6);
+      });
+      cursorY -= mmToPt(6);
+    }
+
+    // ─── 14) Firmas ───
+    asegurarEspacio(mmToPt(30));
+
+    const firmaW = mmToPt(60);
+    const gap = mmToPt(10);
+    const totalFirmasW = firmaW * 2 + gap;
+    const firmaStartX = (pageWidth - totalFirmasW) / 2;
+    const firmaIzqX = firmaStartX;
+    const firmaDerX = firmaStartX + firmaW + gap;
+    const firmaY = cursorY - mmToPt(10);
+
+    currentPage.drawLine({
+      start: { x: firmaIzqX, y: firmaY },
+      end: { x: firmaIzqX + firmaW, y: firmaY },
+      thickness: 0.5,
+      color: colorTexto,
+    });
+    currentPage.drawLine({
+      start: { x: firmaDerX, y: firmaY },
+      end: { x: firmaDerX + firmaW, y: firmaY },
+      thickness: 0.5,
+      color: colorTexto,
+    });
+
+    const labelIzq = 'Gerente General';
+    const labelDer = 'Contabilidad';
+    const wIzq = fontBold.widthOfTextAtSize(labelIzq, 9);
+    const wDer = fontBold.widthOfTextAtSize(labelDer, 9);
+
+    escribir(labelIzq, firmaIzqX + (firmaW - wIzq) / 2, firmaY - mmToPt(6), {
+      font: fontBold,
+      size: 9,
+      color: colorTexto,
+    });
+    escribir(labelDer, firmaDerX + (firmaW - wDer) / 2, firmaY - mmToPt(6), {
+      font: fontBold,
+      size: 9,
+      color: colorTexto,
+    });
+
+    // ─── 15) Guardar ───
+    const pdfFinalBytes = await pdfDoc.save();
+    const blob = new Blob([pdfFinalBytes as BlobPart], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reporte_cierre_${ventaData.numero}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    return true;
+  } catch (error) {
+    console.error('[pdfService] Error al generar reporte de cierre:', error);
+    return false;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════
 // EXPORT PÚBLICO — generarPDF
 // ═══════════════════════════════════════════════════════════════════
 export const generarPDF = async (
   ventaData: VentaCompatible,
-  tipo: TipoDocumento
+  tipo: TipoDocumento,
+  metricas?: any   // ← opcional, solo para reporte-cierre
 ): Promise<boolean> => {
   // Cotización usa pdf-lib + PDF membretado
   if (tipo === 'cotizacion') {
     return await generarCotizacionConFondo(ventaData);
   }
 
+  // Contrato usa pdf-lib + PDF membretado
   if (tipo === 'contrato') {
     return await generarContratoConFondo(ventaData);
+  }
+
+  // Reporte de Egresos usa pdf-lib + PDF membretado
+  if (tipo === 'reporte-egresos') {
+    return await generarReporteEgresosConFondo(ventaData);
+  }
+
+  // Reporte de Cierre usa pdf-lib + PDF membretado (requiere métricas)
+  if (tipo === 'reporte-cierre') {
+    if (!metricas) {
+      console.error('[pdfService] Reporte de cierre requiere métricas');
+      return false;
+    }
+    return await generarReporteCierreConFondo(ventaData, metricas);
   }
 
   // Ticket y Factura siguen con jsPDF
@@ -2384,16 +3287,8 @@ export const generarPDF = async (
 
   try {
     const doc = tipo === 'ticket'
-      ? new jsPDF({
-        unit: 'mm',
-        format: [80, 250],
-        orientation: 'portrait',
-      })
-      : new jsPDF({
-        unit: 'mm',
-        format: 'a4',
-        orientation: 'portrait',
-      });
+      ? new jsPDF({ unit: 'mm', format: [80, 250], orientation: 'portrait' })
+      : new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
     const promesa = tipo === 'ticket'
       ? generarTicketPDF(ventaData, doc)

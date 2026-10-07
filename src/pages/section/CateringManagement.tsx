@@ -229,7 +229,7 @@ const CateringSalesContent: React.FC = () => {
             <CateringReprintModal isOpen={reimprimirOpen} onClose={() => setReimprimirOpen(false)} venta={selectedVenta} />
             <CocinaLogisticaModal isOpen={cocinaOpen} onClose={() => setCocinaOpen(false)} venta={selectedVenta} />
             <CateringCancelModal isOpen={anularOpen} onClose={() => setAnularOpen(false)} venta={selectedVenta} onSuccess={() => setAnularOpen(false)} />
-            <CateringEventoFlujoModal isOpen={flujoModalOpen} onClose={() => setFlujoModalOpen(false)} idEvento={selectedVenta?.id || null} numeroVenta={selectedVenta?.numero} cliente={selectedVenta?.cliente} />
+            <CateringEventoFlujoModal isOpen={flujoModalOpen} onClose={() => setFlujoModalOpen(false)} idEvento={selectedVenta?.id || null} numeroVenta={selectedVenta?.numero} cliente={selectedVenta?.cliente} venta={selectedVenta} />
         </>
     );
 };

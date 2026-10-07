@@ -15,7 +15,8 @@ import {
     getPreparaciones,
     registrarItemRecojo,
     getIncidencias,
-    resolverIncidencia
+    resolverIncidencia,
+    actualizarEstadoCompra
 } from '../../controllers/cateringEventoController';
 
 const router = Router();
@@ -26,6 +27,7 @@ router.post('/:id/etapas/:etapa/abrir', abrirEtapa);
 router.post('/:id/etapas/:etapa/confirmar', confirmarEtapa);
 
 router.put('/checklist/:id_item/verificar', verificarItem);
+router.put('/checklist/:id_item/estado-compra', actualizarEstadoCompra);
 router.post('/:id/checklist/guardar', guardarItemsChecklist);
 router.get('/:id/checklist', getChecklistVerificaciones);
 router.post('/:id/checklist/marcar', marcarItemChecklist);

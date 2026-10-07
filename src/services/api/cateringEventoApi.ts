@@ -27,6 +27,8 @@ export interface ChecklistItem {
     unidad: string | null;
     cantidad_stock: number | null;
     cantidad_faltante: number | null;
+    estado_compra: 'en_almacen' | 'comprar' | null;
+    id_gasto: number | null;
     proveedores: any[];
     verificado: boolean;
     verificado_por: number | null;
@@ -480,5 +482,29 @@ export const cateringEventoApi = {
             throw new Error(error.message || 'Error al resolver incidencia');
         }
         return await res.json();
-    }
+    },
+
+    actualizarEstadoCompra: async (
+        idItem: number,
+        idEmpresa: number,
+        estadoCompra: 'en_almacen' | 'comprar' | null
+    ): Promise<ChecklistItem> => {
+        const res = await fetch(
+            `${API_URL}/catering/eventos/checklist/${idItem}/estado-compra`,
+            {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id_empresa: idEmpresa,
+                    estado_compra: estadoCompra
+                })
+            }
+        );
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.message || 'Error al actualizar estado de compra');
+        }
+        const data = await res.json();
+        return data.item;
+    },
 };

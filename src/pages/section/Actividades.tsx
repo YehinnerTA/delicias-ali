@@ -229,11 +229,66 @@ export const Actividades: React.FC = () => {
                                         )}
                                     </div>
 
-                                    <div className="dc-actividad-card-footer">
+                                    <div
+                                        className="dc-actividad-card-footer"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
                                         {esCompletado ? (
-                                            <button className="dc-btn secondary" disabled>
-                                                <i className="fas fa-check"></i> Completado
-                                            </button>
+                                            <>
+                                                <button className="dc-btn secondary" disabled style={{ marginRight: 'auto' }}>
+                                                    <i className="fas fa-check"></i> Completado
+                                                </button>
+
+                                                {tabActiva === 'cierre' && estado === 'cerrado' && venta && (
+                                                    <div
+                                                        style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            className="dc-btn info"
+                                                            onClick={async (e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                try {
+                                                                    const { generarPDF } = await import('../../services/pdf/pdfService');
+                                                                    await generarPDF(venta, 'reporte-egresos');
+                                                                } catch (error) {
+                                                                    console.error('[Actividades] Error al descargar egresos:', error);
+                                                                    showToast('Error al descargar el reporte', 'error', 'Error');
+                                                                }
+                                                            }}
+                                                            title="Descargar reporte de egresos"
+                                                        >
+                                                            <i className="fas fa-file-invoice-dollar"></i> Egresos
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            className="dc-btn success"
+                                                            onClick={async (e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                try {
+                                                                    const { cateringEventoApi } = await import('../../services/api/cateringEventoApi');
+                                                                    const idEvento = venta.eventoData?.id_evento;
+                                                                    if (!idEvento) return;
+
+                                                                    const metricas = await cateringEventoApi.getMetricas(idEvento, id_empresa);
+                                                                    const { generarPDF } = await import('../../services/pdf/pdfService');
+                                                                    await generarPDF(venta, 'reporte-cierre', metricas);
+                                                                } catch (error) {
+                                                                    console.error('[Actividades] Error al descargar cierre:', error);
+                                                                    showToast('Error al descargar el reporte', 'error', 'Error');
+                                                                }
+                                                            }}
+                                                            title="Descargar reporte de cierre"
+                                                        >
+                                                            <i className="fas fa-chart-line"></i> Cierre
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </>
                                         ) : (
                                             <button className="dc-btn success">
                                                 <i className="fas fa-play"></i> Iniciar actividad

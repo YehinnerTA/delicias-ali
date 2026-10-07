@@ -5,6 +5,10 @@ import { cateringCalculoService, ProductoCalculado, IngredienteCalculado, Materi
 import { useCompany } from '../../../../../features/company/context/CompanyContext';
 import { useAuth } from '../../../../../features/auth/context/AuthContext';
 import { InlineIncidenciaForm, InlineIncidenciaData } from './InlineIncidenciaForm';
+import { GastoFormModal } from './GastoFormModal';
+import { cateringGastoApi } from '../../../../../services/api/cateringGastoApi';
+import { CategoriaGasto, GastoEvento, EstadoCompra } from '../../../../../features/types/catering';
+import { generarPDF } from '../../../../../services/pdf/pdfService';
 
 interface EtapaProps {
     etapa: EtapaEvento;
@@ -77,6 +81,7 @@ const getIconoEtapa = (etapa: string): string => {
 // 1. ALMACÉN
 // =====================================================
 export const EtapaAlmacen: React.FC<EtapaProps> = ({
+    etapa,
     venta,
     verificaciones,
     puedeActuar,
@@ -87,6 +92,7 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
     isSubmitting
 }) => {
     const { getSelectedCompanyId } = useCompany();
+    const { user } = useAuth();
     const id_empresa = getSelectedCompanyId() ?? 0;
 
     const [obs, setObs] = useState('');
@@ -96,6 +102,21 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
     const [busqueda, setBusqueda] = useState('');
     const [filtroEstado, setFiltroEstado] = useState<'todos' | 'pendientes' | 'comprados'>('todos');
 
+    const [estadoCompra, setEstadoCompra] = useState<Record<string, EstadoCompra>>({});
+    const [gastosPorItem, setGastosPorItem] = useState<Record<string, GastoEvento>>({});
+    const [checklistCompleto, setChecklistCompleto] = useState<any[]>([]);
+
+    const [gastoModalAbierto, setGastoModalAbierto] = useState(false);
+    const [itemGastoActivo, setItemGastoActivo] = useState<{
+        nombre: string;
+        cantidad: number;
+        unidad: string | null;
+        categoria: CategoriaGasto;
+        idChecklistItem: number | null;
+    } | null>(null);
+
+    const [erroresItem, setErroresItem] = useState<Record<string, string>>({});
+
     useEffect(() => {
         (async () => {
             setIsLoading(true);
@@ -104,11 +125,51 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
                 const mats = cateringCalculoService.calcularMateriales(venta);
                 setIngredientes(ings);
                 setMateriales(mats);
+
+                try {
+                    const checklistData = await cateringEventoApi.getChecklistCompleto(
+                        etapa.id_evento,
+                        etapa.etapa,
+                        id_empresa
+                    );
+
+                    setChecklistCompleto(checklistData as any);
+
+                    const estadoMap: Record<string, EstadoCompra> = {};
+                    for (const row of checklistData) {
+                        if (row.item && (row as any).estado_compra) {
+                            estadoMap[row.item] = (row as any).estado_compra;
+                        }
+                    }
+                    setEstadoCompra(estadoMap);
+                } catch (err) {
+                    console.warn('[EtapaAlmacen] No se pudo cargar estado_compra:', err);
+                }
+
+                try {
+                    const gastos = await cateringGastoApi.getByEvento({
+                        evento_id: etapa.id_evento,
+                        id_empresa: id_empresa,
+                        etapa: 'verificacion_almacen'
+                    });
+
+                    const gastosMap: Record<string, GastoEvento> = {};
+                    for (const g of gastos) {
+                        if (g.checklist_item_nombre) {
+                            gastosMap[g.checklist_item_nombre] = g;
+                        } else if (g.descripcion) {
+                            gastosMap[g.descripcion] = g;
+                        }
+                    }
+                    setGastosPorItem(gastosMap);
+                } catch (err) {
+                    console.warn('[EtapaAlmacen] No se pudo cargar gastos:', err);
+                }
             } finally {
                 setIsLoading(false);
             }
         })();
-    }, [venta, id_empresa]);
+    }, [venta, id_empresa, etapa.id_evento]);
 
     const filtrarItems = <T extends { nombre: string }>(items: T[]): T[] => {
         return items.filter(item => {
@@ -144,12 +205,185 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
     const pendientes = totalItems - totalVerificados;
     const porcentaje = totalItems > 0 ? Math.round((totalVerificados / totalItems) * 100) : 0;
 
-    const handleMarcarGrupo = (nombresItems: string[]) => {
-        if (!onVerificarMultiple) return;
+    const totalEgresos = Object.values(gastosPorItem).reduce(
+        (sum, g) => sum + g.subtotal,
+        0
+    );
+
+    const itemsEnAlmacen = Object.values(estadoCompra).filter(e => e === 'en_almacen').length;
+    const itemsComprar = Object.values(estadoCompra).filter(e => e === 'comprar').length;
+    const itemsPendientesEstado = totalItems - itemsEnAlmacen - itemsComprar;
+
+    const handleMarcarGrupo = async (nombresItems: string[]) => {
+        if (!onVerificarMultiple || !puedeActuar) return;
+
         const pendientesGrupo = nombresItems.filter(nombre => !verificaciones[nombre]);
         if (pendientesGrupo.length === 0) return;
 
-        onVerificarMultiple(pendientesGrupo, true);
+        const itemsValidos: string[] = [];
+        const erroresNuevos: Record<string, string> = {};
+
+        for (const nombre of pendientesGrupo) {
+            const estado = estadoCompra[nombre];
+            const gasto = gastosPorItem[nombre];
+
+            if (!estado) {
+                erroresNuevos[nombre] = 'Debes seleccionar un origen: En almacén o Comprar';
+                continue;
+            }
+
+            if (estado === 'comprar' && !gasto) {
+                erroresNuevos[nombre] = 'Registra el costo antes de marcarlo como completado';
+                continue;
+            }
+
+            itemsValidos.push(nombre);
+        }
+
+        setErroresItem(prev => {
+            const next = { ...prev };
+            for (const nombre of itemsValidos) {
+                delete next[nombre];
+            }
+            for (const nombre in erroresNuevos) {
+                next[nombre] = erroresNuevos[nombre];
+            }
+            return next;
+        });
+
+        if (itemsValidos.length === 0) {
+            return;
+        }
+
+        await onVerificarMultiple(itemsValidos, true);
+    };
+
+    const handleCambiarEstadoCompra = async (
+        nombreItem: string,
+        nuevoEstado: EstadoCompra
+    ) => {
+        if (!puedeActuar) return;
+
+        setErroresItem(prev => {
+            const next = { ...prev };
+            delete next[nombreItem];
+            return next;
+        });
+
+        const itemChecklist = checklistCompleto.find(c => c.item === nombreItem);
+        const idChecklist = itemChecklist?.id || null;
+
+        setEstadoCompra(prev => ({ ...prev, [nombreItem]: nuevoEstado }));
+
+        if (nuevoEstado === 'en_almacen') {
+            const gastoExistente = gastosPorItem[nombreItem];
+            if (gastoExistente) {
+                try {
+                    await cateringGastoApi.delete(gastoExistente.id, id_empresa);
+                    setGastosPorItem(prev => {
+                        const next = { ...prev };
+                        delete next[nombreItem];
+                        return next;
+                    });
+                } catch (err) {
+                    console.error('[EtapaAlmacen] Error al eliminar gasto:', err);
+                }
+            }
+        }
+
+        if (idChecklist) {
+            try {
+                await cateringEventoApi.actualizarEstadoCompra(
+                    idChecklist,
+                    id_empresa,
+                    nuevoEstado
+                );
+            } catch (err) {
+                console.error('[EtapaAlmacen] Error al actualizar estado_compra:', err);
+            }
+        }
+    };
+
+    const handleAbrirGastoModal = (item: {
+        nombre: string;
+        cantidad: number;
+        unidad: string | null;
+        categoria: CategoriaGasto;
+    }) => {
+        const itemChecklist = checklistCompleto.find(c => c.item === item.nombre);
+
+        setItemGastoActivo({
+            nombre: item.nombre,
+            cantidad: item.cantidad,
+            unidad: item.unidad,
+            categoria: item.categoria,
+            idChecklistItem: itemChecklist?.id || null
+        });
+
+        if (!estadoCompra[item.nombre]) {
+            handleCambiarEstadoCompra(item.nombre, 'comprar');
+        }
+
+        setGastoModalAbierto(true);
+    };
+
+    const handleGastoGuardado = (gasto: GastoEvento) => {
+        const key = gasto.checklist_item_nombre || gasto.descripcion;
+        setGastosPorItem(prev => ({ ...prev, [key]: gasto }));
+        setEstadoCompra(prev => ({ ...prev, [key]: 'comprar' }));
+
+        setErroresItem(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
+    const handleGastoEliminado = (idGasto: number) => {
+        setGastosPorItem(prev => {
+            const next = { ...prev };
+            for (const key in next) {
+                if (next[key].id === idGasto) {
+                    delete next[key];
+                    break;
+                }
+            }
+            return next;
+        });
+    };
+
+    const handleIntentarVerificar = (
+        nombreItem: string,
+        estado: EstadoCompra | undefined,
+        gasto: GastoEvento | undefined
+    ) => {
+        setErroresItem(prev => {
+            const next = { ...prev };
+            delete next[nombreItem];
+            return next;
+        });
+
+        if (!estado) {
+            setErroresItem(prev => ({
+                ...prev,
+                [nombreItem]: '⚠️ Debes seleccionar un origen: En almacén o Comprar'
+            }));
+            return;
+        }
+
+        if (estado === 'comprar' && !gasto) {
+            setErroresItem(prev => ({
+                ...prev,
+                [nombreItem]: '⚠️ Registra el costo antes de marcarlo como completado'
+            }));
+            return;
+        }
+
+        onVerificar(nombreItem, true);
+    };
+
+    const handleConfirmar = (observaciones?: string) => {
+        onConfirmar(observaciones);
     };
 
     if (isLoading) {
@@ -269,6 +503,9 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
                                 {items.map((ing, idx) => {
                                     const verificado = verificaciones[ing.nombre] || false;
                                     const sinProveedor = ing.proveedores.length === 0;
+                                    const estado = estadoCompra[ing.nombre];
+                                    const gasto = gastosPorItem[ing.nombre];
+
                                     return (
                                         <div
                                             key={`ing-${categoria}-${idx}`}
@@ -280,8 +517,15 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
                                                         type="checkbox"
                                                         className="dc-checklist-item-checkbox"
                                                         checked={verificado}
-                                                        onChange={() => onVerificar(ing.nombre, !verificado)}
+                                                        onChange={() => handleIntentarVerificar(ing.nombre, estado, gasto)}
                                                         disabled={!puedeActuar || verificado}
+                                                        title={
+                                                            !estado
+                                                                ? 'Primero selecciona el origen'
+                                                                : estado === 'comprar' && !gasto
+                                                                    ? 'Falta registrar el costo'
+                                                                    : 'Marcar como completado'
+                                                        }
                                                     />
                                                     <div className="dc-checklist-item-info">
                                                         <div className="dc-checklist-item-nombre">
@@ -302,6 +546,182 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
                                                     <strong>{ing.cantidad.toFixed(2)}</strong> {ing.unidad}
                                                 </div>
                                             </div>
+
+                                            {/* ═══ Error inline ═══ */}
+                                            {erroresItem[ing.nombre] && (
+                                                <div style={{
+                                                    marginTop: '6px',
+                                                    padding: '6px 10px',
+                                                    background: '#f8d7da',
+                                                    border: '1px solid #dc3545',
+                                                    borderRadius: '4px',
+                                                    color: '#721c24',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 'bold',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                }}>
+                                                    <i className="fas fa-exclamation-circle" style={{ color: '#dc3545' }}></i>
+                                                    {erroresItem[ing.nombre]}
+                                                </div>
+                                            )}
+
+                                            {/* ═══ SECCIÓN DE RADIOS ═══ */}
+                                            {puedeActuar && !verificado && (
+                                                <div style={{
+                                                    marginTop: '8px',
+                                                    padding: '8px',
+                                                    background: '#fafafa',
+                                                    borderRadius: '6px',
+                                                    display: 'flex',
+                                                    flexWrap: 'wrap',
+                                                    gap: '8px',
+                                                    alignItems: 'center'
+                                                }}>
+                                                    <span style={{ fontSize: '0.8rem', color: '#666', fontWeight: 'bold' }}>
+                                                        Origen:
+                                                    </span>
+
+                                                    <label style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
+                                                        cursor: 'pointer',
+                                                        padding: '4px 8px',
+                                                        borderRadius: '4px',
+                                                        background: estado === 'en_almacen' ? '#d4edda' : '#fff',
+                                                        border: estado === 'en_almacen' ? '1px solid #28a745' : '1px solid #ddd',
+                                                        fontSize: '0.85rem'
+                                                    }}>
+                                                        <input
+                                                            type="radio"
+                                                            name={`estado-${ing.nombre}`}
+                                                            checked={estado === 'en_almacen'}
+                                                            onChange={() => handleCambiarEstadoCompra(ing.nombre, 'en_almacen')}
+                                                        />
+                                                        <i className="fas fa-warehouse" style={{ color: '#28a745' }}></i>
+                                                        En almacén
+                                                    </label>
+
+                                                    <label style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
+                                                        cursor: 'pointer',
+                                                        padding: '4px 8px',
+                                                        borderRadius: '4px',
+                                                        background: estado === 'comprar' ? '#fff3cd' : '#fff',
+                                                        border: estado === 'comprar' ? '1px solid #ffc107' : '1px solid #ddd',
+                                                        fontSize: '0.85rem'
+                                                    }}>
+                                                        <input
+                                                            type="radio"
+                                                            name={`estado-${ing.nombre}`}
+                                                            checked={estado === 'comprar'}
+                                                            onChange={() => handleAbrirGastoModal({
+                                                                nombre: ing.nombre,
+                                                                cantidad: ing.cantidad,
+                                                                unidad: ing.unidad,
+                                                                categoria: 'ingrediente'
+                                                            })}
+                                                        />
+                                                        <i className="fas fa-shopping-cart" style={{ color: '#ffc107' }}></i>
+                                                        Comprar
+                                                    </label>
+
+                                                    {gasto && (
+                                                        <div style={{
+                                                            marginLeft: 'auto',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            fontSize: '0.85rem',
+                                                            fontWeight: 'bold',
+                                                            color: '#d90a46'
+                                                        }}>
+                                                            <i className="fas fa-money-bill-wave"></i>
+                                                            S/ {gasto.subtotal.toFixed(2)}
+                                                            <button
+                                                                className="dc-btn-default"
+                                                                onClick={() => handleAbrirGastoModal({
+                                                                    nombre: ing.nombre,
+                                                                    cantidad: ing.cantidad,
+                                                                    unidad: ing.unidad,
+                                                                    categoria: 'ingrediente'
+                                                                })}
+                                                                title="Editar costo"
+                                                                style={{
+                                                                    padding: '2px 8px',
+                                                                    fontSize: '0.75rem',
+                                                                    background: '#fff',
+                                                                    border: '1px solid #ddd',
+                                                                    borderRadius: '4px',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                <i className="fas fa-edit"></i>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* ═══ SECCIÓN INFORMATIVA cuando verificado ═══ */}
+                                            {verificado && estado && (
+                                                <div style={{
+                                                    marginTop: '8px',
+                                                    padding: '8px',
+                                                    background: '#f0f0f0',
+                                                    borderRadius: '6px',
+                                                    display: 'flex',
+                                                    flexWrap: 'wrap',
+                                                    gap: '8px',
+                                                    alignItems: 'center',
+                                                    opacity: 0.85
+                                                }}>
+                                                    <i className="fas fa-lock" style={{ color: '#999' }}></i>
+                                                    <span style={{ fontSize: '0.8rem', color: '#666', fontWeight: 'bold' }}>
+                                                        Origen (bloqueado):
+                                                    </span>
+
+                                                    {estado === 'en_almacen' && (
+                                                        <span style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '4px',
+                                                            background: '#d4edda',
+                                                            border: '1px solid #28a745',
+                                                            fontSize: '0.85rem',
+                                                            color: '#155724',
+                                                            fontWeight: 'bold'
+                                                        }}>
+                                                            <i className="fas fa-warehouse"></i>
+                                                            En almacén
+                                                        </span>
+                                                    )}
+
+                                                    {estado === 'comprar' && gasto && (
+                                                        <span style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '4px',
+                                                            background: '#fff3cd',
+                                                            border: '1px solid #ffc107',
+                                                            fontSize: '0.85rem',
+                                                            color: '#856404',
+                                                            fontWeight: 'bold'
+                                                        }}>
+                                                            <i className="fas fa-shopping-cart"></i>
+                                                            Comprado: S/ {gasto.subtotal.toFixed(2)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
 
                                             {!sinProveedor && (
                                                 <div className="dc-checklist-item-proveedores">
@@ -359,6 +779,9 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
                         <div className="dc-almacen-grupo-body">
                             {materialesFiltrados.map((mat, idx) => {
                                 const verificado = verificaciones[mat.nombre] || false;
+                                const estado = estadoCompra[mat.nombre];
+                                const gasto = gastosPorItem[mat.nombre];
+
                                 return (
                                     <div
                                         key={`mat-${idx}`}
@@ -370,8 +793,15 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
                                                     type="checkbox"
                                                     className="dc-checklist-item-checkbox"
                                                     checked={verificado}
-                                                    onChange={() => onVerificar(mat.nombre, !verificado)}
+                                                    onChange={() => handleIntentarVerificar(mat.nombre, estado, gasto)}
                                                     disabled={!puedeActuar || verificado}
+                                                    title={
+                                                        !estado
+                                                            ? 'Primero selecciona el origen'
+                                                            : estado === 'comprar' && !gasto
+                                                                ? 'Falta registrar el costo'
+                                                                : 'Marcar como completado'
+                                                    }
                                                 />
                                                 <div className="dc-checklist-item-info">
                                                     <div className="dc-checklist-item-nombre">{mat.nombre}</div>
@@ -381,10 +811,241 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
                                                 <strong>{mat.cantidad}</strong> und
                                             </div>
                                         </div>
+
+                                        {/* ═══ Error inline ═══ */}
+                                        {erroresItem[mat.nombre] && (
+                                            <div style={{
+                                                marginTop: '6px',
+                                                padding: '6px 10px',
+                                                background: '#f8d7da',
+                                                border: '1px solid #dc3545',
+                                                borderRadius: '4px',
+                                                color: '#721c24',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}>
+                                                <i className="fas fa-exclamation-circle" style={{ color: '#dc3545' }}></i>
+                                                {erroresItem[mat.nombre]}
+                                            </div>
+                                        )}
+
+                                        {/* ═══ Estado de compra ═══ */}
+                                        {puedeActuar && !verificado && (
+                                            <div style={{
+                                                marginTop: '8px',
+                                                padding: '8px',
+                                                background: '#fafafa',
+                                                borderRadius: '6px',
+                                                display: 'flex',
+                                                flexWrap: 'wrap',
+                                                gap: '8px',
+                                                alignItems: 'center'
+                                            }}>
+                                                <span style={{ fontSize: '0.8rem', color: '#666', fontWeight: 'bold' }}>
+                                                    Origen:
+                                                </span>
+
+                                                <label style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px',
+                                                    cursor: 'pointer',
+                                                    padding: '4px 8px',
+                                                    borderRadius: '4px',
+                                                    background: estado === 'en_almacen' ? '#d4edda' : '#fff',
+                                                    border: estado === 'en_almacen' ? '1px solid #28a745' : '1px solid #ddd',
+                                                    fontSize: '0.85rem'
+                                                }}>
+                                                    <input
+                                                        type="radio"
+                                                        name={`estado-${mat.nombre}`}
+                                                        checked={estado === 'en_almacen'}
+                                                        onChange={() => handleCambiarEstadoCompra(mat.nombre, 'en_almacen')}
+                                                    />
+                                                    <i className="fas fa-warehouse" style={{ color: '#28a745' }}></i>
+                                                    En almacén
+                                                </label>
+
+                                                <label style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px',
+                                                    cursor: 'pointer',
+                                                    padding: '4px 8px',
+                                                    borderRadius: '4px',
+                                                    background: estado === 'comprar' ? '#fff3cd' : '#fff',
+                                                    border: estado === 'comprar' ? '1px solid #ffc107' : '1px solid #ddd',
+                                                    fontSize: '0.85rem'
+                                                }}>
+                                                    <input
+                                                        type="radio"
+                                                        name={`estado-${mat.nombre}`}
+                                                        checked={estado === 'comprar'}
+                                                        onChange={() => handleAbrirGastoModal({
+                                                            nombre: mat.nombre,
+                                                            cantidad: mat.cantidad,
+                                                            unidad: 'und',
+                                                            categoria: 'material'
+                                                        })}
+                                                    />
+                                                    <i className="fas fa-shopping-cart" style={{ color: '#ffc107' }}></i>
+                                                    Comprar
+                                                </label>
+
+                                                {gasto && (
+                                                    <div style={{
+                                                        marginLeft: 'auto',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '8px',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: 'bold',
+                                                        color: '#d90a46'
+                                                    }}>
+                                                        <i className="fas fa-money-bill-wave"></i>
+                                                        S/ {gasto.subtotal.toFixed(2)}
+                                                        <button
+                                                            className="dc-btn-default"
+                                                            onClick={() => handleAbrirGastoModal({
+                                                                nombre: mat.nombre,
+                                                                cantidad: mat.cantidad,
+                                                                unidad: 'und',
+                                                                categoria: 'material'
+                                                            })}
+                                                            title="Editar costo"
+                                                            style={{
+                                                                padding: '2px 8px',
+                                                                fontSize: '0.75rem',
+                                                                background: '#fff',
+                                                                border: '1px solid #ddd',
+                                                                borderRadius: '4px',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            <i className="fas fa-edit"></i>
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* ═══ SECCIÓN INFORMATIVA cuando verificado ═══ */}
+                                        {verificado && estado && (
+                                            <div style={{
+                                                marginTop: '8px',
+                                                padding: '8px',
+                                                background: '#f0f0f0',
+                                                borderRadius: '6px',
+                                                display: 'flex',
+                                                flexWrap: 'wrap',
+                                                gap: '8px',
+                                                alignItems: 'center',
+                                                opacity: 0.85
+                                            }}>
+                                                <i className="fas fa-lock" style={{ color: '#999' }}></i>
+                                                <span style={{ fontSize: '0.8rem', color: '#666', fontWeight: 'bold' }}>
+                                                    Origen (bloqueado):
+                                                </span>
+
+                                                {estado === 'en_almacen' && (
+                                                    <span style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
+                                                        padding: '4px 10px',
+                                                        borderRadius: '4px',
+                                                        background: '#d4edda',
+                                                        border: '1px solid #28a745',
+                                                        fontSize: '0.85rem',
+                                                        color: '#155724',
+                                                        fontWeight: 'bold'
+                                                    }}>
+                                                        <i className="fas fa-warehouse"></i>
+                                                        En almacén
+                                                    </span>
+                                                )}
+
+                                                {estado === 'comprar' && gasto && (
+                                                    <span style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px',
+                                                        padding: '4px 10px',
+                                                        borderRadius: '4px',
+                                                        background: '#fff3cd',
+                                                        border: '1px solid #ffc107',
+                                                        fontSize: '0.85rem',
+                                                        color: '#856404',
+                                                        fontWeight: 'bold'
+                                                    }}>
+                                                        <i className="fas fa-shopping-cart"></i>
+                                                        Comprado: S/ {gasto.subtotal.toFixed(2)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
                         </div>
+                    </div>
+                )}
+
+                {/* ═══ Resumen de egresos ═══ */}
+                {(itemsComprar > 0 || totalEgresos > 0) && (
+                    <div style={{
+                        marginTop: '1rem',
+                        padding: '12px',
+                        background: '#f0f7ff',
+                        border: '1px solid #007bff',
+                        borderRadius: '8px'
+                    }}>
+                        <div style={{
+                            fontWeight: 'bold',
+                            fontSize: '0.95rem',
+                            color: '#007bff',
+                            marginBottom: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                        }}>
+                            <i className="fas fa-receipt"></i>
+                            Resumen del almacén
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '16px', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+                            <div>
+                                <i className="fas fa-warehouse" style={{ color: '#28a745' }}></i>
+                                {' '}En almacén: <strong>{itemsEnAlmacen}</strong>
+                            </div>
+                            <div>
+                                <i className="fas fa-shopping-cart" style={{ color: '#ffc107' }}></i>
+                                {' '}Comprar: <strong>{itemsComprar}</strong>
+                            </div>
+                            {itemsPendientesEstado > 0 && (
+                                <div>
+                                    <i className="fas fa-hourglass-half" style={{ color: '#999' }}></i>
+                                    {' '}Pendientes: <strong>{itemsPendientesEstado}</strong>
+                                </div>
+                            )}
+                        </div>
+
+                        {totalEgresos > 0 && (
+                            <div style={{
+                                marginTop: '8px',
+                                paddingTop: '8px',
+                                borderTop: '1px solid #cce5ff',
+                                fontSize: '1.1rem',
+                                fontWeight: 'bold',
+                                color: '#d90a46',
+                                textAlign: 'right'
+                            }}>
+                                Total Egresos: S/ {totalEgresos.toFixed(2)}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -412,8 +1073,9 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
                 </button>
                 <button
                     className="dc-btn-confirmar"
-                    onClick={() => onConfirmar(obs)}
-                    disabled={isSubmitting || totalVerificados < totalItems || !puedeActuar}
+                    onClick={() => handleConfirmar(obs)}
+                    disabled={isSubmitting || totalVerificados < totalItems || itemsPendientesEstado > 0 || !puedeActuar}
+                    title={itemsPendientesEstado > 0 ? `Faltan ${itemsPendientesEstado} items por marcar` : ''}
                 >
                     {isSubmitting ? (
                         <><i className="fas fa-spinner fa-spin"></i> Confirmando...</>
@@ -422,6 +1084,29 @@ export const EtapaAlmacen: React.FC<EtapaProps> = ({
                     )}
                 </button>
             </div>
+
+            {/* ═══ Modal de gasto ═══ */}
+            {itemGastoActivo && (
+                <GastoFormModal
+                    isOpen={gastoModalAbierto}
+                    onClose={() => {
+                        setGastoModalAbierto(false);
+                        setItemGastoActivo(null);
+                    }}
+                    idEmpresa={id_empresa}
+                    idEvento={etapa.id_evento}
+                    usuarioId={user?.id || 0}
+                    idChecklistItem={itemGastoActivo.idChecklistItem}
+                    descripcion={itemGastoActivo.nombre}
+                    cantidadRequerida={itemGastoActivo.cantidad}
+                    unidad={itemGastoActivo.unidad}
+                    categoria={itemGastoActivo.categoria}
+                    etapa="verificacion_almacen"
+                    gastoExistente={gastosPorItem[itemGastoActivo.nombre] || null}
+                    onGastoGuardado={handleGastoGuardado}
+                    onGastoEliminado={handleGastoEliminado}
+                />
+            )}
         </>
     );
 };

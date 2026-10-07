@@ -1,7 +1,6 @@
 -- =====================================================
 -- SISTEMA DE EVENTOS Y CATERING
 -- =====================================================
-
 DROP DATABASE IF EXISTS sistema_eventos_catering;
 CREATE DATABASE sistema_eventos_catering;
 USE sistema_eventos_catering;
@@ -629,6 +628,8 @@ CREATE TABLE catering_evento_checklist (
     unidad VARCHAR(20) NULL COMMENT 'Unidad de medida',
     cantidad_stock DECIMAL(10,2) NULL COMMENT 'Stock actual',
     cantidad_faltante DECIMAL(10,2) NULL COMMENT 'Cantidad a comprar',
+    estado_compra ENUM('en_almacen', 'comprar') NULL DEFAULT NULL COMMENT 'en_almacen = ya existe en stock; comprar = se compra (con costo)',
+    id_gasto INT NULL COMMENT 'Referencia al registro en catering_evento_gastos (si estado_compra = comprar)',
     proveedores JSON NULL COMMENT 'Lista de proveedores con teléfonos',
     verificado TINYINT(1) DEFAULT 0,
     verificado_por INT NULL,
@@ -643,6 +644,7 @@ CREATE TABLE catering_evento_checklist (
     FOREIGN KEY (verificado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
     INDEX idx_evento (id_evento),
     INDEX idx_etapa (etapa),
+    INDEX idx_estado_compra (estado_compra),
     UNIQUE KEY uk_evento_etapa_item (id_evento, etapa, item)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -702,4 +704,40 @@ CREATE TABLE catering_evento_preparacion (
     UNIQUE KEY uk_evento_item (id_evento, item),
     INDEX idx_evento (id_evento),
     INDEX idx_estado (estado)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- 37. GASTOS / EGRESOS DEL EVENTO (NUEVA)
+-- =====================================================
+CREATE TABLE catering_evento_gastos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL,
+    id_evento INT NOT NULL,
+    id_checklist_item INT NULL COMMENT 'Item del checklist que originó el gasto (si aplica)',
+    categoria ENUM('ingrediente', 'material', 'mano_obra', 'movilidad', 'otro') NOT NULL,
+    etapa VARCHAR(50) NOT NULL COMMENT 'verificacion_almacen, preparacion_cocina, carga_transporte, montaje_evento, recojo_evento, retorno_empresa, cierre',
+    descripcion VARCHAR(255) NOT NULL,
+    cantidad DECIMAL(10,2) NOT NULL DEFAULT 1,
+    unidad VARCHAR(20) NULL,
+    precio_unitario DECIMAL(10,2) NOT NULL,
+    subtotal DECIMAL(10,2) NOT NULL,
+    id_proveedor INT NULL,
+    tiene_factura TINYINT(1) DEFAULT 0,
+    numero_factura VARCHAR(50) NULL,
+    fecha_gasto DATE NOT NULL,
+    observaciones TEXT NULL,
+    registrado_por INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_empresa) REFERENCES empresas(id),
+    FOREIGN KEY (id_evento) REFERENCES catering_eventos(id) ON DELETE CASCADE,
+    FOREIGN KEY (id_checklist_item) REFERENCES catering_evento_checklist(id) ON DELETE SET NULL,
+    FOREIGN KEY (id_proveedor) REFERENCES personas(id) ON DELETE SET NULL,
+    FOREIGN KEY (registrado_por) REFERENCES usuarios(id),
+    INDEX idx_evento (id_evento),
+    INDEX idx_categoria (categoria),
+    INDEX idx_etapa (etapa),
+    INDEX idx_checklist (id_checklist_item),
+    INDEX idx_proveedor (id_proveedor),
+    INDEX idx_fecha (fecha_gasto)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

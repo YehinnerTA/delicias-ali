@@ -373,9 +373,6 @@ export const getMetricasEvento = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'id_empresa es requerido' });
         }
 
-        // =====================================================
-        // 1. ETAPAS con nombres de usuarios
-        // =====================================================
         const etapas = await executeQuery<any[]>(
             `SELECT 
                 e.etapa, 
@@ -1188,5 +1185,67 @@ export const resolverIncidencia = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('[resolverIncidencia] Error:', error);
         res.status(500).json({ message: 'Error al resolver incidencia', error });
+    }
+};
+
+export const actualizarEstadoCompra = async (req: Request, res: Response) => {
+    try {
+        const { id_item } = req.params;
+        const { id_empresa, estado_compra } = req.body;
+
+        if (!id_empresa) {
+            return res.status(400).json({ message: 'id_empresa es requerido' });
+        }
+
+        if (estado_compra !== null && estado_compra !== 'en_almacen' && estado_compra !== 'comprar') {
+            return res.status(400).json({
+                message: 'estado_compra debe ser "en_almacen", "comprar" o null'
+            });
+        }
+
+        const existe = await executeQuerySingle<any>(
+            `SELECT id, id_gasto FROM catering_evento_checklist 
+             WHERE id = ? AND id_empresa = ?`,
+            [id_item, id_empresa]
+        );
+
+        if (!existe) {
+            return res.status(404).json({ message: 'Item no encontrado' });
+        }
+
+        if (estado_compra === 'en_almacen' || estado_compra === null) {
+            await executeMutation(
+                `UPDATE catering_evento_checklist 
+                 SET estado_compra = ?,
+                     id_gasto = NULL
+                 WHERE id = ? AND id_empresa = ?`,
+                [estado_compra, id_item, id_empresa]
+            );
+        } else {
+            await executeMutation(
+                `UPDATE catering_evento_checklist 
+                 SET estado_compra = ?
+                 WHERE id = ? AND id_empresa = ?`,
+                [estado_compra, id_item, id_empresa]
+            );
+        }
+
+        const actualizado = await executeQuerySingle<any>(
+            `SELECT * FROM catering_evento_checklist WHERE id = ?`,
+            [id_item]
+        );
+
+        res.json({
+            message: 'Estado de compra actualizado',
+            item: {
+                ...actualizado,
+                verificado: actualizado.verificado === 1,
+                tiene_incidencia: actualizado.tiene_incidencia === 1,
+                proveedores: actualizado.proveedores ? JSON.parse(actualizado.proveedores) : []
+            }
+        });
+    } catch (error) {
+        console.error('[actualizarEstadoCompra] Error:', error);
+        res.status(500).json({ message: 'Error al actualizar estado de compra', error });
     }
 };

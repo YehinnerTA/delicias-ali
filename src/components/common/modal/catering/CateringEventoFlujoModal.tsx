@@ -210,6 +210,8 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
             return;
         }
 
+        const etapaQueSeConfirma = etapaActual.etapa;
+
         setIsSubmitting(true);
         try {
             await cateringEventoApi.confirmarEtapa(
@@ -217,6 +219,30 @@ export const CateringEventoFlujoModal: React.FC<CateringEventoFlujoModalProps> =
             );
 
             showToast('Etapa confirmada correctamente', 'success', 'Confirmado');
+
+            if (etapaQueSeConfirma === 'verificacion_almacen' && venta) {
+                setTimeout(async () => {
+                    try {
+                        const { generarPDF } = await import('../../../../services/pdf/pdfService');
+                        await generarPDF(venta, 'reporte-egresos');
+                    } catch (pdfError) {
+                        console.error('[CateringEventoFlujoModal] Error al generar PDF de egresos:', pdfError);
+                    }
+                }, 800);
+            }
+
+            if (etapaQueSeConfirma === 'cierre' && venta) {
+                setTimeout(async () => {
+                    try {
+                        const metricasActualizadas = await cateringEventoApi.getMetricas(idEvento, id_empresa);
+                        const { generarPDF } = await import('../../../../services/pdf/pdfService');
+                        await generarPDF(venta, 'reporte-cierre', metricasActualizadas);
+                    } catch (pdfError) {
+                        console.error('[CateringEventoFlujoModal] Error al generar PDF de cierre:', pdfError);
+                    }
+                }, 800);
+            }
+
             setObservaciones('');
             setMostrarIncidencia(false);
             onClose();

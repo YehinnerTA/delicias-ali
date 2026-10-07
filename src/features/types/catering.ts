@@ -126,3 +126,87 @@ export interface ChecklistItemPayload {
     unidad: string;
     proveedores: Array<{ nombre: string; telefono: string }>;
 }
+
+export type EstadoCompra = 'en_almacen' | 'comprar';
+
+export type CategoriaGasto = 'ingrediente' | 'material' | 'mano_obra' | 'movilidad' | 'otro';
+
+export interface GastoEvento {
+    id: number;
+    id_empresa: number;
+    id_evento: number;
+    id_checklist_item: number | null;
+    checklist_item_nombre?: string | null;
+    categoria: CategoriaGasto;
+    etapa: string;
+    descripcion: string;
+    cantidad: number;
+    unidad: string | null;
+    precio_unitario: number;
+    subtotal: number;
+    id_proveedor: number | null;
+    proveedor_nombre?: string | null;
+    proveedor_documento?: string | null;
+    tiene_factura: boolean;
+    numero_factura: string | null;
+    fecha_gasto: string;
+    observaciones: string | null;
+    registrado_por: number;
+    registrado_por_usuario?: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ResumenGastos {
+    total_general: number;
+    total_items: number;
+    por_categoria: Array<{
+        categoria: CategoriaGasto;
+        cantidad_items: number;
+        subtotal: number;
+    }>;
+    por_etapa: Array<{
+        etapa: string;
+        cantidad_items: number;
+        subtotal: number;
+    }>;
+    con_factura: number;
+    sin_factura: number;
+}
+
+export interface CreateGastoPayload {
+    id_empresa: number;
+    id_evento: number;
+    id_checklist_item?: number | null;
+    categoria: CategoriaGasto;
+    etapa: string;
+    descripcion: string;
+    cantidad: number;
+    unidad?: string | null;
+    precio_unitario: number;
+    id_proveedor?: number | null;
+    tiene_factura?: boolean;
+    numero_factura?: string | null;
+    fecha_gasto?: string;
+    observaciones?: string | null;
+    registrado_por: number;
+}
+
+export interface UpdateGastoPayload {
+    id_empresa: number;
+    cantidad?: number;
+    precio_unitario?: number;
+    id_proveedor?: number | null;
+    tiene_factura?: boolean;
+    numero_factura?: string | null;
+    observaciones?: string | null;
+    descripcion?: string;
+    unidad?: string | null;
+}
+
+export interface GastoFilters {
+    evento_id: number;
+    id_empresa: number;
+    categoria?: CategoriaGasto;
+    etapa?: string;
+}
