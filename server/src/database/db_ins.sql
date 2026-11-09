@@ -1,6 +1,3 @@
--- =====================================================
--- DATOS INICIALES
--- =====================================================
 USE sistema_eventos_catering;
 
 -- =====================================================
@@ -8,451 +5,539 @@ USE sistema_eventos_catering;
 -- =====================================================
 INSERT INTO roles (nombre, descripcion) VALUES
 ('Administrador', 'Acceso total al sistema'),
-('Chef', 'Gestion de cocina y recetas'),
-('Cajero', 'Gestion de ventas y pagos'),
-('Logistica', 'Gestion de inventario y proveedores');
+('Vendedor', 'Gestión de ventas y clientes'),
+('Cocinero', 'Gestión de preparación de recetas'),
+('Almacenero', 'Gestión de inventario y stock'),
+('Repartidor', 'Gestión de transporte y entrega de eventos');
 
 -- =====================================================
 -- 2. EMPRESAS
 -- =====================================================
-INSERT INTO empresas (ruc, nombre, creado_por) VALUES
-('10412743879', 'DeliciaAli', 'SISTEMA'),
-('20613823027', 'DELICIAS ALI S.A.C.', 'SISTEMA');
+INSERT INTO empresas (id, ruc, nombre, estado, creado_por) VALUES
+(1, '20512345678', 'Catering Delicias Peruanas SAC', 1, NULL),
+(2, '20698765432', 'Eventos y Sabores EIRL', 1, NULL),
+(3, '20456789123', 'Tienda Gourmet Express SAC', 1, NULL);
 
 -- =====================================================
--- 3. PERSONAS
+-- 3. PERSONAS (proveedores, clientes naturales, jurídicos, empleados)
 -- =====================================================
-INSERT INTO personas (id_empresa, tipo_persona, tipo_documento, numero_documento, nombre, apellido, email, celular) VALUES
-(1, 'empleado', 'DNI', '12345678', 'Administrador', 'Del Sistema', 'admin@deliciasali.com', '911111111'),
-(1, 'cliente_natural', 'DNI', '00000000', 'VARIOS', ' ', ' ', '000000000'),
-(2, 'cliente_natural', 'DNI', '00000000', 'VARIOS', ' ', ' ', '000000000'),
-(1, 'proveedor', 'RUC', '10412743879', 'Panadería Central', NULL, 'panaderia@central.com', '995123456'),
-(1, 'proveedor', 'RUC', '10412743880', 'Carnes Premium', NULL, 'carnes@premium.com', '995345678'),
-(1, 'proveedor', 'RUC', '10412743881', 'Lácteos Andinos', NULL, 'lacteos@andinos.com', '995456789'),
-(1, 'proveedor', 'RUC', '10412743882', 'Avícola San Fernando', NULL, 'avicola@sanfernando.com', '994123456'),
-(1, 'proveedor', 'RUC', '10412743883', 'Frutas del Valle', NULL, 'frutas@valle.com', '999123456'),
-(1, 'proveedor', 'RUC', '10412743884', 'Café Altura', NULL, 'cafe@altura.com', '998765432'),
-(1, 'proveedor', 'RUC', '10412743885', 'Granos Andinos', NULL, 'granos@andinos.com', '997123456');
+INSERT INTO personas (id, id_empresa, tipo_persona, tipo_documento, numero_documento, razon_social, nombre, apellido, email, celular, estado) VALUES
+-- Empleados (usuarios)
+(1, 1, 'empleado', 'DNI', '45678912', NULL, 'Carlos', 'Mendoza Ríos', 'carlos.mendoza@catering.pe', '987654321', 1),
+(2, 1, 'empleado', 'DNI', '45678913', NULL, 'María', 'López Fernández', 'maria.lopez@catering.pe', '987654322', 1),
+(3, 1, 'empleado', 'DNI', '45678914', NULL, 'José', 'Ramírez Torres', 'jose.ramirez@catering.pe', '987654323', 1),
+(4, 1, 'empleado', 'DNI', '45678915', NULL, 'Ana', 'García Paredes', 'ana.garcia@catering.pe', '987654324', 1),
+(5, 1, 'empleado', 'DNI', '45678916', NULL, 'Luis', 'Quispe Huamán', 'luis.quispe@catering.pe', '987654325', 1),
+-- Proveedores
+(6, 1, 'proveedor', 'RUC', '20123456789', 'Distribuidora La Fresa SAC', NULL, NULL, 'ventas@lafresa.pe', '988111222', 1),
+(7, 1, 'proveedor', 'RUC', '20987654321', 'Carnes Premium del Sur SAC', NULL, NULL, 'contacto@carnespremium.pe', '988333444', 1),
+(8, 1, 'proveedor', 'RUC', '20445566778', 'Abarrotes El Sol EIRL', NULL, NULL, 'pedidos@abarrotessel.pe', '988555666', 1),
+-- Clientes naturales
+(9, 1, 'cliente_natural', 'DNI', '12345678', NULL, 'Patricia', 'Vega Salazar', 'patricia.vega@gmail.com', '999111222', 1),
+(10, 1, 'cliente_natural', 'DNI', '87654321', NULL, 'Ricardo', 'Palma Ortiz', 'ricardo.palma@gmail.com', '999333444', 1),
+-- Clientes jurídicos
+(11, 1, 'cliente_juridico', 'RUC', '20556677889', 'Corporación Andina SAC', NULL, NULL, 'eventos@andina.com.pe', '999555666', 1),
+(12, 1, 'cliente_juridico', 'RUC', '20778899001', 'Constructora Lima Norte SAC', NULL, NULL, 'rrhh@limanorte.pe', '999777888', 1),
+-- Empleados empresa 2
+(13, 2, 'empleado', 'DNI', '45678917', NULL, 'Pedro', 'Sánchez Luna', 'pedro.sanchez@sabores.pe', '987654326', 1),
+(14, 2, 'empleado', 'DNI', '45678918', NULL, 'Lucía', 'Rojas Campos', 'lucia.rojas@sabores.pe', '987654327', 1),
+-- Empleados empresa 3
+(15, 3, 'empleado', 'DNI', '45678919', NULL, 'Diego', 'Herrera Ponce', 'diego.herrera@gourmet.pe', '987654328', 1);
 
 -- =====================================================
--- 4. USUARIOS
+-- 4. USUARIOS (hash fijo, sin variables de sesión)
 -- =====================================================
-INSERT INTO usuarios (id_persona, usuario, password_hash, firma, id_rol) VALUES
-(1, 'admin', SHA2(CONCAT('123456', @encryption_key), 256), NULL, 1);
+INSERT INTO usuarios (id, id_persona, usuario, password_hash, firma, id_rol, estado) VALUES
+(1, 1, 'cmendoza', SHA2(CONCAT('admin123', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'Carlos Mendoza - Administrador', 1, 1),
+(2, 2, 'mlopez',   SHA2(CONCAT('vende123', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'María López - Vendedora', 2, 1),
+(3, 3, 'jramirez', SHA2(CONCAT('cocina123', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'José Ramírez - Cocinero', 3, 1),
+(4, 4, 'agarcia',  SHA2(CONCAT('almacen123', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'Ana García - Almacenera', 4, 1),
+(5, 5, 'lquispe',  SHA2(CONCAT('reparto123', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'Luis Quispe - Repartidor', 5, 1),
+(6, 13, 'psanchez', SHA2(CONCAT('admin456', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'Pedro Sánchez - Admin E2', 1, 1),
+(7, 14, 'lrojas',   SHA2(CONCAT('vende456', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'Lucía Rojas - Vendedora E2', 2, 1),
+(8, 15, 'dherrera', SHA2(CONCAT('admin789', SHA2('ClaveSeguraParaEventosPeru2024!', 256)), 256), 'Diego Herrera - Admin E3', 1, 1);
 
 -- =====================================================
 -- 5. USUARIO - EMPRESA
 -- =====================================================
-INSERT INTO usuario_empresa (usuario_id, empresa_id, es_predeterminada)
-SELECT 
-    (SELECT id FROM usuarios WHERE usuario = 'admin'),
-    id, 
-    IF(ruc = '10412743879', 1, 0)
-FROM empresas
-WHERE ruc IN ('10412743879', '20613823027');
+INSERT INTO usuario_empresa (usuario_id, empresa_id, es_predeterminada) VALUES
+(1, 1, 1),
+(2, 1, 1),
+(3, 1, 1),
+(4, 1, 1),
+(5, 1, 1),
+(6, 2, 1),
+(7, 2, 1),
+(8, 3, 1);
 
 -- =====================================================
--- 6. CATEGORÍAS DE ALIMENTOS
+-- 6. HISTORIAL
 -- =====================================================
-INSERT INTO categorias_alimentos (id_empresa, nombre, descripcion) VALUES
-(1, 'Lácteos', 'Leche, queso, yogurt y derivados'),
-(1, 'Carnes Rojas', 'Carne de res, cerdo, cordero'),
-(1, 'Panificados', 'Pan, pan de hamburguesa, productos de panadería'),
-(1, 'Aves', 'Pollo, pavo y otras aves'),
-(1, 'Frutas y Verduras', 'Frutas, verduras y hortalizas frescas'),
-(1, 'Granos y Cereales', 'Quinoa, arroz, legumbres'),
-(1, 'Bebidas', 'Café, jugos, infusiones');
+INSERT INTO historial (entidad, id_entidad, accion, descripcion, usuario, fecha) VALUES
+('personas', 1, 'CREAR', 'Se creó la persona Carlos Mendoza Ríos', 'cmendoza', '2024-06-01 09:00:00'),
+('usuarios', 1, 'CREAR', 'Se creó el usuario cmendoza', 'cmendoza', '2024-06-01 09:05:00'),
+('empresas', 1, 'CREAR', 'Se registró la empresa Catering Delicias Peruanas SAC', 'cmendoza', '2024-06-01 09:10:00'),
+('ventas', 1, 'CREAR', 'Se registró la venta V-0001 por S/ 550.00', 'mlopez', '2024-06-15 10:30:00'),
+('catering_items', 1, 'ACTUALIZAR', 'Se actualizó el stock del ítem Aceite Vegetal', 'agarcia', '2024-06-16 11:00:00'),
+('catering_eventos', 1, 'ESTADO', 'Evento cambió a estado en_preparacion', 'jramirez', '2024-06-20 08:00:00');
 
 -- =====================================================
--- 7. PROVEEDOR - CATEGORÍA
+-- 7. ACTIVIDAD
+-- =====================================================
+INSERT INTO actividad (modulo, accion, detalle, usuario, timestamp) VALUES
+('Login', 'INICIO_SESION', 'El usuario cmendoza inició sesión', 'cmendoza', '2024-06-01 08:55:00'),
+('Ventas', 'CREAR_VENTA', 'Se registró la venta V-0001', 'mlopez', '2024-06-15 10:30:00'),
+('Inventario', 'ACTUALIZAR_STOCK', 'Se actualizó stock del ítem ID 1 a 50', 'agarcia', '2024-06-16 11:00:00'),
+('Eventos', 'CAMBIO_ESTADO', 'Evento ID 1 pasó a en_preparacion', 'jramirez', '2024-06-20 08:00:00'),
+('Recetas', 'CREAR_RECETA', 'Se creó la receta Sándwich de Pollo', 'jramirez', '2024-06-10 14:00:00');
+
+-- =====================================================
+-- 8. CATEGORÍAS DE ALIMENTOS
+-- =====================================================
+INSERT INTO categorias_alimentos (id, id_empresa, nombre, descripcion) VALUES
+(1, 1, 'Carnes y Aves', 'Pollo, res, cerdo y derivados'),
+(2, 1, 'Verduras y Hortalizas', 'Vegetales frescos'),
+(3, 1, 'Lácteos', 'Leche, queso, mantequilla'),
+(4, 1, 'Abarrotes', 'Productos secos y enlatados'),
+(5, 1, 'Panadería', 'Panes y masas'),
+(6, 1, 'Bebidas', 'Jugos, gaseosas, agua'),
+(7, 1, 'Postres', 'Dulces y tortas');
+
+-- =====================================================
+-- 9. PROVEEDOR - CATEGORÍA
 -- =====================================================
 INSERT INTO proveedor_categoria (id_empresa, id_proveedor, id_categoria) VALUES
-(1, (SELECT id FROM personas WHERE nombre = 'Lácteos Andinos'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Lácteos')),
-(1, (SELECT id FROM personas WHERE nombre = 'Carnes Premium'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Carnes Rojas')),
-(1, (SELECT id FROM personas WHERE nombre = 'Panadería Central'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Panificados')),
-(1, (SELECT id FROM personas WHERE nombre = 'Avícola San Fernando'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Aves')),
-(1, (SELECT id FROM personas WHERE nombre = 'Frutas del Valle'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Frutas y Verduras')),
-(1, (SELECT id FROM personas WHERE nombre = 'Granos Andinos'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Granos y Cereales')),
-(1, (SELECT id FROM personas WHERE nombre = 'Café Altura'), (SELECT id FROM categorias_alimentos WHERE nombre = 'Bebidas'));
+(1, 6, 2),  -- Distribuidora La Fresa -> Verduras
+(1, 6, 3),  -- Distribuidora La Fresa -> Lácteos
+(1, 7, 1),  -- Carnes Premium -> Carnes
+(1, 8, 4),  -- Abarrotes El Sol -> Abarrotes
+(1, 8, 5);  -- Abarrotes El Sol -> Panadería
 
 -- =====================================================
--- 8. INGREDIENTES
+-- 10. CATERING ITEMS (Insumos y Utensilios)
 -- =====================================================
-INSERT INTO ingredientes (id_empresa, nombre, unidad, id_categoria) VALUES
-(1, 'Pan', 'unidades', (SELECT id FROM categorias_alimentos WHERE nombre = 'Panificados')),
-(1, 'Pan de hamburguesa', 'unidades', (SELECT id FROM categorias_alimentos WHERE nombre = 'Panificados')),
-(1, 'Carne molida', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Carnes Rojas')),
-(1, 'Jamón', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Carnes Rojas')),
-(1, 'Queso', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Lácteos')),
-(1, 'Leche', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Lácteos')),
-(1, 'Pechuga de pollo', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Aves')),
-(1, 'Pimiento', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Frutas y Verduras')),
-(1, 'Lechuga', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Frutas y Verduras')),
-(1, 'Tomate', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Frutas y Verduras')),
-(1, 'Naranja', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Frutas y Verduras')),
-(1, 'Quinoa', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Granos y Cereales')),
-(1, 'Café en grano', 'kg', (SELECT id FROM categorias_alimentos WHERE nombre = 'Bebidas'));
+INSERT INTO catering_items (id, id_empresa, nombre, stock, tipo, unidad_medida, tiene_vencimiento, fecha_vencimiento, dias_vida_util, precio_compra, id_proveedor, registrado_por) VALUES
+(1, 1, 'Aceite Vegetal', 50, 'materia prima', 'litro', 1, '2025-12-31', 365, 8.50, 8, 4),
+(2, 1, 'Harina de Trigo', 80, 'materia prima', 'kg', 1, '2025-10-15', 180, 4.20, 8, 4),
+(3, 1, 'Pechuga de Pollo', 30, 'materia prima', 'kg', 1, '2024-07-10', 5, 15.00, 7, 4),
+(4, 1, 'Tomate', 25, 'materia prima', 'kg', 1, '2024-07-05', 7, 3.50, 6, 4),
+(5, 1, 'Leche Entera', 40, 'materia prima', 'litro', 1, '2024-08-01', 30, 4.80, 6, 4),
+(6, 1, 'Vajilla de Porcelana', 200, 'utensilio', 'unidad', 0, NULL, NULL, 12.00, NULL, 4),
+(7, 1, 'Copas de Vidrio', 150, 'utensilio', 'unidad', 0, NULL, NULL, 6.50, NULL, 4),
+(8, 1, 'Mantel Blanco', 60, 'utensilio', 'unidad', 0, NULL, NULL, 25.00, NULL, 4),
+(9, 1, 'Azúcar Rubia', 35, 'materia prima', 'kg', 1, '2025-06-30', 365, 4.00, 8, 4),
+(10, 1, 'Queso Fresco', 20, 'materia prima', 'kg', 1, '2024-07-20', 15, 18.00, 6, 4);
 
 -- =====================================================
--- 9. INGREDIENTE - PROVEEDOR
+-- 11. CATERING LOTES
 -- =====================================================
-INSERT INTO ingrediente_proveedores (id_empresa, id_ingrediente, id_proveedor) VALUES
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Pan'), (SELECT id FROM personas WHERE nombre = 'Panadería Central')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Pan de hamburguesa'), (SELECT id FROM personas WHERE nombre = 'Panadería Central')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Carne molida'), (SELECT id FROM personas WHERE nombre = 'Carnes Premium')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Jamón'), (SELECT id FROM personas WHERE nombre = 'Carnes Premium')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Queso'), (SELECT id FROM personas WHERE nombre = 'Lácteos Andinos')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Leche'), (SELECT id FROM personas WHERE nombre = 'Lácteos Andinos')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Pechuga de pollo'), (SELECT id FROM personas WHERE nombre = 'Avícola San Fernando')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Pimiento'), (SELECT id FROM personas WHERE nombre = 'Frutas del Valle')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Lechuga'), (SELECT id FROM personas WHERE nombre = 'Frutas del Valle')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Tomate'), (SELECT id FROM personas WHERE nombre = 'Frutas del Valle')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Naranja'), (SELECT id FROM personas WHERE nombre = 'Frutas del Valle')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Quinoa'), (SELECT id FROM personas WHERE nombre = 'Granos Andinos')),
-(1, (SELECT id FROM ingredientes WHERE nombre = 'Café en grano'), (SELECT id FROM personas WHERE nombre = 'Café Altura'));
+INSERT INTO catering_lotes (id, id_empresa, id_item, stock, fecha_vencimiento, dias_vida_util, fecha_registro, registrado_por, descartado) VALUES
+(1, 1, 1, 30, '2025-12-31', 365, '2024-06-01', 4, 0),
+(2, 1, 1, 20, '2025-11-30', 300, '2024-06-10', 4, 0),
+(3, 1, 2, 50, '2025-10-15', 180, '2024-06-05', 4, 0),
+(4, 1, 3, 15, '2024-07-10', 5, '2024-07-05', 4, 0),
+(5, 1, 3, 15, '2024-07-12', 5, '2024-07-07', 4, 0),
+(6, 1, 4, 25, '2024-07-05', 7, '2024-06-28', 4, 0),
+(7, 1, 5, 40, '2024-08-01', 30, '2024-07-02', 4, 0),
+(8, 1, 9, 35, '2025-06-30', 365, '2024-06-01', 4, 0),
+(9, 1, 10, 20, '2024-07-20', 15, '2024-07-05', 4, 0),
+(10, 1, 2, 30, '2025-09-30', 180, '2024-07-01', 4, 0);
 
 -- =====================================================
--- 10. TIPOS DE SERVICIO
+-- 12. POSTRES
 -- =====================================================
-INSERT INTO catering_service_tipos (clave, nombre, descripcion) VALUES
-('Corporativo', 'Corporativo Ejecutivo', 'Servicio corporativo con sándwiches premium y ensaladas'),
-('Social', 'Social / Fiestas', 'Servicio para eventos sociales con mini hamburguesas y brochetas'),
-('Desayuno', 'Desayuno Corporativo', 'Servicio de desayuno con café, tostadas y yogurt');
-
--- =====================================================
--- 11. RECETAS
--- =====================================================
-INSERT INTO recetas (
-    id_empresa, nombre, descripcion,
-    categoria_receta, tipo_preparacion, cantidad_base, porciones_por_unidad,
-    tiempo_preparacion, tiempo_coccion, dificultad, rendimiento,
-    estado, created_by
-) VALUES
-(1, 'Sándwich Premium', 'Receta para sándwich premium',
-    'plato_principal', 'por_unidad', 10, 1,
-    15, 5, 'fácil', 95.00, 1, 'admin'),
-(1, 'Mini Hamburguesas', 'Receta para mini hamburguesas',
-    'plato_principal', 'por_unidad', 8, 1,
-    20, 10, 'media', 95.00, 1, 'admin'),
-(1, 'Brochetas de Pollo', 'Receta para brochetas de pollo',
-    'plato_principal', 'por_unidad', 10, 1,
-    25, 15, 'media', 90.00, 1, 'admin'),
-(1, 'Jugo Natural', 'Receta para jugo natural',
-    'bebida', 'por_lote', 1, 15,
-    10, 0, 'fácil', 100.00, 1, 'admin'),
-(1, 'Café Americano', 'Receta para café americano',
-    'bebida', 'por_lote', 1, 15,
-    5, 5, 'fácil', 100.00, 1, 'admin'),
-(1, 'Ensalada de Quinoa', 'Receta para ensalada de quinoa',
-    'entrada', 'por_lote', 1, 10,
-    15, 0, 'fácil', 95.00, 1, 'admin'),
-(1, 'Postre Variado', 'Receta para postre variado',
-    'postre', 'por_unidad', 1, 1,
-    20, 0, 'fácil', 100.00, 1, 'admin'),
-(1, 'Tostada Francesa', 'Receta para tostada francesa',
-    'entrada', 'por_unidad', 1, 1,
-    10, 5, 'fácil', 100.00, 1, 'admin'),
-(1, 'Yogurt con Granola', 'Receta para yogurt con granola',
-    'entrada', 'por_unidad', 1, 1,
-    5, 0, 'fácil', 100.00, 1, 'admin');
+INSERT INTO postres (id, id_empresa, nombre, precio) VALUES
+(1, 1, 'Torta de Chocolate', 8.50),
+(2, 1, 'Cheesecake de Fresa', 9.00),
+(3, 1, 'Alfajor de Manjar', 3.50),
+(4, 1, 'Mazamorra Morada', 4.00),
+(5, 1, 'Flan de Vainilla', 5.50);
 
 -- =====================================================
--- 12. RECETA - INGREDIENTES
+-- 13. LOTES (POSTRES)
 -- =====================================================
-
--- Sándwich Premium
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.2, 'unidades', 'Pan artesanal, no industrial', 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Sándwich Premium' AND i.nombre = 'Pan';
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.005, 'kg', NULL, 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Sándwich Premium' AND i.nombre = 'Jamón';
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.004, 'kg', NULL, 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Sándwich Premium' AND i.nombre = 'Queso';
-
--- Mini Hamburguesas
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.125, 'unidades', NULL, 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Mini Hamburguesas' AND i.nombre = 'Pan de hamburguesa';
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.0125, 'kg', NULL, 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Mini Hamburguesas' AND i.nombre = 'Carne molida';
-
--- Brochetas de Pollo
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.01, 'kg', NULL, 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Brochetas de Pollo' AND i.nombre = 'Pechuga de pollo';
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.002, 'kg', 'Pimiento rojo', 1
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Brochetas de Pollo' AND i.nombre = 'Pimiento';
-
--- Jugo Natural
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.02, 'kg', 'Naranja de jugo', 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Jugo Natural' AND i.nombre = 'Naranja';
-
--- Café Americano
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.0013, 'kg', NULL, 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Café Americano' AND i.nombre = 'Café en grano';
-
--- Ensalada de Quinoa
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.015, 'kg', 'Quinoa lavada', 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Quinoa';
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.005, 'kg', NULL, 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Lechuga';
-
-INSERT INTO receta_ingredientes (id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional)
-SELECT 1, r.id, i.id, 0.005, 'kg', NULL, 0
-FROM recetas r, ingredientes i
-WHERE r.nombre = 'Ensalada de Quinoa' AND i.nombre = 'Tomate';
+INSERT INTO lotes (id, id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, descartado, fecha_registro, registrado_por) VALUES
+(1, 1, 1, 20, '2024-07-15', 7, 0, '2024-07-08', 4),
+(2, 1, 2, 15, '2024-07-14', 5, 0, '2024-07-09', 4),
+(3, 1, 3, 30, '2024-07-20', 10, 0, '2024-07-10', 4),
+(4, 1, 4, 25, '2024-07-13', 3, 0, '2024-07-10', 4),
+(5, 1, 5, 18, '2024-07-16', 6, 0, '2024-07-10', 4),
+(6, 1, 1, 10, '2024-07-22', 7, 0, '2024-07-15', 4);
 
 -- =====================================================
--- 13. RECETA - PASOS
+-- 14. VENTAS
 -- =====================================================
-
-INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
-SELECT 1, r.id, 1, 'Cortar el pan por la mitad' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
-INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
-SELECT 1, r.id, 2, 'Untar mantequilla en ambas mitades' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
-INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
-SELECT 1, r.id, 3, 'Colocar jamón y queso' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
-INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
-SELECT 1, r.id, 4, 'Cerrar el sándwich y cortar en diagonal' FROM recetas r WHERE r.nombre = 'Sándwich Premium';
-
-INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
-SELECT 1, r.id, 1, 'Lavar y cocinar la quinoa por 15 minutos' FROM recetas r WHERE r.nombre = 'Ensalada de Quinoa';
-INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
-SELECT 1, r.id, 2, 'Picar la lechuga y el tomate en cubos' FROM recetas r WHERE r.nombre = 'Ensalada de Quinoa';
-INSERT INTO receta_pasos (id_empresa, id_receta, orden, descripcion)
-SELECT 1, r.id, 3, 'Mezclar todos los ingredientes y aderezar' FROM recetas r WHERE r.nombre = 'Ensalada de Quinoa';
+INSERT INTO ventas (id, id_empresa, numero, fecha, id_cliente, id_usuario, subtotal, descuento, igv, total, metodo_pago, estado) VALUES
+(1, 1, 'V-0001', '2024-06-15 10:30:00', 9, 2, 550.00, 0.00, 99.00, 649.00, 'EFECTIVO', 'completada'),
+(2, 1, 'V-0002', '2024-06-18 14:20:00', 11, 2, 1200.00, 50.00, 207.00, 1357.00, 'TARJETA', 'completada'),
+(3, 1, 'V-0003', '2024-06-20 09:15:00', 10, 2, 320.00, 0.00, 57.60, 377.60, 'YAPE', 'completada'),
+(4, 1, 'V-0004', '2024-06-25 16:00:00', 12, 2, 800.00, 0.00, 144.00, 944.00, 'PLIN', 'completada'),
+(5, 1, 'V-0005', '2024-07-01 11:45:00', 9, 2, 250.00, 0.00, 45.00, 295.00, 'EFECTIVO', 'completada'),
+(6, 1, 'V-0006', '2024-07-05 13:00:00', 11, 2, 600.00, 0.00, 108.00, 708.00, 'TARJETA', 'anulada');
 
 -- =====================================================
--- 14. PRODUCTOS DE CARTA
+-- 15. DETALLE VENTA
 -- =====================================================
-
--- Tipo 1: Corporativo Ejecutivo
-INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, precio) VALUES
-(1, (SELECT id FROM recetas WHERE nombre = 'Sándwich Premium'), 18.00),
-(1, (SELECT id FROM recetas WHERE nombre = 'Ensalada de Quinoa'), 22.00),
-(1, (SELECT id FROM recetas WHERE nombre = 'Jugo Natural'), 9.00),
-(1, (SELECT id FROM recetas WHERE nombre = 'Café Americano'), 7.00);
-
--- Tipo 2: Social / Fiestas
-INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, precio) VALUES
-(2, (SELECT id FROM recetas WHERE nombre = 'Mini Hamburguesas'), 15.00),
-(2, (SELECT id FROM recetas WHERE nombre = 'Brochetas de Pollo'), 20.00),
-(2, (SELECT id FROM recetas WHERE nombre = 'Postre Variado'), 12.00);
-
--- Tipo 3: Desayuno Corporativo
-INSERT INTO catering_service_productos_carta (id_tipo_servicio, id_receta, precio) VALUES
-(3, (SELECT id FROM recetas WHERE nombre = 'Café Americano'), 8.00),
-(3, (SELECT id FROM recetas WHERE nombre = 'Tostada Francesa'), 12.00),
-(3, (SELECT id FROM recetas WHERE nombre = 'Yogurt con Granola'), 10.00);
+INSERT INTO detalle_venta (id, id_empresa, id_venta, id_lote, nombre_producto, precio_unitario, cantidad, subtotal) VALUES
+(1, 1, 1, 1, 'Torta de Chocolate', 8.50, 20, 170.00),
+(2, 1, 1, 2, 'Cheesecake de Fresa', 9.00, 15, 135.00),
+(3, 1, 1, 3, 'Alfajor de Manjar', 3.50, 30, 105.00),
+(4, 1, 1, 4, 'Mazamorra Morada', 4.00, 25, 100.00),
+(5, 1, 1, 5, 'Flan de Vainilla', 5.50, 18, 99.00),
+(6, 1, 2, 1, 'Torta de Chocolate', 8.50, 40, 340.00),
+(7, 1, 2, 2, 'Cheesecake de Fresa', 9.00, 30, 270.00),
+(8, 1, 2, 6, 'Torta de Chocolate', 8.50, 10, 85.00),
+(9, 1, 3, 3, 'Alfajor de Manjar', 3.50, 40, 140.00),
+(10, 1, 3, 5, 'Flan de Vainilla', 5.50, 20, 110.00),
+(11, 1, 4, 4, 'Mazamorra Morada', 4.00, 30, 120.00),
+(12, 1, 4, 2, 'Cheesecake de Fresa', 9.00, 20, 180.00),
+(13, 1, 5, 3, 'Alfajor de Manjar', 3.50, 25, 87.50),
+(14, 1, 5, 1, 'Torta de Chocolate', 8.50, 15, 127.50),
+(15, 1, 6, 4, 'Mazamorra Morada', 4.00, 20, 80.00);
 
 -- =====================================================
--- 15. MATERIALES DE CATÁLOGO
+-- 16. DEVOLUCIONES
 -- =====================================================
-INSERT INTO catering_materiales_catalogo (nombre, precio) VALUES
-('Plato Cerámico (x10)', 45.00),
-('Vaso Vidrio (x12)', 28.00),
-('Cubiertos Acero (set x20)', 35.00),
-('Mantelería Elegante', 60.00),
-('Mesa Plegable (unidad)', 85.00),
-('Silla Estándar (unidad)', 12.00);
+INSERT INTO devoluciones (id, id_empresa, id_venta, fecha, id_usuario, motivo, nota_credito, monto) VALUES
+(1, 1, 6, '2024-07-06 10:00:00', 1, 'El cliente solicitó anular la venta por cambio de fecha', 'NC-0001', 708.00),
+(2, 1, 3, '2024-06-22 09:00:00', 2, 'Producto en mal estado (postre vencido)', 'NC-0002', 44.00);
 
 -- =====================================================
--- 16. INVENTARIO
+-- 17. DETALLE DEVOLUCIÓN
 -- =====================================================
-INSERT INTO catering_items (id_empresa, nombre, stock, tipo, registrado_por) VALUES
-(1, 'Harina de trigo', 28, 'materia prima', 1),
-(1, 'Batidora planetaria', 2, 'utensilio', 1),
-(1, 'Azúcar morena', 45, 'materia prima', 1);
-
--- =====================================================
--- 17. POSTRES
--- =====================================================
-INSERT INTO postres (id_empresa, nombre, precio) VALUES
-(1, 'Cheesecake', 6.2),
-(1, 'Brownies', 6);
-
-INSERT INTO lotes (id_empresa, postre_id, stock, fecha_vencimiento, dias_duracion, fecha_registro, registrado_por) VALUES
-(1, 1, 12, DATE_ADD(CURDATE(), INTERVAL 5 DAY), 5, CURDATE(), 1),
-(1, 1, 6, DATE_ADD(CURDATE(), INTERVAL 12 DAY), 12, CURDATE(), 1),
-(1, 2, 8, DATE_ADD(CURDATE(), INTERVAL -2 DAY), -2, CURDATE(), 1);
+INSERT INTO detalle_devolucion (id, id_empresa, id_devolucion, id_detalle_venta, cantidad) VALUES
+(1, 1, 1, 15, 20),
+(2, 1, 2, 10, 4);
 
 -- =====================================================
--- 18. VENTA DE PRUEBA CATERING (CON DIRECCIÓN Y FLUJO)
+-- 18. CATÁLOGO TIPOS DE SERVICIO CATERING
 -- =====================================================
-SET @cliente_catering = (SELECT id FROM personas WHERE numero_documento = '12345678' AND id_empresa = 1 LIMIT 1);
-SET @usuario_catering = (SELECT id FROM usuarios WHERE usuario = 'admin' LIMIT 1);
+INSERT INTO catering_service_tipos (id, clave, nombre, descripcion) VALUES
+(1, 'desayuno', 'Desayuno', 'Servicio de desayuno completo'),
+(2, 'almuerzo', 'Almuerzo', 'Servicio de almuerzo con entrada, plato y postre'),
+(3, 'cena', 'Cena', 'Servicio de cena formal'),
+(4, 'coffee_break', 'Coffee Break', 'Refrigerio ligero para reuniones'),
+(5, 'buffet', 'Buffet', 'Servicio tipo buffet variado');
 
--- Venta principal
-INSERT INTO ventas (id_empresa, numero, fecha, id_cliente, id_usuario, subtotal, descuento, igv, total, metodo_pago, estado)
-VALUES (1, 'V-00001', '2026-08-21 20:38:04', @cliente_catering, @usuario_catering, 0.00, 0.00, 0.00, 0.00, 'EFECTIVO', 'completada');
+-- =====================================================
+-- 19. INGREDIENTES
+-- =====================================================
+INSERT INTO ingredientes (id, id_empresa, nombre, unidad, id_categoria) VALUES
+(1, 1, 'Pechuga de Pollo', 'kg', 1),
+(2, 1, 'Tomate', 'kg', 2),
+(3, 1, 'Harina de Trigo', 'kg', 4),
+(4, 1, 'Leche Entera', 'litro', 3),
+(5, 1, 'Queso Fresco', 'kg', 3),
+(6, 1, 'Azúcar Rubia', 'kg', 4),
+(7, 1, 'Aceite Vegetal', 'litro', 4),
+(8, 1, 'Pan de Molde', 'unidad', 5),
+(9, 1, 'Lechuga', 'kg', 2),
+(10, 1, 'Huevo', 'unidad', 1);
 
-SET @venta_cat = LAST_INSERT_ID();
+-- =====================================================
+-- 20. RECETAS
+-- =====================================================
+INSERT INTO recetas (id, id_empresa, nombre, descripcion, categoria_receta, tipo_preparacion, cantidad_base, porciones_por_unidad, tiempo_preparacion, tiempo_coccion, dificultad, rendimiento, costo_estimado, estado, created_by) VALUES
+(1, 1, 'Sándwich de Pollo', 'Sándwich de pollo deshilachado con lechuga y tomate', 'entrada', 'por_unidad', 10, 1, 15, 10, 'fácil', 100.00, 25.00, 1, 'jramirez'),
+(2, 1, 'Ensalada Fresca', 'Ensalada de lechuga y tomate con aderezo', 'entrada', 'por_unidad', 5, 1, 10, 0, 'fácil', 100.00, 12.00, 1, 'jramirez'),
+(3, 1, 'Pollo a la Plancha', 'Pechuga de pollo a la plancha con guarnición', 'plato_principal', 'por_unidad', 8, 1, 20, 15, 'media', 95.00, 45.00, 1, 'jramirez'),
+(4, 1, 'Queque de Vainilla', 'Queque esponjoso de vainilla para 12 porciones', 'postre', 'por_molde', 1, 12, 25, 40, 'media', 90.00, 30.00, 1, 'jramirez'),
+(5, 1, 'Jugo de Naranja', 'Jugo natural de naranja', 'bebida', 'por_lote', 20, 1, 10, 0, 'fácil', 100.00, 18.00, 1, 'jramirez');
 
--- ✅ Evento CON dirección, mozo y estado de flujo (CORREGIDO: compra_pendiente)
-INSERT INTO catering_eventos (
-    id_empresa, id_venta, fecha_evento, horario, personas, tipo_desayuno,
-    direccion, referencia,
-    incluir_mozo, cantidad_mozos, precio_mozo, subtotal_mozo,
-    estado_flujo, estado_actualizado_por, estado_actualizado_at, observaciones
-) VALUES (
-    1, @venta_cat, DATE_ADD(CURDATE(), INTERVAL 3 DAY), '12:00:00', 20, 'Clásico',
-    'Av. Los Álamos 123, Miraflores', 'Frente al parque central',
-    1, 1, 100.00, 100.00,
-    'compra_pendiente', @usuario_catering, NOW(), 'Venta creada, enviada a almacén'
-);
+-- =====================================================
+-- 21. RECETA - INGREDIENTES
+-- =====================================================
+INSERT INTO receta_ingredientes (id, id_empresa, id_receta, id_ingrediente, cantidad_por_unidad, unidad, notas, es_opcional) VALUES
+(1, 1, 1, 1, 0.1000, 'kg', 'Pollo deshilachado', 0),
+(2, 1, 1, 8, 2.0000, 'unidad', 'Pan de molde', 0),
+(3, 1, 1, 9, 0.0200, 'kg', 'Lechuga fresca', 0),
+(4, 1, 1, 2, 0.0300, 'kg', 'Tomate en rodajas', 0),
+(5, 1, 2, 9, 0.0500, 'kg', 'Lechuga', 0),
+(6, 1, 2, 2, 0.0800, 'kg', 'Tomate', 0),
+(7, 1, 3, 1, 0.2000, 'kg', 'Pechuga de pollo', 0),
+(8, 1, 3, 7, 0.0200, 'litro', 'Aceite para plancha', 0),
+(9, 1, 4, 3, 0.5000, 'kg', 'Harina', 0),
+(10, 1, 4, 6, 0.3000, 'kg', 'Azúcar', 0),
+(11, 1, 4, 10, 3.0000, 'unidad', 'Huevos', 0),
+(12, 1, 5, 6, 0.0500, 'kg', 'Azúcar opcional', 1);
 
-SET @evento_id = LAST_INSERT_ID();
+-- =====================================================
+-- 22. RECETA - PASOS
+-- =====================================================
+INSERT INTO receta_pasos (id, id_empresa, id_receta, orden, descripcion) VALUES
+(1, 1, 1, 1, 'Cocinar y deshilachar la pechuga de pollo.'),
+(2, 1, 1, 2, 'Cortar el pan de molde por la mitad.'),
+(3, 1, 1, 3, 'Lavar y cortar la lechuga y el tomate.'),
+(4, 1, 1, 4, 'Armar el sándwich con el pollo, lechuga y tomate.'),
+(5, 1, 2, 1, 'Lavar la lechuga y el tomate.'),
+(6, 1, 2, 2, 'Cortar en trozos y mezclar con aderezo.'),
+(7, 1, 3, 1, 'Sazonar la pechuga de pollo.'),
+(8, 1, 3, 2, 'Calentar la plancha con aceite.'),
+(9, 1, 3, 3, 'Cocinar el pollo por ambos lados hasta dorar.'),
+(10, 1, 4, 1, 'Mezclar harina, azúcar y huevos.'),
+(11, 1, 4, 2, 'Batir hasta obtener masa homogénea.'),
+(12, 1, 4, 3, 'Hornear a 180°C por 40 minutos.'),
+(13, 1, 5, 1, 'Exprimir las naranjas.'),
+(14, 1, 5, 2, 'Endulzar al gusto y servir frío.');
 
--- ✅ Historial de cambio de estado (CORREGIDO: compra_pendiente)
-INSERT INTO catering_evento_historial 
-(id_empresa, id_evento, estado_anterior, estado_nuevo, id_usuario, observaciones)
-VALUES 
-(1, @evento_id, NULL, 'compra_pendiente', @usuario_catering, 'Venta creada, enviada a almacén');
+-- =====================================================
+-- 23. INGREDIENTE - PROVEEDORES
+-- =====================================================
+INSERT INTO ingrediente_proveedores (id, id_empresa, id_ingrediente, id_proveedor) VALUES
+(1, 1, 1, 7),
+(2, 1, 2, 6),
+(3, 1, 3, 8),
+(4, 1, 4, 6),
+(5, 1, 5, 6),
+(6, 1, 6, 8),
+(7, 1, 7, 8),
+(8, 1, 8, 8),
+(9, 1, 9, 6),
+(10, 1, 10, 7);
 
--- ✅ Etapa 1: Verificación de almacén (pendiente)
-INSERT INTO catering_evento_etapas 
-(id_empresa, id_evento, etapa, tiempo_estimado_min)
-VALUES 
-(1, @evento_id, 'verificacion_almacen', 20);
+-- =====================================================
+-- 24. PRODUCTOS CARTA
+-- =====================================================
+INSERT INTO catering_service_productos_carta (id, id_tipo_servicio, id_receta, precio) VALUES
+(1, 1, 1, 6.00),
+(2, 1, 5, 4.00),
+(3, 2, 1, 6.00),
+(4, 2, 2, 5.00),
+(5, 2, 3, 18.00),
+(6, 2, 4, 7.00),
+(7, 3, 3, 20.00),
+(8, 3, 2, 6.00),
+(9, 4, 1, 5.50),
+(10, 4, 4, 6.50),
+(11, 5, 3, 17.00),
+(12, 5, 2, 5.00);
 
--- ✅ Etapas 2-7: Todas las etapas creadas desde el inicio
-INSERT INTO catering_evento_etapas 
-(id_empresa, id_evento, etapa, tiempo_estimado_min)
-VALUES 
-(1, @evento_id, 'preparacion_cocina', 90),
-(1, @evento_id, 'carga_transporte', 30),
-(1, @evento_id, 'montaje_evento', 45),
-(1, @evento_id, 'recojo_evento', 30),
-(1, @evento_id, 'retorno_empresa', 15),
-(1, @evento_id, 'cierre', 5);
+-- =====================================================
+-- 25. CATÁLOGO MATERIALES
+-- =====================================================
+INSERT INTO catering_materiales_catalogo (id, nombre, precio) VALUES
+(1, 'Mesa Plegable', 35.00),
+(2, 'Silla de Plástico', 8.00),
+(3, 'Mantelería Completa', 20.00),
+(4, 'Vajilla Completa (plato, cubiertos, vaso)', 15.00),
+(5, 'Carpa 3x3', 120.00);
 
--- ✅ Checklist específico de almacén
+-- =====================================================
+-- 26. EVENTOS CATERING
+-- =====================================================
+INSERT INTO catering_eventos (id, id_empresa, id_venta, fecha_evento, horario, personas, tipo_desayuno, direccion, referencia, incluir_mozo, cantidad_mozos, precio_mozo, subtotal_mozo, estado_flujo, estado_actualizado_por, estado_actualizado_at, observaciones) VALUES
+(1, 1, 1, '2024-07-20', '08:00:00', 50, 'Americano', 'Av. Javier Prado 1234, San Isidro', 'Frente al parque central', 1, 3, 100.00, 300.00, 'en_evento', 3, '2024-07-20 08:30:00', 'Evento corporativo, ingreso por puerta lateral'),
+(2, 1, 2, '2024-07-25', '12:00:00', 100, NULL, 'Calle Los Olivos 456, Miraflores', 'Edificio azul, piso 2', 1, 5, 100.00, 500.00, 'en_preparacion', 3, '2024-07-24 09:00:00', 'Almuerzo de aniversario empresarial'),
+(3, 1, 3, '2024-08-01', '19:00:00', 30, NULL, 'Av. Larco 789, Barranco', 'Casa de campo', 0, 0, 100.00, 0.00, 'pendiente_verificacion', NULL, NULL, 'Cena familiar'),
+(4, 1, 4, '2024-08-10', '07:30:00', 80, 'Buffet', 'Jr. Puno 321, Cercado de Lima', 'Local institucional', 1, 4, 100.00, 400.00, 'compra_pendiente', 4, '2024-08-05 10:00:00', 'Desayuno para colaboradores'),
+(5, 1, 5, '2024-08-15', '18:00:00', 25, NULL, 'Av. Arequipa 567, Lince', 'Segundo piso', 0, 0, 100.00, 0.00, 'cerrado', 1, '2024-08-15 22:00:00', 'Evento concluido satisfactoriamente');
+
+-- =====================================================
+-- 27. SERVICIOS CATERING VENTAS
+-- =====================================================
+INSERT INTO catering_service_ventas (id, id_empresa, id_venta, id_tipo_servicio, subtotal_servicio) VALUES
+(1, 1, 1, 1, 350.00),
+(2, 1, 2, 2, 1200.00),
+(3, 1, 3, 3, 320.00),
+(4, 1, 4, 1, 800.00),
+(5, 1, 5, 3, 250.00);
+
+-- =====================================================
+-- 28. DETALLE SERVICIOS CATERING
+-- =====================================================
+INSERT INTO catering_service_detalle (id, id_empresa, id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal) VALUES
+(1, 1, 1, 1, 30, 6.00, 180.00),   -- Desayuno: 30 sándwiches
+(2, 1, 1, 2, 25, 4.00, 100.00),   -- Desayuno: 25 jugos
+(3, 1, 2, 3, 50, 6.00, 300.00),   -- Almuerzo: 50 sándwiches
+(4, 1, 2, 4, 50, 5.00, 250.00),   -- Almuerzo: 50 ensaladas
+(5, 1, 2, 5, 40, 18.00, 720.00),  -- Almuerzo: 40 pollos
+(6, 1, 2, 6, 30, 7.00, 210.00),   -- Almuerzo: 30 queques (postre)
+(7, 1, 3, 7, 20, 20.00, 400.00),  -- Cena: 20 pollos
+(8, 1, 3, 8, 20, 6.00, 120.00),   -- Cena: 20 ensaladas
+(9, 1, 4, 1, 50, 6.00, 300.00),   -- Desayuno: 50 sándwiches
+(10, 1, 4, 2, 60, 4.00, 240.00),  -- Desayuno: 60 jugos
+(11, 1, 5, 7, 15, 20.00, 300.00), -- Cena: 15 pollos
+(12, 1, 5, 8, 10, 6.00, 60.00);   -- Cena: 10 ensaladas
+
+-- =====================================================
+-- 29. MATERIALES VENTA CATERING
+-- =====================================================
+INSERT INTO catering_materiales_venta (id, id_empresa, id_venta, id_material_catalogo, cantidad, precio_unitario, subtotal) VALUES
+(1, 1, 1, 1, 10, 35.00, 350.00),   -- Mesas para evento 1
+(2, 1, 1, 2, 50, 8.00, 400.00),    -- Sillas para evento 1
+(3, 1, 2, 1, 20, 35.00, 700.00),   -- Mesas para evento 2
+(4, 1, 2, 2, 100, 8.00, 800.00),   -- Sillas para evento 2
+(5, 1, 2, 4, 100, 15.00, 1500.00), -- Vajilla para evento 2
+(6, 1, 3, 1, 6, 35.00, 210.00),    -- Mesas para evento 3
+(7, 1, 3, 2, 30, 8.00, 240.00),    -- Sillas para evento 3
+(8, 1, 4, 5, 2, 120.00, 240.00),   -- Carpas para evento 4
+(9, 1, 4, 3, 10, 20.00, 200.00),   -- Mantelería para evento 4
+(10, 1, 5, 1, 4, 35.00, 140.00);   -- Mesas para evento 5
+
+-- =====================================================
+-- 30. DEVOLUCIONES CATERING
+-- =====================================================
+INSERT INTO catering_devoluciones (id, id_empresa, id_venta, fecha, id_usuario, motivo, nota_credito, monto) VALUES
+(1, 1, 6, '2024-07-06 10:30:00', 1, 'Cliente canceló el evento por motivos personales', 'NC-CAT-0001', 708.00),
+(2, 1, 5, '2024-08-16 09:00:00', 2, 'Devolución parcial por 5 sillas dañadas', 'NC-CAT-0002', 40.00);
+
+-- =====================================================
+-- 31. DETALLE DEVOLUCIONES CATERING
+-- =====================================================
+INSERT INTO catering_detalle_devolucion (id, id_empresa, id_devolucion, tipo_item, id_item, cantidad, monto) VALUES
+(1, 1, 1, 'servicio', 5, 1, 250.00),     -- Devolución total servicio de cena venta 6
+(2, 1, 1, 'material', 10, 4, 140.00),    -- Devolución de 4 mesas
+(3, 1, 2, 'material', 2, 5, 40.00);      -- Devolución de 5 sillas
+
+-- =====================================================
+-- 32. HISTORIAL DE ESTADOS DEL EVENTO
+-- =====================================================
+INSERT INTO catering_evento_historial (id, id_empresa, id_evento, estado_anterior, estado_nuevo, id_usuario, observaciones, created_at) VALUES
+-- Evento 1 (en_evento)
+(1, 1, 1, NULL, 'pendiente_verificacion', 4, 'Evento creado y pendiente de verificación de stock', '2024-07-15 09:00:00'),
+(2, 1, 1, 'pendiente_verificacion', 'compra_pendiente', 4, 'Faltan insumos: se requiere compra de pollo y tomate', '2024-07-16 10:00:00'),
+(3, 1, 1, 'compra_pendiente', 'en_preparacion', 3, 'Insumos completos, inicia preparación en cocina', '2024-07-19 07:00:00'),
+(4, 1, 1, 'en_preparacion', 'listo_para_envio', 3, 'Preparación completa, listo para cargar', '2024-07-20 06:00:00'),
+(5, 1, 1, 'listo_para_envio', 'en_transito', 5, 'Carga subida al vehículo, en camino', '2024-07-20 07:00:00'),
+(6, 1, 1, 'en_transito', 'en_evento', 5, 'Llegada al local y montaje completado', '2024-07-20 08:30:00'),
+-- Evento 2 (en_preparacion)
+(7, 1, 2, NULL, 'pendiente_verificacion', 4, 'Evento creado', '2024-07-20 10:00:00'),
+(8, 1, 2, 'pendiente_verificacion', 'en_preparacion', 3, 'Stock verificado, inicia cocina', '2024-07-24 09:00:00'),
+-- Evento 3 (pendiente_verificacion)
+(9, 1, 3, NULL, 'pendiente_verificacion', 4, 'Evento creado, esperando verificación', '2024-07-25 15:00:00'),
+-- Evento 4 (compra_pendiente)
+(10, 1, 4, NULL, 'pendiente_verificacion', 4, 'Evento creado', '2024-08-01 08:00:00'),
+(11, 1, 4, 'pendiente_verificacion', 'compra_pendiente', 4, 'Faltan 2 carpas y mantelería', '2024-08-05 10:00:00'),
+-- Evento 5 (cerrado)
+(12, 1, 5, NULL, 'pendiente_verificacion', 4, 'Evento creado', '2024-08-10 11:00:00'),
+(13, 1, 5, 'pendiente_verificacion', 'en_preparacion', 3, 'Inicio de preparación', '2024-08-14 16:00:00'),
+(14, 1, 5, 'en_preparacion', 'listo_para_envio', 3, 'Listo para enviar', '2024-08-15 16:00:00'),
+(15, 1, 5, 'listo_para_envio', 'en_transito', 5, 'En camino al evento', '2024-08-15 17:00:00'),
+(16, 1, 5, 'en_transito', 'en_evento', 5, 'Evento iniciado', '2024-08-15 18:00:00'),
+(17, 1, 5, 'en_evento', 'en_retorno', 5, 'Recojo de materiales completado', '2024-08-15 21:00:00'),
+(18, 1, 5, 'en_retorno', 'retornado', 5, 'Llegada a empresa con materiales', '2024-08-15 21:45:00'),
+(19, 1, 5, 'retornado', 'cerrado', 1, 'Evento cerrado y conciliado', '2024-08-15 22:00:00');
+
+-- =====================================================
+-- 33. ETAPAS DEL EVENTO (TIEMPOS AUTOMÁTICOS)
+-- =====================================================
+INSERT INTO catering_evento_etapas (id, id_empresa, id_evento, etapa, hora_inicio, hora_fin, duracion_real_min, tiempo_estimado_min, completada, id_usuario_inicio, id_usuario_fin, observaciones) VALUES
+-- Evento 1 (en_evento - etapas 1 a 4 completas, 5 en curso)
+(1, 1, 1, 'verificacion_almacen', '2024-07-15 09:00:00', '2024-07-15 10:30:00', 90, 60, 1, 4, 4, 'Verificación de stock completada'),
+(2, 1, 1, 'preparacion_cocina', '2024-07-19 07:00:00', '2024-07-20 06:00:00', 1380, 1200, 1, 3, 3, 'Preparación de 30 sándwiches y 25 jugos'),
+(3, 1, 1, 'carga_transporte', '2024-07-20 06:00:00', '2024-07-20 06:45:00', 45, 30, 1, 5, 5, 'Carga completa'),
+(4, 1, 1, 'montaje_evento', '2024-07-20 07:30:00', '2024-07-20 08:30:00', 60, 45, 1, 5, 5, 'Montaje de mesas y sillas'),
+(5, 1, 1, 'recojo_evento', NULL, NULL, NULL, 45, 0, NULL, NULL, NULL),
+(6, 1, 1, 'retorno_empresa', NULL, NULL, NULL, 30, 0, NULL, NULL, NULL),
+(7, 1, 1, 'cierre', NULL, NULL, NULL, 20, 0, NULL, NULL, NULL),
+-- Evento 2 (en_preparacion - etapa 1 completa, 2 en curso)
+(8, 1, 2, 'verificacion_almacen', '2024-07-20 10:00:00', '2024-07-20 11:00:00', 60, 90, 1, 4, 4, 'Stock verificado'),
+(9, 1, 2, 'preparacion_cocina', '2024-07-24 09:00:00', NULL, NULL, 1800, 0, 3, NULL, 'En preparación'),
+(10, 1, 2, 'carga_transporte', NULL, NULL, NULL, 60, 0, NULL, NULL, NULL),
+(11, 1, 2, 'montaje_evento', NULL, NULL, NULL, 90, 0, NULL, NULL, NULL),
+(12, 1, 2, 'recojo_evento', NULL, NULL, NULL, 60, 0, NULL, NULL, NULL),
+(13, 1, 2, 'retorno_empresa', NULL, NULL, NULL, 30, 0, NULL, NULL, NULL),
+(14, 1, 2, 'cierre', NULL, NULL, NULL, 20, 0, NULL, NULL, NULL),
+-- Evento 3 (solo etapa 1 abierta)
+(15, 1, 3, 'verificacion_almacen', NULL, NULL, NULL, 45, 0, NULL, NULL, NULL),
+(16, 1, 3, 'preparacion_cocina', NULL, NULL, NULL, 600, 0, NULL, NULL, NULL),
+(17, 1, 3, 'carga_transporte', NULL, NULL, NULL, 30, 0, NULL, NULL, NULL),
+(18, 1, 3, 'montaje_evento', NULL, NULL, NULL, 45, 0, NULL, NULL, NULL),
+(19, 1, 3, 'recojo_evento', NULL, NULL, NULL, 30, 0, NULL, NULL, NULL),
+(20, 1, 3, 'retorno_empresa', NULL, NULL, NULL, 30, 0, NULL, NULL, NULL),
+(21, 1, 3, 'cierre', NULL, NULL, NULL, 20, 0, NULL, NULL, NULL),
+-- Evento 4 (compra_pendiente - solo etapa 1 completa)
+(22, 1, 4, 'verificacion_almacen', '2024-08-01 08:00:00', '2024-08-05 10:00:00', 5880, 90, 1, 4, 4, 'Verificación con compras pendientes'),
+(23, 1, 4, 'preparacion_cocina', NULL, NULL, NULL, 1200, 0, NULL, NULL, NULL),
+(24, 1, 4, 'carga_transporte', NULL, NULL, NULL, 45, 0, NULL, NULL, NULL),
+(25, 1, 4, 'montaje_evento', NULL, NULL, NULL, 60, 0, NULL, NULL, NULL),
+(26, 1, 4, 'recojo_evento', NULL, NULL, NULL, 45, 0, NULL, NULL, NULL),
+(27, 1, 4, 'retorno_empresa', NULL, NULL, NULL, 30, 0, NULL, NULL, NULL),
+(28, 1, 4, 'cierre', NULL, NULL, NULL, 20, 0, NULL, NULL, NULL),
+-- Evento 5 (cerrado - todas completas)
+(29, 1, 5, 'verificacion_almacen', '2024-08-10 11:00:00', '2024-08-10 12:00:00', 60, 45, 1, 4, 4, 'OK'),
+(30, 1, 5, 'preparacion_cocina', '2024-08-14 16:00:00', '2024-08-15 16:00:00', 1440, 900, 1, 3, 3, 'Preparación completa'),
+(31, 1, 5, 'carga_transporte', '2024-08-15 16:00:00', '2024-08-15 17:00:00', 60, 30, 1, 5, 5, 'Carga completa'),
+(32, 1, 5, 'montaje_evento', '2024-08-15 17:00:00', '2024-08-15 18:00:00', 60, 45, 1, 5, 5, 'Montaje listo'),
+(33, 1, 5, 'recojo_evento', '2024-08-15 20:00:00', '2024-08-15 21:00:00', 60, 30, 1, 5, 5, 'Recojo completo'),
+(34, 1, 5, 'retorno_empresa', '2024-08-15 21:00:00', '2024-08-15 21:45:00', 45, 30, 1, 5, 5, 'Llegada a almacén'),
+(35, 1, 5, 'cierre', '2024-08-15 21:45:00', '2024-08-15 22:00:00', 15, 20, 1, 1, 1, 'Cierre administrativo');
+
+-- =====================================================
+-- 34. CHECKLIST ESPECÍFICO DEL EVENTO
+-- =====================================================
 INSERT INTO catering_evento_checklist 
-(id_empresa, id_evento, etapa, item, categoria, tipo_referencia, 
- cantidad_requerida, unidad, cantidad_stock, cantidad_faltante, proveedores, orden)
-VALUES 
-(1, @evento_id, 'verificacion_almacen', 'Pan', 'ingrediente', 'ingrediente',
-    2, 'unidades', 30, 0, 
-    JSON_ARRAY('Panadería Central - 995123456'), 1),
-(1, @evento_id, 'verificacion_almacen', 'Jamón', 'ingrediente', 'ingrediente',
-    0.05, 'kg', 5, 0, 
-    JSON_ARRAY('Carnes Premium - 995345678'), 2),
-(1, @evento_id, 'verificacion_almacen', 'Queso', 'ingrediente', 'ingrediente',
-    0.04, 'kg', 3, 0, 
-    JSON_ARRAY('Lácteos Andinos - 995456789'), 3),
-(1, @evento_id, 'verificacion_almacen', 'Café en grano', 'ingrediente', 'ingrediente',
-    0.02, 'kg', 1, 0, 
-    JSON_ARRAY('Café Altura - 998765432'), 4),
-(1, @evento_id, 'verificacion_almacen', 'Plato Cerámico (x10)', 'material', 'material',
-    2, 'unidades', 10, 0, 
-    JSON_ARRAY('Proveedor de materiales - 999888777'), 5),
-(1, @evento_id, 'verificacion_almacen', 'Cubiertos Acero (set x20)', 'material', 'material',
-    1, 'set', 5, 0, 
-    JSON_ARRAY('Proveedor de materiales - 999888777'), 6);
+(id, id_empresa, id_evento, etapa, item, categoria, id_referencia, tipo_referencia, cantidad_requerida, cantidad_real, unidad, cantidad_stock, cantidad_faltante, estado_compra, id_gasto, proveedores, verificado, verificado_por, verificado_at, tiene_incidencia, descripcion_incidencia, orden) 
+VALUES
+-- Evento 1 - verificacion_almacen (completado)
+(1, 1, 1, 'verificacion_almacen', 'Sándwich de Pollo x30', 'entrada', 1, 'producto_carta', 30.00, 30.00, 'unidad', 30.00, 0.00, 'en_almacen', NULL, JSON_ARRAY(JSON_OBJECT('nombre','Carnes Premium','telefono','988333444')), 1, 4, '2024-07-15 10:00:00', 0, NULL, 1),
+(2, 1, 1, 'verificacion_almacen', 'Jugo de Naranja x25', 'bebida', 2, 'producto_carta', 25.00, 25.00, 'unidad', 25.00, 0.00, 'en_almacen', NULL, NULL, 1, 4, '2024-07-15 10:10:00', 0, NULL, 2),
+(3, 1, 1, 'verificacion_almacen', 'Pechuga de Pollo', 'ingrediente', 1, 'ingrediente', 3.00, 3.00, 'kg', 30.00, 0.00, 'en_almacen', NULL, NULL, 1, 4, '2024-07-15 10:15:00', 0, NULL, 3),
+(4, 1, 1, 'verificacion_almacen', 'Mesa Plegable', 'material', 1, 'material', 10.00, 10.00, 'unidad', 15.00, 0.00, 'en_almacen', NULL, NULL, 1, 4, '2024-07-15 10:20:00', 0, NULL, 4),
+-- Evento 2 - verificacion_almacen
+(5, 1, 2, 'verificacion_almacen', 'Sándwich de Pollo x50', 'entrada', 3, 'producto_carta', 50.00, 50.00, 'unidad', 50.00, 0.00, 'en_almacen', NULL, NULL, 1, 4, '2024-07-20 10:30:00', 0, NULL, 1),
+(6, 1, 2, 'verificacion_almacen', 'Pollo a la Plancha x40', 'plato_principal', 5, 'producto_carta', 40.00, 35.00, 'unidad', 35.00, 5.00, 'comprar', NULL, JSON_ARRAY(JSON_OBJECT('nombre','Carnes Premium','telefono','988333444')), 1, 4, '2024-07-20 10:40:00', 1, 'Faltaron 5 porciones de pollo', 2),
+(7, 1, 2, 'verificacion_almacen', 'Vajilla Completa', 'material', 4, 'material', 100.00, 100.00, 'unidad', 100.00, 0.00, 'en_almacen', NULL, NULL, 1, 4, '2024-07-20 10:45:00', 0, NULL, 3),
+(8, 1, 2, 'verificacion_almacen', 'Silla de Plástico', 'material', 2, 'material', 100.00, 100.00, 'unidad', 120.00, 0.00, 'en_almacen', NULL, NULL, 1, 4, '2024-07-20 10:50:00', 0, NULL, 4),
+-- Evento 3 - pendiente
+(9, 1, 3, 'verificacion_almacen', 'Pollo a la Plancha x20', 'plato_principal', 7, 'producto_carta', 20.00, NULL, 'unidad', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 0, NULL, 1),
+(10, 1, 3, 'verificacion_almacen', 'Mesa Plegable', 'material', 1, 'material', 6.00, NULL, 'unidad', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 0, NULL, 2),
+-- Evento 4 - compra_pendiente
+(11, 1, 4, 'verificacion_almacen', 'Carpa 3x3', 'material', 5, 'material', 2.00, 0.00, 'unidad', 0.00, 2.00, 'comprar', 3, JSON_ARRAY(JSON_OBJECT('nombre','Eventos y Carpas SAC','telefono','988777888')), 1, 4, '2024-08-05 10:00:00', 1, 'No hay carpas en stock, se compran', 1),
+(12, 1, 4, 'verificacion_almacen', 'Mantelería Completa', 'material', 3, 'material', 10.00, 8.00, 'unidad', 8.00, 2.00, 'comprar', 4, NULL, 1, 4, '2024-08-05 10:10:00', 1, 'Faltan 2 mantelerías', 2),
+(13, 1, 4, 'verificacion_almacen', 'Sándwich de Pollo x50', 'entrada', 1, 'producto_carta', 50.00, 50.00, 'unidad', 50.00, 0.00, 'en_almacen', NULL, NULL, 1, 4, '2024-08-05 10:20:00', 0, NULL, 3),
+-- Evento 5 - cerrado (completado)
+(14, 1, 5, 'verificacion_almacen', 'Pollo a la Plancha x15', 'plato_principal', 7, 'producto_carta', 15.00, 15.00, 'unidad', 15.00, 0.00, 'en_almacen', NULL, NULL, 1, 4, '2024-08-10 11:30:00', 0, NULL, 1),
+(15, 1, 5, 'verificacion_almacen', 'Mesa Plegable', 'material', 1, 'material', 4.00, 4.00, 'unidad', 4.00, 0.00, 'en_almacen', NULL, NULL, 1, 4, '2024-08-10 11:35:00', 0, NULL, 2),
+(16, 1, 5, 'preparacion_cocina', 'Pollo a la Plancha x15', 'plato_principal', 7, 'producto_carta', 15.00, 15.00, 'unidad', 15.00, 0.00, NULL, NULL, NULL, 1, 3, '2024-08-15 15:00:00', 0, NULL, 3),
+(17, 1, 5, 'carga_transporte', 'Mesa Plegable', 'material', 1, 'material', 4.00, 4.00, 'unidad', 4.00, 0.00, NULL, NULL, NULL, 1, 5, '2024-08-15 16:30:00', 0, NULL, 4),
+(18, 1, 5, 'montaje_evento', 'Silla de Plástico', 'material', 2, 'material', 25.00, 25.00, 'unidad', 25.00, 0.00, NULL, NULL, NULL, 1, 5, '2024-08-15 17:30:00', 0, NULL, 5),
+(19, 1, 5, 'recojo_evento', 'Mesa Plegable', 'material', 1, 'material', 4.00, 4.00, 'unidad', 4.00, 0.00, NULL, NULL, NULL, 1, 5, '2024-08-15 20:30:00', 0, NULL, 6),
+(20, 1, 5, 'recojo_evento', 'Silla de Plástico', 'material', 2, 'material', 25.00, 24.00, 'unidad', 24.00, 1.00, NULL, NULL, NULL, 1, 5, '2024-08-15 20:45:00', 1, 'Se perdió 1 silla', 7),
+(21, 1, 5, 'retorno_empresa', 'Mesa Plegable', 'material', 1, 'material', 4.00, 4.00, 'unidad', 4.00, 0.00, NULL, NULL, NULL, 1, 5, '2024-08-15 21:30:00', 0, NULL, 8),
+(22, 1, 5, 'cierre', 'Conciliación final evento 5', 'otro', NULL, NULL, 1.00, 1.00, 'unidad', NULL, NULL, NULL, NULL, NULL, 1, 1, '2024-08-15 22:00:00', 0, NULL, 9);
 
 -- =====================================================
--- 19. SERVICIOS Y PRODUCTOS DE LA VENTA
+-- 35. INCIDENCIAS DEL EVENTO
 -- =====================================================
-
--- Servicio Corporativo
-INSERT INTO catering_service_ventas (id_empresa, id_venta, id_tipo_servicio, subtotal_servicio)
-VALUES (1, @venta_cat, 1, 0.00);
-SET @serv_cat_1 = LAST_INSERT_ID();
-
-INSERT INTO catering_service_detalle (id_empresa, id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal)
-VALUES 
-(1, @serv_cat_1, 
-    (SELECT pc.id FROM catering_service_productos_carta pc 
-     JOIN recetas r ON pc.id_receta = r.id 
-     WHERE r.nombre = 'Sándwich Premium' AND pc.id_tipo_servicio = 1 LIMIT 1),
-    10, 18.00, 180.00),
-(1, @serv_cat_1, 
-    (SELECT pc.id FROM catering_service_productos_carta pc 
-     JOIN recetas r ON pc.id_receta = r.id 
-     WHERE r.nombre = 'Café Americano' AND pc.id_tipo_servicio = 1 LIMIT 1),
-    15, 7.00, 105.00);
-
-UPDATE catering_service_ventas SET subtotal_servicio = 285.00 WHERE id = @serv_cat_1;
-
--- Servicio Social
-INSERT INTO catering_service_ventas (id_empresa, id_venta, id_tipo_servicio, subtotal_servicio)
-VALUES (1, @venta_cat, 2, 0.00);
-SET @serv_cat_2 = LAST_INSERT_ID();
-
-INSERT INTO catering_service_detalle (id_empresa, id_service_venta, id_producto_carta, cantidad, precio_unitario, subtotal)
-VALUES 
-(1, @serv_cat_2, 
-    (SELECT pc.id FROM catering_service_productos_carta pc 
-     JOIN recetas r ON pc.id_receta = r.id 
-     WHERE r.nombre = 'Mini Hamburguesas' AND pc.id_tipo_servicio = 2 LIMIT 1),
-    8, 15.00, 120.00),
-(1, @serv_cat_2, 
-    (SELECT pc.id FROM catering_service_productos_carta pc 
-     JOIN recetas r ON pc.id_receta = r.id 
-     WHERE r.nombre = 'Brochetas de Pollo' AND pc.id_tipo_servicio = 2 LIMIT 1),
-    10, 20.00, 200.00);
-
-UPDATE catering_service_ventas SET subtotal_servicio = 320.00 WHERE id = @serv_cat_2;
-
--- Materiales
-INSERT INTO catering_materiales_venta (id_empresa, id_venta, id_material_catalogo, cantidad, precio_unitario, subtotal)
-VALUES 
-(1, @venta_cat, 1, 2, 45.00, 90.00),
-(1, @venta_cat, 3, 1, 35.00, 35.00);
-
--- Calcular totales
-SET @subtotal_cat = (SELECT COALESCE(SUM(subtotal_servicio),0) FROM catering_service_ventas WHERE id_venta = @venta_cat)
-                  + (SELECT COALESCE(SUM(subtotal),0) FROM catering_materiales_venta WHERE id_venta = @venta_cat)
-                  + (SELECT COALESCE(subtotal_mozo,0) FROM catering_eventos WHERE id_venta = @venta_cat);
-
-SET @igv_cat = @subtotal_cat * 0.18;
-SET @total_cat = @subtotal_cat + @igv_cat;
-
-UPDATE ventas 
-SET subtotal = @subtotal_cat,
-    igv = @igv_cat,
-    total = @total_cat
-WHERE id = @venta_cat;
-
--- Historial y actividad
-INSERT INTO historial (entidad, id_entidad, accion, descripcion, usuario)
-VALUES ('ventas', @venta_cat, 'CREACIÓN', 'Venta de catering creada', 'admin');
-
-INSERT INTO actividad (modulo, accion, detalle, usuario)
-VALUES ('catering', 'VENTA', CONCAT('Venta ', (SELECT numero FROM ventas WHERE id = @venta_cat), ' - Total S/', @total_cat), 'admin');
+INSERT INTO catering_evento_incidencias 
+(id, id_empresa, id_evento, etapa, id_checklist_item, tipo, severidad, cantidad_afectada, descripcion, impacto, estado, resolucion, resuelto_por, resuelto_at, id_usuario, created_at) 
+VALUES
+(1, 1, 1, 'preparacion_cocina', 1, 'retraso', 'baja', NULL, 'La cocina tardó 15 minutos más de lo previsto en preparar los sándwiches', 'Retraso en el cronograma, se compensó en el montaje', 'resuelta', 'Se ajustaron tiempos del resto de la preparación', 3, '2024-07-20 06:30:00', 3, '2024-07-20 05:45:00'),
+(2, 1, 2, 'verificacion_almacen', 6, 'falta_stock', 'media', 5.00, 'Faltaron 5 porciones de pollo para el evento', 'Se compró pollo adicional a proveedor', 'en_revision', NULL, NULL, NULL, 4, '2024-07-20 10:45:00'),
+(3, 1, 4, 'verificacion_almacen', 11, 'falta_stock', 'alta', 2.00, 'No hay carpas en stock para el evento', 'Se requiere compra urgente', 'abierta', NULL, NULL, NULL, 4, '2024-08-05 10:15:00'),
+(4, 1, 5, 'recojo_evento', 20, 'perdida', 'baja', 1.00, 'Se perdió 1 silla durante el recojo del evento', 'Pérdida de S/ 8.00', 'resuelta', 'Se descontó del inventario y se registró como gasto', 1, '2024-08-15 22:00:00', 5, '2024-08-15 20:50:00'),
+(5, 1, 5, 'montaje_evento', 18, 'producto_defectuoso', 'media', 2.00, 'Dos sillas llegaron con patas flojas', 'Se reemplazaron por sillas de reserva', 'resuelta', 'Se reemplazaron y se reportó al almacén', 4, '2024-08-15 18:00:00', 5, '2024-08-15 17:45:00');
 
 -- =====================================================
--- VERIFICACIÓN FINAL
+-- 36. PREPARACIÓN DE RECETAS (COCINA)
 -- =====================================================
-SELECT etapa, hora_inicio, hora_fin, tiempo_estimado_min, completada
-FROM catering_evento_etapas WHERE id_evento = @evento_id;
+INSERT INTO catering_evento_preparacion 
+(id, id_empresa, id_evento, item, hora_inicio, hora_fin, duracion_real_min, iniciado_por, finalizado_por, estado, observaciones) 
+VALUES
+-- Evento 1
+(1, 1, 1, 'Sándwich Premium x30', '2024-07-19 07:00:00', '2024-07-19 09:00:00', 120, 3, 3, 'completado', 'Preparación sin novedades'),
+(2, 1, 1, 'Jugo de Naranja x25', '2024-07-19 09:00:00', '2024-07-19 10:00:00', 60, 3, 3, 'completado', 'Se exprimieron 30 naranjas'),
+(3, 1, 1, 'Ensalada Fresca x20', '2024-07-19 10:00:00', '2024-07-19 10:45:00', 45, 3, 3, 'completado', NULL),
+-- Evento 2
+(4, 1, 2, 'Sándwich de Pollo x50', '2024-07-24 09:00:00', NULL, NULL, 3, NULL, 'en_progreso', 'Iniciado, en proceso'),
+(5, 1, 2, 'Pollo a la Plancha x40', '2024-07-24 10:00:00', NULL, NULL, 3, NULL, 'en_progreso', 'A la espera de compra de pollo'),
+-- Evento 5 (completado)
+(6, 1, 5, 'Pollo a la Plancha x15', '2024-08-15 10:00:00', '2024-08-15 12:00:00', 120, 3, 3, 'completado', 'Sin novedades'),
+(7, 1, 5, 'Ensalada Fresca x10', '2024-08-15 12:00:00', '2024-08-15 12:45:00', 45, 3, 3, 'completado', NULL);
 
-SELECT * FROM catering_evento_checklist;
-SELECT * FROM catering_evento_etapas;
-SELECT * FROM catering_evento_preparacion;
-SELECT * FROM catering_evento_gastos;
-SELECT * FROM personas;
+-- =====================================================
+-- 37. GASTOS / EGRESOS DEL EVENTO (continuación)
+-- =====================================================
+INSERT INTO catering_evento_gastos 
+(id, id_empresa, id_evento, id_checklist_item, categoria, etapa, descripcion, cantidad, unidad, precio_unitario, subtotal, id_proveedor, tiene_factura, numero_factura, fecha_gasto, observaciones, registrado_por) 
+VALUES
+-- Evento 4 (continuación de compras)
+(5, 1, 4, 12, 'material', 'verificacion_almacen', 'Compra de 2 mantelerías completas', 2.00, 'unidad', 20.00, 40.00, 8, 1, 'F001-00457', '2024-08-05', 'Compra a Abarrotes El Sol', 4),
+(6, 1, 4, NULL, 'movilidad', 'carga_transporte', 'Flete de carpas y materiales', 1.00, 'servicio', 120.00, 120.00, NULL, 0, NULL, '2024-08-10', 'Flete por carpas grandes', 5),
+(7, 1, 4, NULL, 'mano_obra', 'montaje_evento', 'Pago a mozos por servicio (4 mozos)', 4.00, 'persona', 100.00, 400.00, NULL, 0, NULL, '2024-08-10', 'Servicio de mozos', 1),
+-- Evento 5 (cerrado)
+(8, 1, 5, NULL, 'movilidad', 'carga_transporte', 'Flete de materiales al evento', 1.00, 'servicio', 60.00, 60.00, NULL, 0, NULL, '2024-08-15', 'Flete en camioneta', 5),
+(9, 1, 5, 20, 'otro', 'recojo_evento', 'Pérdida de 1 silla de plástico', 1.00, 'unidad', 8.00, 8.00, NULL, 0, NULL, '2024-08-15', 'Se descuenta del inventario', 1),
+(10, 1, 5, NULL, 'mano_obra', 'cierre', 'Pago a personal de cocina por evento', 2.00, 'persona', 150.00, 300.00, NULL, 1, 'B001-00012', '2024-08-15', 'Boleta de honorarios', 1),
+(11, 1, 5, NULL, 'ingrediente', 'preparacion_cocina', 'Compra de naranjas para jugos', 10.00, 'kg', 2.50, 25.00, 6, 1, 'F001-00458', '2024-08-14', 'Naranjas frescas', 3);
